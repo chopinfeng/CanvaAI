@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
 import { config, envFiles, hasAgent, hasVision } from './config.ts';
-import { closeIdleRooms, getRoom } from './room.ts';
+import { closeIdleRooms, getRoom, saveAllRooms } from './room.ts';
 import { initRasterizer } from './rasterizer.ts';
 
 const server = createServer((req, res) => {
@@ -75,9 +75,18 @@ server.listen(config.port, () => {
   console.log(`[server] 视觉: ${hasVision() ? config.vlm.model : '未启用'}`);
 });
 
+let shuttingDown = false;
 for (const sig of ['SIGINT', 'SIGTERM'] as const) {
   process.on(sig, () => {
-    console.log('\n[server] 正在保存并退出…');
-    void closeIdleRooms().finally(() => process.exit(0));
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log('\n[server] 正在保存所有房间并退出…');
+    // 先停止接受新连接，再保存所有房间（不只是空房间）
+    wss.close();
+    server.close();
+    void saveAllRooms()
+      .then(() => console.log('[server] 已保存'))
+      .catch((e) => console.error('[server] 保存失败', e))
+      .finally(() => process.exit(0));
   });
 }

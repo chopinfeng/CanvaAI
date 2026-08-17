@@ -167,13 +167,13 @@ export class AgentLoop {
             content: `[系统] 本回合工具调用已达上限（${this.opts.maxSteps} 步）。请用 interact_say 向用户汇报当前进度和你打算怎么继续，然后结束本回合。`,
           });
           // 再跑一轮让它有机会说话，但不给工具，避免继续调用
-          const closing = await this.streamOnce(turnId, controller.signal, false);
+          const closing = await this.streamOnce(turnId, controller.signal, false, steps);
           fullText += closing.text;
           break;
         }
 
+        const out = await this.streamOnce(turnId, controller.signal, true, steps);
         steps++;
-        const out = await this.streamOnce(turnId, controller.signal, true);
         fullText += out.text;
 
         if (out.calls.length === 0) break;
@@ -226,6 +226,7 @@ export class AgentLoop {
     turnId: string,
     signal: AbortSignal,
     withTools: boolean,
+    step: number,
   ): Promise<{ text: string; calls: ToolCall[] }> {
     const messages: ChatMessage[] = [
       { role: 'system', content: this.opts.systemPrompt ?? SYSTEM_PROMPT },
@@ -245,7 +246,7 @@ export class AgentLoop {
       switch (chunk.kind) {
         case 'text':
           text += chunk.delta;
-          this.opts.emit({ t: 'agent.text', turnId, delta: chunk.delta });
+          this.opts.emit({ t: 'agent.text', turnId, step, delta: chunk.delta });
           break;
         case 'reasoning':
           // 思维链不进历史：它不该污染下一轮的上下文，也不该击穿缓存
@@ -262,6 +263,8 @@ export class AgentLoop {
     const assistant: ChatMessage = { role: 'assistant', content: text || null };
     if (calls.length > 0) assistant.tool_calls = calls;
     this.history.push(assistant);
+
+    this.opts.emit({ t: 'agent.step', turnId, step, hadTools: calls.length > 0 });
 
     return { text, calls };
   }

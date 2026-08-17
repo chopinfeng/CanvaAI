@@ -149,6 +149,8 @@ export class Scene {
         const layer = input.layer ?? ctx.layer ?? (ctx.author.kind === 'ai' ? 'ai' : 'user');
         const id = input.id ?? newShapeId();
         const shape: Shape = ShapeSchema.parse({
+          x: 0,
+          y: 0,
           rotation: 0,
           style: {},
           meta: {},

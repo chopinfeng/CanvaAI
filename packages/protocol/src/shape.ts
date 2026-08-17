@@ -182,6 +182,17 @@ export const ShapeSchema = z.object({
 export type Shape = z.infer<typeof ShapeSchema>;
 
 /** 工具/客户端创建 shape 时的输入：省略所有由系统填充的字段 */
+/**
+ * 创建图元的输入。
+ *
+ * 坐标约定（这里只有一种写法，没有歧义）：
+ * - 有 points 的图元（line/arrow/polygon/path/freedraw）：**points 直接写画布绝对坐标**，
+ *   x/y 不用填，系统会从 points 推导出原点并转成内部的相对表示。
+ * - 没有 points 的图元（rect/ellipse/text/image）：用 x/y + w/h 定位。
+ *
+ * 早先要求 points 相对于 (x,y)，模型会习惯性地既给绝对 points 又给 x/y，
+ * 结果偏移叠加两次，图形飞到画布外——所以改成单一约定。
+ */
 export const ShapeInputSchema = ShapeSchema.omit({
   id: true,
   author: true,
@@ -190,10 +201,12 @@ export const ShapeInputSchema = ShapeSchema.omit({
   createdAt: true,
   updatedAt: true,
   layer: true,
-}).partial({ rotation: true, style: true, meta: true }).extend({
-  id: z.string().optional(),
-  layer: LayerIdSchema.optional(),
-});
+})
+  .partial({ rotation: true, style: true, meta: true, x: true, y: true })
+  .extend({
+    id: z.string().optional(),
+    layer: LayerIdSchema.optional(),
+  });
 export type ShapeInput = z.infer<typeof ShapeInputSchema>;
 
 /** query 返回的摘要，约 15 token —— 渐进披露的第一级 */

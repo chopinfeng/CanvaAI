@@ -1,5 +1,5 @@
 import { newOpId, rectCenter, round, shapeBounds, unionBounds } from '@canvai/canvas-core';
-import type { LayerId, Point, Rect, SceneDiff, Shape } from '@canvai/protocol';
+import type { LayerId, Point, Rect, SceneDiff, Shape, ShapeInput } from '@canvai/protocol';
 import {
   canvasAlign,
   canvasConnect,
@@ -46,11 +46,11 @@ export const execCreate: ToolExecutor = async (raw, ctx) => {
   if (bad) {
     return err(
       `图元 type=${bad.type} 缺少必要的几何信息`,
-      'rect/ellipse/image 需要 w 和 h；line/arrow/polygon/path 需要至少 2 个 points；text 需要 text 字段。',
+      'rect/ellipse/image 需要 x/y/w/h；line/arrow/polygon/path/freedraw 需要至少 2 个 points（写绝对坐标，不用给 x/y）；text 需要 x/y 和 text 字段。',
     );
   }
 
-  const { ids, diff } = ctx.scene.create(a.shapes, {
+  const { ids, diff } = ctx.scene.create(a.shapes.map(absolutePointsToLocal), {
     author: ctx.author,
     layer,
     ...(a.anim ? {} : {}),
@@ -69,12 +69,46 @@ export const execCreate: ToolExecutor = async (raw, ctx) => {
   );
 };
 
-function isDrawable(s: { type: string; w?: number; h?: number; points?: unknown[]; text?: string }): boolean {
+/**
+ * points 一律按画布绝对坐标接收，这里换算成内部的「原点 + 相对点」表示。
+ *
+ * 内部之所以存相对坐标，是因为拖动图元时只改 x/y 就够了，不用重写整个点序列。
+ * 但让模型去维护这个不变式代价太大——它会既给绝对 points 又给 x/y，
+ * 于是偏移叠加两次。约定收窄到"只写绝对坐标"，换算交给这里。
+ */
+function absolutePointsToLocal(s: ShapeInput): ShapeInput {
+  if (!s.points || s.points.length === 0) return { ...s, x: s.x ?? 0, y: s.y ?? 0 };
+
+  const first = s.points[0]!;
+  const ox = first[0] ?? 0;
+  const oy = first[1] ?? 0;
+
+  return {
+    ...s,
+    x: round(ox, 2),
+    y: round(oy, 2),
+    points: s.points.map((p) => {
+      const rel: [number, number] = [round((p[0] ?? 0) - ox, 2), round((p[1] ?? 0) - oy, 2)];
+      return p.length > 2 ? ([...rel, p[2]] as [number, number, number]) : rel;
+    }),
+  };
+}
+
+function isDrawable(s: {
+  type: string;
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  points?: unknown[];
+  text?: string;
+}): boolean {
+  const placed = typeof s.x === 'number' && typeof s.y === 'number';
   switch (s.type) {
     case 'rect':
     case 'ellipse':
     case 'image':
-      return typeof s.w === 'number' && typeof s.h === 'number' && s.w > 0 && s.h > 0;
+      return placed && typeof s.w === 'number' && typeof s.h === 'number' && s.w > 0 && s.h > 0;
     case 'line':
     case 'arrow':
     case 'polygon':
@@ -83,7 +117,7 @@ function isDrawable(s: { type: string; w?: number; h?: number; points?: unknown[
       return Array.isArray(s.points) && s.points.length >= 2;
     case 'text':
     case 'latex':
-      return typeof s.text === 'string' && s.text.length > 0;
+      return placed && typeof s.text === 'string' && s.text.length > 0;
     default:
       return true;
   }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { nanoid } from 'nanoid';
 import type { Author, ServerMessage } from '@canvai/protocol';
 import { AgentPanel } from './ui/AgentPanel';
+import { ErrorBoundary } from './ui/ErrorBoundary';
 import { Toolbar } from './ui/Toolbar';
 import { CanvasStage } from './canvas/CanvasStage';
 import { Connection } from './net/connection';
@@ -72,11 +73,15 @@ export function App() {
 
       case 'agent.turn.start':
         set({ turnRunning: true });
-        s.pushChat({ id: msg.turnId, role: 'ai', text: '', streaming: true, tools: [] });
+        s.pushChat({ id: msg.turnId, role: 'ai', text: '', streaming: true, steps: [], tools: [] });
         break;
 
       case 'agent.text':
-        s.appendAiText(msg.turnId, msg.delta);
+        s.appendAiText(msg.turnId, msg.step, msg.delta);
+        break;
+
+      case 'agent.step':
+        s.resolveStep(msg.turnId, msg.step, msg.hadTools);
         break;
 
       case 'agent.tool':
@@ -153,7 +158,9 @@ export function App() {
 
   return (
     <div className="app">
-      <CanvasStage conn={conn} me={me} />
+      <ErrorBoundary label="画布">
+        <CanvasStage conn={conn} me={me} />
+      </ErrorBoundary>
       <Toolbar />
       <AgentPanel conn={conn} />
     </div>

@@ -176,7 +176,11 @@ export const canvasCreate = defineTool({
   name: 'canvas_create',
   description:
     '创建图元。一次调用可创建多个，它们共享一个 opId，用户撤销时会一起撤销——所以属于同一个动作的图形请放在一次调用里。' +
-    '默认落在 ai 图层。给 meta.role 和 meta.refs 赋值很重要：那是你下一轮认出自己画过什么的依据。',
+    '默认落在 ai 图层。给 meta.role 和 meta.refs 赋值很重要：那是你下一轮认出自己画过什么的依据。\n' +
+    '坐标写法只有一种，不要混：\n' +
+    '· line/arrow/polygon/path/freedraw —— points 直接写画布绝对坐标，**不要填 x/y**。\n' +
+    '  例：三角形屋顶压在 bbox 为 [320,384,208,160] 的墙上，写 points: [[320,384],[424,300],[528,384]]。\n' +
+    '· rect/ellipse/text/image —— 用 x/y 定左上角，配 w/h（text 用 text 字段）。',
   input: z.object({
     shapes: z.array(ShapeInputSchema).min(1),
     layer: LayerIdSchema.optional().describe('默认 ai；讲解用的辅助线用 annot'),

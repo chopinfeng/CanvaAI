@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { nanoid } from 'nanoid';
 import * as Y from 'yjs';
@@ -130,12 +130,19 @@ export class Room {
   }
 
   leave(socket: WebSocket): void {
-    const client = this.clients.get(socket);
-    this.clients.delete(socket);
-    if (client) {
-      awarenessProtocol.removeAwarenessStates(this.awareness, [...this.awareness.getStates().keys()].filter((k) => k !== AGENT_CLIENT_ID), 'leave');
+    if (!this.clients.delete(socket)) return;
+    // 只摘掉这个连接自己的 awareness 状态。
+    // 早先这里把所有人的状态一起清了——一个人离开，全场光标都消失。
+    const ids = this.awarenessBySocket.get(socket);
+    if (ids && ids.length > 0) {
+      awarenessProtocol.removeAwarenessStates(this.awareness, ids, 'leave');
     }
+    this.awarenessBySocket.delete(socket);
+    void this.save();
   }
+
+  /** 哪个连接带来了哪些 awareness clientID，断开时据此精确清理 */
+  private readonly awarenessBySocket = new Map<WebSocket, number[]>();
 
   get clientCount(): number {
     return this.clients.size;
@@ -161,7 +168,14 @@ export class Room {
 
       case FrameTag.Awareness: {
         const dec = decoding.createDecoder(payload);
+        const before = new Set(this.awareness.getStates().keys());
         awarenessProtocol.applyAwarenessUpdate(this.awareness, decoding.readVarUint8Array(dec), socket);
+        // 记下这条连接引入的 clientID，断开时才知道该清谁
+        const mine = this.awarenessBySocket.get(socket) ?? [];
+        for (const id of this.awareness.getStates().keys()) {
+          if (!before.has(id) && id !== AGENT_CLIENT_ID && !mine.includes(id)) mine.push(id);
+        }
+        this.awarenessBySocket.set(socket, mine);
         break;
       }
 
@@ -317,21 +331,56 @@ export class Room {
     return join(config.dataDir, 'rooms', `${this.id}.ydoc`);
   }
 
+  /**
+   * 原子写：先写临时文件再 rename。
+   *
+   * 直接 writeFile 时，进程在写到一半被杀（重启、Ctrl-C、崩溃）会留下一个截断的文件，
+   * 下次 load 解析失败 → 空文档 → 再存一次就把用户的画彻底覆盖掉。
+   * rename 在同一文件系统内是原子的，快照要么是旧的完整版，要么是新的完整版。
+   */
   async save(): Promise<void> {
+    if (this.loadFailed) {
+      // 上次没读懂磁盘上的快照，绝不能用内存里的空文档去盖掉它
+      return;
+    }
+    const tmp = `${this.file}.${process.pid}.tmp`;
     try {
       await mkdir(dirname(this.file), { recursive: true });
-      await writeFile(this.file, Y.encodeStateAsUpdate(this.doc));
+      await writeFile(tmp, Y.encodeStateAsUpdate(this.doc));
+      await rename(tmp, this.file);
     } catch (e) {
       console.error('[room] 保存失败', e);
+      await rm(tmp, { force: true }).catch(() => {});
     }
   }
 
+  /** 快照存在但读不懂时置位——此后只读不写，等人来处理 */
+  private loadFailed = false;
+
   async load(): Promise<void> {
+    let buf: Buffer;
     try {
-      const buf = await readFile(this.file);
+      buf = await readFile(this.file);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
+        this.loadFailed = true;
+        console.error(`[room] 读取快照失败（不是"文件不存在"），本房间进入只读模式`, e);
+      }
+      return; // 新房间没有快照，正常
+    }
+
+    try {
       Y.applyUpdate(this.doc, new Uint8Array(buf), 'load');
-    } catch {
-      // 新房间，没有快照，正常
+      console.log(`[room] ${this.id}: 已恢复 ${this.scene.size} 个图元`);
+    } catch (e) {
+      // 文件在但解析不了 —— 保留原件，不要静默丢弃用户的内容
+      this.loadFailed = true;
+      const backup = `${this.file}.corrupt.${Date.now()}`;
+      await writeFile(backup, buf).catch(() => {});
+      console.error(
+        `[room] ${this.id}: 快照损坏，已备份到 ${backup}；本房间进入只读模式，不会覆盖磁盘上的文件。`,
+        e,
+      );
     }
   }
 
@@ -363,4 +412,14 @@ export async function closeIdleRooms(): Promise<void> {
       rooms.delete(id);
     }
   }
+}
+
+/**
+ * 退出前保存**所有**房间。
+ *
+ * 之前退出走的是 closeIdleRooms，它只处理没人连着的房间——
+ * 恰恰把正在被使用、最有可能有未落盘改动的那些跳过了。
+ */
+export async function saveAllRooms(): Promise<void> {
+  await Promise.all([...rooms.values()].map((r) => r.save()));
 }

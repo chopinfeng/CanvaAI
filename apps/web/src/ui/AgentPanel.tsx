@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { nanoid } from 'nanoid';
 import type { ToolCallView } from '@canvai/protocol';
 import type { Connection } from '../net/connection';
-import { useStore } from '../store';
+import { answerOf, thinkingOf, useStore } from '../store';
 
 /** 工具名 → 给人看的说法。用户不需要知道函数名。 */
 const TOOL_LABEL: Record<string, string> = {
@@ -121,19 +121,24 @@ export function AgentPanel({ conn }: { conn: Connection }) {
           </div>
         )}
 
-        {chat.map((c) => (
-          <div key={c.id} className={`msg msg-${c.role}`}>
-            {c.tools && c.tools.length > 0 && (
-              <div className="tools">
-                {c.tools.map((t) => (
-                  <ToolChip key={t.id} call={t} />
-                ))}
-              </div>
-            )}
-            {c.text && <div className="bubble">{c.text}</div>}
-            {c.streaming && !c.text && <div className="bubble thinking">…</div>}
-          </div>
-        ))}
+        {chat.map((c) => {
+          const answer = answerOf(c);
+          const thinking = thinkingOf(c);
+          return (
+            <div key={c.id} className={`msg msg-${c.role}`}>
+              {c.tools && c.tools.length > 0 && (
+                <div className="tools">
+                  {c.tools.map((t) => (
+                    <ToolChip key={t.id} call={t} />
+                  ))}
+                </div>
+              )}
+              {thinking && <Thinking text={thinking} live={!!c.streaming && !answer} />}
+              {answer && <div className="bubble">{answer}</div>}
+              {c.streaming && !answer && !thinking && <div className="bubble pending">…</div>}
+            </div>
+          );
+        })}
       </div>
 
       {suggestions.map((s) => (
@@ -181,6 +186,39 @@ export function AgentPanel({ conn }: { conn: Connection }) {
           发送
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * 思考轨迹。
+ *
+ * 模型在调工具之间写的正文是推理，不是对用户说的话。
+ * 还在跑的时候显示末尾几行（让人看到它在动），跑完就收起来——
+ * 想看细节可以展开，但默认不占用户的注意力。
+ */
+function Thinking({ text, live }: { text: string; live: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const tailRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (live) tailRef.current?.scrollTo({ top: tailRef.current.scrollHeight });
+  }, [text, live]);
+
+  if (live && !expanded) {
+    return (
+      <div className="thinking live" ref={tailRef}>
+        {text}
+      </div>
+    );
+  }
+
+  return (
+    <div className="thinking">
+      <button className="thinking-toggle" onClick={() => setExpanded((v) => !v)}>
+        {expanded ? '▾' : '▸'} 思考过程
+      </button>
+      {expanded && <div className="thinking-body">{text}</div>}
     </div>
   );
 }

@@ -110,8 +110,22 @@ export const ServerMessageSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('agent.turn.start'), turnId: z.string() }),
   z.object({ t: z.literal('agent.turn.end'), turnId: z.string(), reason: z.string() }),
 
-  /** 流式文本 */
-  z.object({ t: z.literal('agent.text'), turnId: z.string(), delta: z.string() }),
+  /**
+   * 流式文本。
+   *
+   * step 是本回合内第几次模型请求。带工具调用的中间步骤，其文本属于
+   * 模型的内部推理，不是对用户说的话——客户端据此把它折进思考轨迹。
+   * 真正要让用户听见的内容走 interact_say（agent.say）。
+   */
+  z.object({ t: z.literal('agent.text'), turnId: z.string(), step: z.number(), delta: z.string() }),
+
+  /** 一步结束，告诉客户端这一步到底是"边想边调工具"还是"最终答复" */
+  z.object({
+    t: z.literal('agent.step'),
+    turnId: z.string(),
+    step: z.number(),
+    hadTools: z.boolean(),
+  }),
 
   /** 工具调用可视化 */
   z.object({ t: z.literal('agent.tool'), turnId: z.string(), call: ToolCallViewSchema }),

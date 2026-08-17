@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Scene } from '@canvai/canvas-core';
+import { Scene, shapeBounds } from '@canvai/canvas-core';
 import { SYSTEM_PROMPT } from '../prompt.js';
 import { ToolRegistry } from '../tools/registry.js';
 import { USER, call, makeHarness } from './harness.js';
@@ -99,6 +99,84 @@ describe('「在房子上画个屋顶」完整闭环', () => {
     const ptr = h.events('agent.pointer');
     expect(ptr).toHaveLength(1);
     expect(ptr[0]!.to).toEqual({ x: 300, y: 200 });
+  });
+});
+
+describe('坐标约定 —— points 一律是画布绝对坐标', () => {
+  /** 屋顶要正好压在 bbox 为 [320,384,208,160] 的墙顶边上 */
+  const ROOF = [
+    [320, 384],
+    [424, 300],
+    [528, 384],
+  ];
+
+  const roofBounds = (scene: Scene) => {
+    const roof = scene.all().find((s) => s.meta.role === 'roof')!;
+    return shapeBounds(roof).map(Math.round);
+  };
+
+  it('只给 points、不给 x/y 时落在正确位置', async () => {
+    const h = makeHarness([
+      {
+        calls: [
+          call('canvas_create', {
+            shapes: [{ type: 'polygon', points: ROOF, closed: true, meta: { role: 'roof' }, style: { strokeWidth: 0 } }],
+          }),
+        ],
+      },
+    ]);
+    h.loop.push({ kind: 'text', text: '加屋顶', at: Date.now() });
+    await h.loop.drain();
+    expect(roofBounds(h.scene)).toEqual([320, 300, 208, 84]);
+  });
+
+  it('模型多给了 x/y 也不会二次偏移', async () => {
+    // 这是真实模型踩过的坑：既给绝对 points，又顺手填了 x/y
+    const h = makeHarness([
+      {
+        calls: [
+          call('canvas_create', {
+            shapes: [
+              { type: 'polygon', x: 320, y: 300, points: ROOF, closed: true, meta: { role: 'roof' }, style: { strokeWidth: 0 } },
+            ],
+          }),
+        ],
+      },
+    ]);
+    h.loop.push({ kind: 'text', text: '加屋顶', at: Date.now() });
+    await h.loop.drain();
+    expect(roofBounds(h.scene)).toEqual([320, 300, 208, 84]);
+  });
+
+  it('手绘压感值在换算中保留', async () => {
+    const h = makeHarness([
+      {
+        calls: [
+          call('canvas_create', {
+            shapes: [{ type: 'freedraw', points: [[100, 100, 0.3], [140, 130, 0.9]], meta: { role: 'sketch' } }],
+          }),
+        ],
+      },
+    ]);
+    h.loop.push({ kind: 'text', text: '描一笔', at: Date.now() });
+    await h.loop.drain();
+
+    const s = h.scene.all().find((x) => x.meta.role === 'sketch')!;
+    expect(s.x).toBe(100);
+    expect(s.points).toEqual([[0, 0, 0.3], [40, 30, 0.9]]);
+  });
+
+  it('矩形缺 x/y 会被拒绝，并说清楚该怎么写', async () => {
+    const h = makeHarness([
+      { calls: [call('canvas_create', { shapes: [{ type: 'rect', w: 10, h: 10 }] })] },
+      { text: '补上位置' },
+    ]);
+    h.loop.push({ kind: 'text', text: '画方块', at: Date.now() });
+    await h.loop.drain();
+
+    const payload = JSON.parse(h.loop.getHistory().find((m) => m.role === 'tool')!.content as string);
+    expect(payload.ok).toBe(false);
+    expect(payload.hint).toContain('x/y/w/h');
   });
 });
 
@@ -207,7 +285,7 @@ describe('错误恢复', () => {
     expect(r!.reason).toBe('done');
     const payload = JSON.parse(h.loop.getHistory().find((m) => m.role === 'tool')!.content as string);
     expect(payload.ok).toBe(false);
-    expect(payload.hint).toContain('w 和 h');
+    expect(payload.hint).toContain('x/y/w/h');
   });
 
   it('调用不存在的工具时列出可用工具', async () => {
@@ -296,6 +374,46 @@ describe('上下文布局 —— 前缀缓存的前提', () => {
     await h.loop.drain();
     const joined = h.loop.getHistory().map((m) => m.content).join('');
     expect(joined).not.toContain('reasoning');
+  });
+});
+
+describe('说话通道 —— 推理不该冒充答复', () => {
+  it('中间步骤的正文标记为 hadTools，最后一步标记为答复', async () => {
+    const h = makeHarness([
+      { text: '我先看看画布上有什么。', calls: [call('canvas_query', {})] },
+      { text: '让我确认一下大矩形的位置。', calls: [call('canvas_get_viewport', {})] },
+      { text: '画好了。' },
+    ]);
+    h.loop.push({ kind: 'text', text: '画个门', at: Date.now() });
+    await h.loop.drain();
+
+    const steps = h.events('agent.step');
+    expect(steps.map((s) => s.hadTools)).toEqual([true, true, false]);
+
+    // 每段文本都带着自己的 step，客户端据此分流
+    const byStep = new Map<number, string>();
+    for (const e of h.events('agent.text')) {
+      byStep.set(e.step, (byStep.get(e.step) ?? '') + e.delta);
+    }
+    expect(byStep.get(0)).toBe('我先看看画布上有什么。');
+    expect(byStep.get(1)).toBe('让我确认一下大矩形的位置。');
+    expect(byStep.get(2)).toBe('画好了。');
+  });
+
+  it('interact_say 的内容始终走 agent.say，与推理分开', async () => {
+    const h = makeHarness([
+      { text: '先量一下再说。', calls: [call('interact_say', { text: '我来给你加个屋顶' })] },
+      { text: '' },
+    ]);
+    h.loop.push({ kind: 'text', text: '加屋顶', at: Date.now() });
+    await h.loop.drain();
+
+    const said = h.events('agent.say');
+    expect(said).toHaveLength(1);
+    expect(said[0]!.text).toBe('我来给你加个屋顶');
+
+    // 推理正文没有混进 say 通道
+    expect(said[0]!.text).not.toContain('先量一下');
   });
 });
 

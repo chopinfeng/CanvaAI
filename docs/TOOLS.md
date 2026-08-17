@@ -12,7 +12,13 @@ type ToolResult<T> =
   | { ok: false; error: string; hint: string };       // hint 必填：告诉 Agent 下一步怎么办
 ```
 
-- **坐标**：页面坐标系，左上原点，y 向下，单位 px。
+- **坐标**：页面坐标系，左上原点，y 向下，单位 px。**对外只有绝对坐标一种写法**：
+  - 有 `points` 的图元（line/arrow/polygon/path/freedraw）——`points` 写绝对坐标，**不填 x/y**
+  - 无 `points` 的图元（rect/ellipse/text/image）——`x`/`y` 定左上角，配 `w`/`h`
+
+  > 内部存储仍是「原点 + 相对点」（拖动只改 x/y，不必重写点序列），换算在工具边界完成。
+  > 早先把这个不变式暴露给模型，它会既给绝对 `points` 又顺手填 `x`/`y`，偏移叠加两次，
+  > 图形直接飞出画布。约定收窄成单一写法后这类错误消失。
 - **颜色**：`#RRGGBB` 或语义色 `primary|accent|muted|error`。
 - **写工具默认落 `ai` 层**；写 `user` 层需 `force:true` 且会话为 direct 模式，否则报错并提示改用 `interact.suggest`。
 - **批量优先**：写工具都接受数组，一次调用 = 一个 `opId` = 一次撤销。

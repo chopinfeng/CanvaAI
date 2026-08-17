@@ -3,14 +3,39 @@ import type { LayerId, Rect, Shape, ToolCallView } from '@canvai/protocol';
 
 export type Tool = 'select' | 'pen' | 'rect' | 'ellipse' | 'line' | 'arrow' | 'text' | 'eraser';
 
+/**
+ * 模型在一个回合里的一步。
+ *
+ * hadTools===true  这一步是"边想边调工具"，正文属于内部推理 → 折进思考轨迹
+ * hadTools===false 这一步没再调工具，正文就是最终答复 → 作为气泡展示
+ * hadTools===null  这一步还在流式输出，先按推理显示
+ */
+export interface Step {
+  text: string;
+  hadTools: boolean | null;
+}
+
 export interface ChatEntry {
   id: string;
   role: 'user' | 'ai';
   text: string;
+  steps?: Step[];
   /** AI 消息还在流式输出中 */
   streaming?: boolean;
   tools?: ToolCallView[];
 }
+
+/** 折进思考轨迹的部分 */
+export const thinkingOf = (e: ChatEntry): string =>
+  (e.steps ?? [])
+    .filter((s) => s.hadTools !== false)
+    .map((s) => s.text.trim())
+    .filter(Boolean)
+    .join('\n\n');
+
+/** 真正当作答复展示的部分 */
+export const answerOf = (e: ChatEntry): string =>
+  e.text || (e.steps ?? []).find((s) => s.hadTools === false)?.text.trim() || '';
 
 export interface Suggestion {
   opId: string;
@@ -54,7 +79,8 @@ interface State {
   set: (patch: Partial<State>) => void;
   setCamera: (patch: Partial<Camera>) => void;
   pushChat: (entry: ChatEntry) => void;
-  appendAiText: (turnId: string, delta: string) => void;
+  appendAiText: (turnId: string, step: number, delta: string) => void;
+  resolveStep: (turnId: string, step: number, hadTools: boolean) => void;
   upsertToolCall: (turnId: string, call: ToolCallView) => void;
   endTurn: (turnId: string) => void;
   toggleLayer: (layer: LayerId) => void;
@@ -89,15 +115,35 @@ export const useStore = create<State>((set) => ({
 
   pushChat: (entry) => set((s) => ({ chat: [...s.chat, entry] })),
 
-  /** 流式文本落到当前 turn 的那条 AI 消息上，没有就新建 */
-  appendAiText: (turnId, delta) =>
+  /** 流式文本按 step 落到当前 turn 的那条 AI 消息上，没有就新建 */
+  appendAiText: (turnId, step, delta) =>
     set((s) => {
       const idx = s.chat.findIndex((c) => c.id === turnId);
-      if (idx === -1) {
-        return { chat: [...s.chat, { id: turnId, role: 'ai' as const, text: delta, streaming: true }] };
-      }
+      const base: ChatEntry =
+        idx === -1 ? { id: turnId, role: 'ai', text: '', streaming: true, steps: [], tools: [] } : s.chat[idx]!;
+
+      const steps = [...(base.steps ?? [])];
+      while (steps.length <= step) steps.push({ text: '', hadTools: null });
+      steps[step] = { ...steps[step]!, text: steps[step]!.text + delta };
+
+      const entry = { ...base, steps };
+      if (idx === -1) return { chat: [...s.chat, entry] };
       const next = [...s.chat];
-      next[idx] = { ...next[idx]!, text: next[idx]!.text + delta };
+      next[idx] = entry;
+      return { chat: next };
+    }),
+
+  /** 一步收尾：知道它是推理还是答复了 */
+  resolveStep: (turnId, step, hadTools) =>
+    set((s) => {
+      const idx = s.chat.findIndex((c) => c.id === turnId);
+      if (idx === -1) return {};
+      const entry = s.chat[idx]!;
+      const steps = [...(entry.steps ?? [])];
+      while (steps.length <= step) steps.push({ text: '', hadTools: null });
+      steps[step] = { ...steps[step]!, hadTools };
+      const next = [...s.chat];
+      next[idx] = { ...entry, steps };
       return { chat: next };
     }),
 
@@ -105,7 +151,7 @@ export const useStore = create<State>((set) => ({
     set((s) => {
       const idx = s.chat.findIndex((c) => c.id === turnId);
       const base: ChatEntry =
-        idx === -1 ? { id: turnId, role: 'ai', text: '', streaming: true, tools: [] } : s.chat[idx]!;
+        idx === -1 ? { id: turnId, role: 'ai', text: '', streaming: true, steps: [], tools: [] } : s.chat[idx]!;
       const tools = [...(base.tools ?? [])];
       const ti = tools.findIndex((t) => t.id === call.id);
       if (ti === -1) tools.push(call);

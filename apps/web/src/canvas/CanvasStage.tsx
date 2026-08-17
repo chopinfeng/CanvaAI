@@ -17,7 +17,9 @@ const DRAW_SETTLE_MS = 350;
 
 export function CanvasStage({ conn, me }: Props) {
   const stageRef = useRef<Konva.Stage>(null);
-  const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight });
+  // 尺寸永远不能是 0：Konva 会在 0 宽高的 canvas 上调 drawImage 然后整个应用崩掉。
+  // 窗口最小化再恢复、后台标签页被 resize 都会短暂出现 0。
+  const [size, setSize] = useState(() => viewportSize());
 
   const shapes = useStore((s) => s.shapes);
   const camera = useStore((s) => s.camera);
@@ -49,9 +51,14 @@ export function CanvasStage({ conn, me }: Props) {
    * ---------------------------------------------------------------- */
 
   useEffect(() => {
-    const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight });
+    const onResize = () => setSize(viewportSize());
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    // 有些恢复场景（最小化还原、显示器切换）不触发 resize，补一次测量
+    const settle = window.setTimeout(onResize, 0);
+    return () => {
+      window.clearTimeout(settle);
+      window.removeEventListener('resize', onResize);
+    };
   }, []);
 
   useEffect(() => {
@@ -538,6 +545,14 @@ function GridDots({ camera, size }: { camera: { x: number; y: number; zoom: numb
     }
   }
   return <>{dots}</>;
+}
+
+/** 视口尺寸，下限 1px —— 0 会让 Konva 在 drawImage 上抛异常并白屏 */
+function viewportSize(): { w: number; h: number } {
+  return {
+    w: Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1),
+    h: Math.max(1, window.innerHeight || document.documentElement.clientHeight || 1),
+  };
 }
 
 /** 粗估标签宽度：中文按 1em，其余按 0.6em。够画个气泡底就行。 */
