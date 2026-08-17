@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
-import { config, hasAgent, hasVision } from './config.ts';
+import { config, envFiles, hasAgent, hasVision } from './config.ts';
 import { closeIdleRooms, getRoom } from './room.ts';
 import { initRasterizer } from './rasterizer.ts';
 
@@ -65,7 +65,13 @@ await initRasterizer();
 
 server.listen(config.port, () => {
   console.log(`[server] http://localhost:${config.port}  ws://localhost:${config.port}/ws`);
-  console.log(`[server] Agent: ${hasAgent() ? config.deepseek.model : '未启用（缺 DEEPSEEK_API_KEY）'}`);
+  console.log(`[server] 配置来自: ${envFiles.length > 0 ? envFiles.join(', ') : '(没找到任何 .env，只用了环境变量)'}`);
+  console.log(`[server] Agent: ${hasAgent() ? config.deepseek.model : '未启用'}`);
+  if (!hasAgent()) {
+    console.warn(
+      `[server] ↑ .env 里没读到 DEEPSEEK_API_KEY。检查上面列出的文件里是否有这一行（等号后不要留引号或空格）。`,
+    );
+  }
   console.log(`[server] 视觉: ${hasVision() ? config.vlm.model : '未启用'}`);
 });
 

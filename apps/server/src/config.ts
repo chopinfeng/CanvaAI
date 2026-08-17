@@ -1,4 +1,41 @@
-import 'dotenv/config';
+import { existsSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import dotenv from 'dotenv';
+
+/**
+ * 从本文件所在位置向上找 .env，而不是依赖 process.cwd()。
+ *
+ * pnpm dev 会把工作目录设成 apps/server/，dotenv 默认只看 cwd，
+ * 于是仓库根目录的 .env 被忽略——表现就是"明明填了 key 却说没配置"。
+ * 就近的先加载：dotenv 不覆盖已存在的变量，所以 apps/server/.env 可以覆盖根目录的同名项。
+ */
+function loadEnvFiles(): string[] {
+  const loaded: string[] = [];
+  let dir = dirname(fileURLToPath(import.meta.url));
+
+  for (let depth = 0; depth < 6; depth++) {
+    const file = join(dir, '.env');
+    if (existsSync(file)) {
+      dotenv.config({ path: file });
+      loaded.push(file);
+    }
+    const parent = resolve(dir, '..');
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  // 兜底：从别处启动且 cwd 里有 .env 时也认
+  const cwdEnv = resolve(process.cwd(), '.env');
+  if (existsSync(cwdEnv) && !loaded.includes(cwdEnv)) {
+    dotenv.config({ path: cwdEnv });
+    loaded.push(cwdEnv);
+  }
+
+  return loaded;
+}
+
+export const envFiles = loadEnvFiles();
 
 const env = (key: string, fallback = ''): string => process.env[key]?.trim() || fallback;
 
