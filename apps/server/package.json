@@ -1,0 +1,30 @@
+{
+  "name": "@canvai/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@canvai/agent": "workspace:*",
+    "@canvai/canvas-core": "workspace:*",
+    "@canvai/protocol": "workspace:*",
+    "dotenv": "^16.4.7",
+    "lib0": "^0.2.99",
+    "nanoid": "^5.0.9",
+    "ws": "^8.18.0",
+    "y-protocols": "^1.0.6",
+    "yjs": "^13.6.21",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.23.12"
+  },
+  "optionalDependencies": {
+    "@resvg/resvg-js": "^2.6.2"
+  }
+}

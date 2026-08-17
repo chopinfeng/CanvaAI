@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+.env
+.env.local
+.DS_Store
+data/
+*.sqlite
+*.sqlite-journal
+.venv/
+__pycache__/
+*.pyc
+coverage/
+.vite/

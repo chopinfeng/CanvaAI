@@ -1,0 +1,210 @@
+import { useEffect, useRef, useState } from 'react';
+import { nanoid } from 'nanoid';
+import type { ToolCallView } from '@canvai/protocol';
+import type { Connection } from '../net/connection';
+import { useStore } from '../store';
+
+/** 工具名 → 给人看的说法。用户不需要知道函数名。 */
+const TOOL_LABEL: Record<string, string> = {
+  canvas_query: '扫了一眼画布',
+  canvas_describe: '看清楚了图形',
+  canvas_measure: '量了一下',
+  canvas_hit_test: '找了找那个位置',
+  canvas_snapshot: '看了看画面',
+  canvas_get_selection: '看了你选中的',
+  canvas_get_viewport: '看了你的视野',
+  canvas_create: '画了',
+  canvas_update: '改了',
+  canvas_delete: '删了',
+  canvas_transform: '挪了挪',
+  canvas_style: '调了样式',
+  canvas_group: '编了组',
+  canvas_align: '对齐了',
+  canvas_distribute: '排匀了',
+  canvas_connect: '连了线',
+  canvas_ink: '手绘了一笔',
+  canvas_erase: '擦掉了',
+  canvas_zoom_to: '带你看向',
+  canvas_spotlight: '聚光',
+  canvas_highlight: '高亮',
+  canvas_pointer_move: '移动光标',
+  canvas_layer_set_visible: '切换图层',
+  canvas_layer_clear: '清空图层',
+  interact_say: '说',
+  interact_ask_user: '问你',
+  interact_suggest: '提交提案',
+  interact_set_status: '更新状态',
+  interact_set_todo: '列了计划',
+};
+
+export function AgentPanel({ conn }: { conn: Connection }) {
+  const [input, setInput] = useState('');
+  const [collapsed, setCollapsed] = useState(false);
+  const chat = useStore((s) => s.chat);
+  const todos = useStore((s) => s.todos);
+  const suggestions = useStore((s) => s.suggestions);
+  const ask = useStore((s) => s.ask);
+  const turnRunning = useStore((s) => s.turnRunning);
+  const aiStatus = useStore((s) => s.aiStatus);
+  const pushChat = useStore((s) => s.pushChat);
+  const set = useStore((s) => s.set);
+  const removeSuggestion = useStore((s) => s.removeSuggestion);
+
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
+  }, [chat, todos]);
+
+  const send = () => {
+    const text = input.trim();
+    if (!text) return;
+    pushChat({ id: `u_${nanoid(6)}`, role: 'user', text });
+    conn.send({ t: 'user.text', text });
+    setInput('');
+  };
+
+  const answer = (text: string) => {
+    if (!ask) return;
+    conn.send({ t: 'agent.answer', askId: ask.askId, answer: text });
+    pushChat({ id: `u_${nanoid(6)}`, role: 'user', text });
+    set({ ask: null });
+  };
+
+  const resolve = (opId: string, accept: boolean) => {
+    conn.send({ t: 'suggest.resolve', opId, accept });
+    removeSuggestion(opId);
+  };
+
+  if (collapsed) {
+    return (
+      <button className="panel-toggle" onClick={() => setCollapsed(false)} title="展开对话">
+        💬
+      </button>
+    );
+  }
+
+  return (
+    <div className="agent-panel">
+      <header>
+        <span className="dot" data-running={turnRunning} />
+        <strong>AI 搭档</strong>
+        {aiStatus && <em>{aiStatus}</em>}
+        {turnRunning && (
+          <button className="link" onClick={() => conn.send({ t: 'agent.abort' })}>
+            停止
+          </button>
+        )}
+        <button className="link" onClick={() => setCollapsed(true)}>
+          收起
+        </button>
+      </header>
+
+      {todos.length > 0 && (
+        <div className="todos">
+          {todos.map((t, i) => (
+            <div key={i} className={t.done ? 'done' : ''}>
+              {t.done ? '✓' : '○'} {t.text}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="chat" ref={listRef}>
+        {chat.length === 0 && (
+          <div className="empty">
+            <p>画点什么，然后告诉我你想做什么。</p>
+            <ul>
+              <li>「在这个方块上面加个屋顶」</li>
+              <li>「帮我把这几个节点连成流程图」</li>
+              <li>「这道几何题怎么做？画条辅助线看看」</li>
+            </ul>
+          </div>
+        )}
+
+        {chat.map((c) => (
+          <div key={c.id} className={`msg msg-${c.role}`}>
+            {c.tools && c.tools.length > 0 && (
+              <div className="tools">
+                {c.tools.map((t) => (
+                  <ToolChip key={t.id} call={t} />
+                ))}
+              </div>
+            )}
+            {c.text && <div className="bubble">{c.text}</div>}
+            {c.streaming && !c.text && <div className="bubble thinking">…</div>}
+          </div>
+        ))}
+      </div>
+
+      {suggestions.map((s) => (
+        <div key={s.opId} className="suggestion">
+          <div className="summary">{s.summary}</div>
+          <div className="actions">
+            <button className="accept" onClick={() => resolve(s.opId, true)}>
+              接受
+            </button>
+            <button onClick={() => resolve(s.opId, false)}>不用了</button>
+          </div>
+        </div>
+      ))}
+
+      {ask && (
+        <div className="ask">
+          <div className="question">{ask.question}</div>
+          {ask.options && (
+            <div className="options">
+              {ask.options.map((o) => (
+                <button key={o} onClick={() => answer(o)}>
+                  {o}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="composer">
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              ask ? answer(input.trim()) : send();
+              setInput('');
+            }
+          }}
+          placeholder={ask ? '回答上面的问题…' : '说说你想画什么…'}
+          rows={2}
+        />
+        <button onClick={() => (ask ? answer(input.trim()) : send())} disabled={!input.trim()}>
+          发送
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ToolChip({ call }: { call: ToolCallView }) {
+  const label = TOOL_LABEL[call.name] ?? call.name;
+  const detail =
+    call.summary ??
+    (call.diff
+      ? [
+          call.diff.created.length > 0 ? `${call.diff.created.length} 个新图形` : '',
+          call.diff.updated.length > 0 ? `改了 ${call.diff.updated.length} 个` : '',
+          call.diff.deleted.length > 0 ? `删了 ${call.diff.deleted.length} 个` : '',
+        ]
+          .filter(Boolean)
+          .join('，')
+      : '');
+
+  return (
+    <div className={`chip chip-${call.state}`} title={call.error ?? JSON.stringify(call.args)}>
+      <span className="chip-icon">{call.state === 'running' ? '◌' : call.state === 'ok' ? '✓' : '✕'}</span>
+      <span>{label}</span>
+      {detail && <span className="chip-detail">{detail}</span>}
+      {call.state === 'error' && <span className="chip-detail">{call.error}</span>}
+    </div>
+  );
+}
