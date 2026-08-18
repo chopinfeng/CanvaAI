@@ -51,7 +51,8 @@ const server = createServer((req, res) => {
     return;
   }
 
-  if (req.method === 'GET' && req.url?.startsWith('/assets/')) {
+  // HEAD 也要支持：标准方法，缓存校验和探活都会用到（之前只判 GET，HEAD 落到了 404）
+  if ((req.method === 'GET' || req.method === 'HEAD') && req.url?.startsWith('/assets/')) {
     const id = decodeURIComponent(req.url.slice('/assets/'.length));
     void readAsset(id).then((asset) => {
       if (!asset) {
@@ -60,11 +61,12 @@ const server = createServer((req, res) => {
       }
       res.writeHead(200, {
         'content-type': asset.mime,
+        'content-length': String(asset.bytes.length),
         // 内容哈希命名，永不变，放心长缓存
         'cache-control': 'public, max-age=31536000, immutable',
         'access-control-allow-origin': '*',
       });
-      res.end(asset.bytes);
+      res.end(req.method === 'HEAD' ? undefined : asset.bytes);
     });
     return;
   }

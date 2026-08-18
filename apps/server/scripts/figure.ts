@@ -13,8 +13,8 @@ export interface FigureSpec {
   unit: number;
   /** 命名点，数学坐标（y 向上） */
   pts: Record<string, readonly [number, number]>;
-  /** 连线。'AB' 表示连 A、B；要样式就用元组形式 */
-  edges: Array<string | readonly [string, string, EdgeStyle]>;
+  /** 连线。'AB' 表示连 A、B；要样式就用元组形式。纯函数图象的图可以没有边 */
+  edges?: Array<string | readonly [string, string, EdgeStyle]>;
   /** 直角标记：[顶点, 方向点1, 方向点2] */
   rightAngles?: Array<readonly [string, string, string]>;
   /** 圆：圆心点名 + 半径（单位同 pts） */
@@ -107,7 +107,7 @@ export function buildFigure(spec: FigureSpec, origin: { x: number; y: number }):
   }
 
   /* ---- 边 ---- */
-  for (const e of spec.edges) {
+  for (const e of spec.edges ?? []) {
     const [a, b, style] = typeof e === 'string' ? [e[0]!, e[1]!, undefined] : e;
     const pa = spec.pts[a];
     const pb = spec.pts[b];

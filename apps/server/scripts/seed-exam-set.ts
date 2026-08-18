@@ -117,12 +117,12 @@ async function buildCard(p: Problem, top: number, index: number): Promise<{ shap
   const img = await uploadCrop(p.image);
 
   /* ---- 标题条 ---- */
-  shapes.push(text(LEFT_X, top, `${index + 1}. [${p.id}] ${p.source} · ${p.topic}`, 20, ACCENT, 'problem-title'));
+  shapes.push(text(LEFT_X, top, `${index + 1}. [${p.id}] ${p.topic} · ${p.level}`, 20, ACCENT, 'problem-title'));
 
   const bodyTop = top + 40;
 
   /* ---- 左：原图 ---- */
-  shapes.push(text(LEFT_X, bodyTop, '原图（试卷扫描件）', 14, MUTED, 'section-label'));
+  shapes.push(text(LEFT_X, bodyTop, '原图（模拟扫描件）', 14, MUTED, 'section-label'));
   shapes.push({
     type: 'image',
     x: LEFT_X,
@@ -245,7 +245,7 @@ async function seed(): Promise<void> {
     const { shapes, height } = await buildCard(p, cursor, i);
     scene.create(shapes, { author: { id: 'seed', kind: 'user', name: '卷子' }, layer: 'user' });
     console.log(
-      `  ${String(i + 1).padStart(2)}. ${p.id} ${p.source}  ${p.figure ? '含矢量图' : '仅原图'}  (${shapes.length} 个图元)`,
+      `  ${String(i + 1).padStart(2)}. ${p.id.padEnd(4)} ${p.topic.padEnd(20)} ${p.figure ? '含矢量图' : '仅原图  '}  (${shapes.length} 个图元)`,
     );
     cursor += height;
     total += shapes.length;
