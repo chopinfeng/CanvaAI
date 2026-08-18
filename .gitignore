@@ -19,3 +19,4 @@ logs/
 .work/pdf/
 .work/pages/
 .work/crops/
+.work/crops.json
