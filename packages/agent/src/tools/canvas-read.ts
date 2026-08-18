@@ -255,18 +255,27 @@ export const execSnapshot: ToolExecutor = async (raw, ctx) => {
 
   const svg = sceneToSvg(ctx.scene.all(), { region, scale: a.scale, annotateIds: true });
 
-  if (!ctx.rasterizer) {
-    // 没有光栅化器时退化成结构化描述，而不是直接失败
+  /** 渲染或视觉模型不可用时，退化成结构化描述——这条路往往还更准 */
+  const degrade = (note: string) => {
     const shapes = ctx.scene.inRegion(region);
     return ok({
       degraded: true,
-      note: '当前环境没有配置图片渲染，已退化为结构化描述',
+      note,
       shapes: shapes.map((s) => ctx.scene.brief(s)),
       relations: computeRelations(shapes),
     });
+  };
+
+  if (!ctx.rasterizer) return degrade('当前环境没有配置图片渲染，已退化为结构化描述');
+
+  let png: Uint8Array;
+  try {
+    png = await ctx.rasterizer.render(svg, a.scale);
+  } catch (e) {
+    // 渲染跑在独立子进程里，它挂了不影响服务；这里照常给出可用的结果
+    return degrade(`这块区域没能渲染成图片（${(e as Error).message}），已退化为结构化描述`);
   }
 
-  const png = await ctx.rasterizer.render(svg, a.scale);
   const assetId = ctx.assets ? await ctx.assets.put(png, 'image/png') : undefined;
 
   if (!a.describe || !ctx.vision) {

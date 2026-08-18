@@ -49,7 +49,7 @@ pnpm dev
 | M3 Agentic Context 铺开（VLM 兜底 / sandbox / 几何构造 / 提案交互） | 部分 |
 | M4 语音全双工 | 未开始 |
 
-57 个测试覆盖几何运算、CRDT 并发、工具权限、坐标约定、错误恢复、打断、上下文布局、快照持久化（含损坏快照不被覆盖）。
+63 个测试覆盖几何运算、CRDT 并发、工具权限、坐标约定、错误恢复、打断、上下文布局、快照持久化（含损坏快照不被覆盖）、原生渲染崩溃隔离。
 
 ```bash
 pnpm test
@@ -71,7 +71,16 @@ docs/
   ARCHITECTURE.md   架构设计
   TOOLS.md          工具注册表规格
   ROADMAP.md        实施路线
+  OPERATIONS.md     日志与排查
 ```
+
+## 出问题时
+
+服务端日志在 `logs/server-<日期>.jsonl`，崩溃现场单独存成 `.crash-*.jsonl`（出事前最近 300 条事件）。
+`curl -s localhost:3001/health` 会直接告诉你当前日志路径。
+
+前端看到 `ECONNREFUSED` 刷屏基本都是**服务端进程已经死了**，vite 的报错只是转发失败的表象——
+真正的原因去 `logs/` 里找。详见 [docs/OPERATIONS.md](docs/OPERATIONS.md)。
 
 ---
 

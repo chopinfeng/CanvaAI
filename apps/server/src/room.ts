@@ -13,6 +13,7 @@ import { ClientMessageSchema, FrameTag, decodeFrame, encodeFrame } from '@canvai
 import { AgentLoop, DeepSeekClient } from '@canvai/agent';
 import type { SessionState } from '@canvai/agent';
 import { config, hasAgent, hasVision } from './config.ts';
+import { log } from './log.ts';
 import { makeVisionProvider } from './vision.ts';
 import { getRasterizer } from './rasterizer.ts';
 
@@ -64,7 +65,7 @@ export class Room {
 
     this.agent = hasAgent() ? this.makeAgent() : null;
     if (!this.agent) {
-      console.warn('[room] 未配置 DEEPSEEK_API_KEY，Agent 已禁用；画布与协同仍然可用');
+      log.warn('room.agent_disabled', { room: this.id, hint: '未配置 DEEPSEEK_API_KEY；画布与协同仍然可用' });
     }
   }
 
@@ -89,7 +90,7 @@ export class Room {
       onUsage: (u) => {
         const hit = u.cachedTokens ?? 0;
         const rate = u.promptTokens > 0 ? Math.round((hit / u.promptTokens) * 100) : 0;
-        console.log(`[usage] prompt=${u.promptTokens} (缓存命中 ${rate}%) completion=${u.completionTokens}`);
+        log.info('agent.usage', { room: this.id, prompt: u.promptTokens, cacheHitPct: rate, completion: u.completionTokens });
       },
     });
   }
@@ -277,7 +278,7 @@ export class Room {
       try {
         await this.agent!.drain();
       } catch (e) {
-        console.error('[agent] turn failed', e);
+        log.error('agent.turn_failed', { room: this.id, message: (e as Error).message, stack: (e as Error).stack });
         this.broadcastControl({ t: 'error', message: 'Agent 执行失败', detail: (e as Error).message });
       }
     });
@@ -349,7 +350,7 @@ export class Room {
       await writeFile(tmp, Y.encodeStateAsUpdate(this.doc));
       await rename(tmp, this.file);
     } catch (e) {
-      console.error('[room] 保存失败', e);
+      log.error('room.save_failed', { room: this.id, file: this.file, message: (e as Error).message, stack: (e as Error).stack });
       await rm(tmp, { force: true }).catch(() => {});
     }
   }
@@ -364,23 +365,25 @@ export class Room {
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
         this.loadFailed = true;
-        console.error(`[room] 读取快照失败（不是"文件不存在"），本房间进入只读模式`, e);
+        log.error('room.read_failed', { room: this.id, file: this.file, message: (e as Error).message });
       }
       return; // 新房间没有快照，正常
     }
 
     try {
       Y.applyUpdate(this.doc, new Uint8Array(buf), 'load');
-      console.log(`[room] ${this.id}: 已恢复 ${this.scene.size} 个图元`);
+      log.info('room.loaded', { room: this.id, shapes: this.scene.size });
     } catch (e) {
       // 文件在但解析不了 —— 保留原件，不要静默丢弃用户的内容
       this.loadFailed = true;
       const backup = `${this.file}.corrupt.${Date.now()}`;
       await writeFile(backup, buf).catch(() => {});
-      console.error(
-        `[room] ${this.id}: 快照损坏，已备份到 ${backup}；本房间进入只读模式，不会覆盖磁盘上的文件。`,
-        e,
-      );
+      log.error('room.snapshot_corrupt', {
+        room: this.id,
+        backup,
+        note: '本房间进入只读模式，不会覆盖磁盘上的文件',
+        message: (e as Error).message,
+      });
     }
   }
 

@@ -1,6 +1,6 @@
 import type { Rect, Shape, Style } from '@canvai/protocol';
 import { getStroke } from 'perfect-freehand';
-import { shapeBounds, shapePoints, unionBounds } from './geometry.js';
+import { rectsIntersect, shapeBounds, shapePoints, unionBounds } from './geometry.js';
 import { sortForRender } from './scene.js';
 
 /**
@@ -22,6 +22,12 @@ export interface SvgOptions {
   annotateIds?: boolean;
 }
 
+/**
+ * 视口外图元的外扩容差：描边、箭头 marker、文字基线都会溢出包围盒一点，
+ * 裁剪时留够余量，避免边缘图形被切掉。
+ */
+const CULL_MARGIN = 64;
+
 export function sceneToSvg(shapes: Shape[], opts: SvgOptions = {}): string {
   const padding = opts.padding ?? 24;
   const scale = opts.scale ?? 1;
@@ -34,16 +40,35 @@ export function sceneToSvg(shapes: Shape[], opts: SvgOptions = {}): string {
       ? expand(unionBounds(ordered.map(shapeBounds)), padding)
       : [0, 0, 800, 600]);
 
+  /**
+   * 只序列化与视口相交的图元。
+   *
+   * 这既是性能优化，也是**稳定性要求**：resvg 会为带 marker-end 或 opacity<1
+   * 的元素分配离屏子画布，若该元素整个落在 viewBox 之外，它与视口求交得到
+   * 空尺寸后 unwrap 了 None —— Rust panic 直接 abort 掉宿主进程。
+   * 截一张 20×20 的局部图就能触发，而"放大看这个角落"是再普通不过的操作。
+   * 渲染那端已经隔离到子进程兜底，这里从源头上不产生这种输入。
+   */
+  const cullRect: Rect = [
+    region[0] - CULL_MARGIN,
+    region[1] - CULL_MARGIN,
+    region[2] + CULL_MARGIN * 2,
+    region[3] + CULL_MARGIN * 2,
+  ];
+  const inView = ordered.filter((s) => rectsIntersect(shapeBounds(s), cullRect));
+
   const [rx, ry, rw, rh] = region;
   const w = Math.max(1, Math.round(rw * scale));
   const h = Math.max(1, Math.round(rh * scale));
 
-  const body = ordered.map((s) => shapeToSvg(s, opts)).filter(Boolean).join('\n  ');
+  const body = inView.map((s) => shapeToSvg(s, opts)).filter(Boolean).join('\n  ');
   const bg = opts.background ?? '#ffffff';
+  // defs 只出一次：早先每个箭头都带一份，同 id 重复是非法 SVG
+  const defs = inView.some((s) => s.type === 'arrow') ? `\n  ${ARROW_DEFS}` : '';
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${num(rx)} ${num(ry)} ${num(rw)} ${num(rh)}">`,
-    `  <rect x="${num(rx)}" y="${num(ry)}" width="${num(rw)}" height="${num(rh)}" fill="${bg}"/>`,
+    `  <rect x="${num(rx)}" y="${num(ry)}" width="${num(rw)}" height="${num(rh)}" fill="${bg}"/>${defs}`,
     `  ${body}`,
     `</svg>`,
   ].join('\n');
@@ -79,7 +104,7 @@ function shapeToSvg(s: Shape, opts: SvgOptions): string {
       if (pts.length < 2) return '';
       const d = toPathData(pts, s.closed ?? s.type === 'polygon');
       const marker = s.type === 'arrow' ? ` marker-end="url(#arrowhead)"` : '';
-      return `${s.type === 'arrow' ? ARROW_DEFS : ''}<path d="${d}"${attrs}${marker}/>${label}`;
+      return `<path d="${d}"${attrs}${marker}/>${label}`;
     }
 
     case 'freedraw': {

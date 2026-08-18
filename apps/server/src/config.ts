@@ -37,12 +37,17 @@ function loadEnvFiles(): string[] {
 
 export const envFiles = loadEnvFiles();
 
+/** 仓库根目录：以最外层那个 .env 所在位置为准，找不到就退回工作目录 */
+const repoRoot = envFiles.length > 0 ? dirname(envFiles[envFiles.length - 1]!) : process.cwd();
+
 const env = (key: string, fallback = ''): string => process.env[key]?.trim() || fallback;
 
 export const config = {
   port: Number(env('PORT', '3001')),
   webOrigin: env('WEB_ORIGIN', 'http://localhost:5173'),
   dataDir: env('DATA_DIR', './data'),
+  /** 日志放仓库根目录，不跟着工作目录跑——排查问题时得知道去哪儿找 */
+  logDir: env('LOG_DIR', join(repoRoot, 'logs')),
   logLevel: env('LOG_LEVEL', 'info'),
 
   deepseek: {
