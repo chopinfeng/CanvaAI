@@ -2,6 +2,7 @@ import { nanoid } from 'nanoid';
 import type { Scene } from '@canvai/canvas-core';
 import type { AgentInputEvent, Author, ServerMessage, ToolResult } from '@canvai/protocol';
 import { buildContextHeader, describeDiff } from './context.js';
+import { extractLeakedCalls, hasLeakedCalls } from './model/leaked-calls.js';
 import type { ChatMessage, ModelClient, ToolCall, Usage } from './model/types.js';
 import { ModelError } from './model/types.js';
 import { SYSTEM_PROMPT } from './prompt.js';
@@ -257,6 +258,24 @@ export class AgentLoop {
         case 'done':
           if (chunk.usage) this.opts.onUsage?.(chunk.usage);
           break;
+      }
+    }
+
+    // 模型偶尔不走 tool_calls 字段，把调用当正文写出来。捞回来，
+    // 否则这次调用等于没发生（用户该听到的话丢了），标记还会原样显示出去。
+    if (calls.length === 0 && hasLeakedCalls(text)) {
+      const recovered = extractLeakedCalls(text, `${turnId}_s${step}`);
+      if (recovered.calls.length > 0) {
+        calls = recovered.calls;
+        text = recovered.text;
+        this.opts.emit({ t: 'agent.status', text: '（模型把工具调用写成了正文，已自动还原）' });
+      } else if (recovered.unparsed) {
+        text = recovered.text;
+        this.history.push({
+          role: 'user',
+          content:
+            '[系统] 你刚才把工具调用写成了正文里的标记，那样不会被执行。请用标准的 function calling 通道重新发起调用。',
+        });
       }
     }
 

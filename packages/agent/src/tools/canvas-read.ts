@@ -146,16 +146,30 @@ export const execMeasure: ToolExecutor = async (raw, ctx) => {
     }
   };
 
-  const notFound = (which: string) =>
-    err(`无法解析引用 ${which}`, '引用可以是图元 id、{x,y} 坐标、或 {id, anchor}。先用 canvas_query 确认 id 存在。');
+  const notFound = (which: string, raw: unknown) => {
+    // 字符串一律按图元 id 解释。模型常把坐标点写成字符串（"{\"x\":1,\"y\":2}"），
+    // 这时该提醒它别套引号，而不是让它去查一个根本不存在的 id。
+    if (typeof raw === 'string') {
+      return err(
+        `找不到 id 为 "${raw}" 的图元（参数 ${which}）`,
+        raw.trim().startsWith('{')
+          ? '你把对象写成字符串了。坐标点要直接传对象 {"x": 460, "y": 380}，不要再套一层引号。'
+          : '字符串会被当作图元 id。想指某个坐标点就传 {"x": …, "y": …}；想指图元请先用 canvas_query 拿到真实 id（形如 sh_xxxx）。',
+      );
+    }
+    return err(
+      `无法解析引用 ${which}`,
+      '引用可以是图元 id（字符串）、坐标点 {x, y}、或锚点 {id, anchor} 三种之一。',
+    );
+  };
 
   switch (a.what) {
     case 'distance': {
       if (a.b === undefined) return err('distance 需要两个引用', '补上参数 b。');
       const p1 = resolvePoint(a.a);
       const p2 = resolvePoint(a.b);
-      if (!p1) return notFound('a');
-      if (!p2) return notFound('b');
+      if (!p1) return notFound('a', a.a);
+      if (!p2) return notFound('b', a.b);
       return ok({ distance: round(distance(p1, p2)), from: p1, to: p2 });
     }
 
@@ -175,20 +189,21 @@ export const execMeasure: ToolExecutor = async (raw, ctx) => {
       }
       const p1 = resolvePoint(a.a);
       const p2 = a.b !== undefined ? resolvePoint(a.b) : undefined;
-      if (!p1 || !p2) return notFound('a/b');
+      if (!p1) return notFound('a', a.a);
+      if (!p2) return notFound('b', a.b);
       const deg = (Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180) / Math.PI;
       return ok({ angle: round(deg < 0 ? deg + 360 : deg), unit: 'degree' });
     }
 
     case 'area': {
       const s = resolveShape(a.a);
-      if (!s) return notFound('a');
+      if (!s) return notFound('a', a.a);
       return ok({ area: round(shapeArea(s)) });
     }
 
     case 'length': {
       const s = resolveShape(a.a);
-      if (!s) return notFound('a');
+      if (!s) return notFound('a', a.a);
       return ok({ length: round(polylineLength(shapePoints(s))) });
     }
 
@@ -196,8 +211,8 @@ export const execMeasure: ToolExecutor = async (raw, ctx) => {
       if (a.b === undefined) return err('intersection 需要两个图元', '补上参数 b。');
       const s1 = resolveShape(a.a);
       const s2 = resolveShape(a.b);
-      if (!s1) return notFound('a');
-      if (!s2) return notFound('b');
+      if (!s1) return notFound('a', a.a);
+      if (!s2) return notFound('b', a.b);
       const hits: Point[] = [];
       for (const g1 of shapeSegments(s1)) {
         for (const g2 of shapeSegments(s2)) {
@@ -210,7 +225,7 @@ export const execMeasure: ToolExecutor = async (raw, ctx) => {
 
     case 'bbox': {
       const s = resolveShape(a.a);
-      if (!s) return notFound('a');
+      if (!s) return notFound('a', a.a);
       return ok({ bbox: shapeBounds(s).map((n) => round(n, 1)) });
     }
 

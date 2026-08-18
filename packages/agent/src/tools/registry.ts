@@ -121,6 +121,7 @@ export class ToolRegistry {
         '请重新输出参数，确保是合法的 JSON 对象。数值不要带单位，字符串要用双引号。',
       );
     }
+    args = decodeDoubleEncoded(args);
 
     try {
       return await exec(args, ctx);
@@ -137,6 +138,46 @@ export class ToolRegistry {
       );
     }
   }
+}
+
+/**
+ * 拆掉模型对嵌套对象的双重编码。
+ *
+ * 实测 DeepSeek 会把对象参数再套一层 JSON 字符串：
+ *   {"a": "{\"x\": 460, \"y\": 380}"}   而不是   {"a": {"x": 460, "y": 380}}
+ *
+ * 这在 canvas_measure 上尤其致命：它的 a/b 是 union（图元 id | 坐标点 | 锚点），
+ * 字符串分支合法，于是 zod 直接放行、当成图元 id 去查，查不到才报错——
+ * 而错误提示会把模型往"去确认 id"的死路上引，于是反复重试。
+ * 实测一次提问烧掉 15 次调用、9 次失败。
+ *
+ * 只有"看起来就是 JSON 对象/数组"的字符串才会被还原，
+ * 普通文本（比如 interact_say 的内容）不受影响。
+ */
+export function decodeDoubleEncoded(value: unknown, depth = 0): unknown {
+  if (depth > 4) return value;
+
+  if (typeof value === 'string') {
+    const s = value.trim();
+    if (s.length < 2) return value;
+    const looksStructured = (s.startsWith('{') && s.endsWith('}')) || (s.startsWith('[') && s.endsWith(']'));
+    if (!looksStructured) return value;
+    try {
+      return decodeDoubleEncoded(JSON.parse(s), depth + 1);
+    } catch {
+      return value;
+    }
+  }
+
+  if (Array.isArray(value)) return value.map((v) => decodeDoubleEncoded(v, depth + 1));
+
+  if (typeof value === 'object' && value !== null) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) out[k] = decodeDoubleEncoded(v, depth + 1);
+    return out;
+  }
+
+  return value;
 }
 
 interface ZodLikeError {
