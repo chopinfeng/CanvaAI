@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import type { AssetStore } from '@canvai/agent';
@@ -55,6 +56,18 @@ export const assetStore: AssetStore = {
     await rename(tmp, path);
     log.info('asset.put', { id, bytes: bytes.length, mime });
     return id;
+  },
+
+  /** 截图时把位图内嵌进 SVG。同步读没问题——canvas_snapshot 本来就低频。 */
+  toDataUri(id: string): string | undefined {
+    if (!/^as_[0-9a-f]{24}\.(png|jpg|webp|svg)$/.test(id)) return undefined;
+    try {
+      const bytes = readFileSync(join(dir(), id));
+      const mime = EXT_MIME[extname(id)] ?? 'application/octet-stream';
+      return `data:${mime};base64,${bytes.toString('base64')}`;
+    } catch {
+      return undefined;
+    }
   },
 };
 

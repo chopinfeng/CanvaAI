@@ -77,7 +77,11 @@ export class ToolRegistry {
   private readonly defs: Map<string, ToolDef>;
   private readonly execs: Map<string, ToolExecutor>;
 
-  constructor(defs: readonly ToolDef[] = TOOL_DEFS, execs: Record<string, ToolExecutor> = EXECUTORS) {
+  constructor(
+    defs: readonly ToolDef[] = TOOL_DEFS,
+    execs: Record<string, ToolExecutor> = EXECUTORS,
+    opts: { exclude?: readonly string[] } = {},
+  ) {
     this.defs = new Map(defs.map((d) => [d.name, d]));
     this.execs = new Map(Object.entries(execs));
 
@@ -87,6 +91,16 @@ export class ToolRegistry {
     }
     for (const name of this.execs.keys()) {
       if (!this.defs.has(name)) throw new Error(`工具 ${name} 有实现但没有定义`);
+    }
+
+    /**
+     * 排除放在一一对应校验**之后**：先保证定义和实现没写错，再摘掉本次会话
+     * 用不上的。典型场景是没配视觉模型时摘掉 canvas_snapshot——
+     * 与其让模型调了才发现看不到（实测连调 5 次），不如根本不给它这个选项。
+     */
+    for (const name of opts.exclude ?? []) {
+      this.defs.delete(name);
+      this.execs.delete(name);
     }
   }
 

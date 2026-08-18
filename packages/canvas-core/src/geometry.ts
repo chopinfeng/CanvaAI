@@ -344,3 +344,66 @@ export const round = (n: number, digits = 2): number => {
   const f = 10 ** digits;
   return Math.round(n * f) / f;
 };
+
+/* ------------------------------------------------------------------ *
+ * 相对位图的定位
+ * ------------------------------------------------------------------ */
+
+export interface RelativeToImage {
+  /** 位图图元 id */
+  imageId: string;
+  imageLabel?: string;
+  /** 覆盖的横向范围，0~1 */
+  xRange: [number, number];
+  /** 覆盖的纵向范围，0~1（0 是顶部） */
+  yRange: [number, number];
+  /** 给模型看的一句话 */
+  text: string;
+}
+
+/**
+ * 把一个图元在某张位图上的位置说成人话。
+ *
+ * 为什么需要：扫描件的内容对 Agent 是黑箱（没配视觉模型时完全看不懂，
+ * 配了也未必看得清）。但"用户画的这条线落在图的哪个位置"这件事，
+ * 靠坐标就能算准。有了它，Agent 至少能说"你标的是图中下部靠左那块"，
+ * 而不是干巴巴一句"我看不到你标注的位置"。
+ */
+export function locateInImage(target: Rect, image: Rect, imageId: string, label?: string): RelativeToImage | null {
+  const [ix, iy, iw, ih] = image;
+  if (iw <= 0 || ih <= 0) return null;
+  if (!rectsIntersect(target, image)) return null;
+
+  const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+  const x0 = clamp01((target[0] - ix) / iw);
+  const x1 = clamp01((target[0] + target[2] - ix) / iw);
+  const y0 = clamp01((target[1] - iy) / ih);
+  const y1 = clamp01((target[1] + target[3] - iy) / ih);
+
+  const pct = (n: number) => `${Math.round(n * 100)}%`;
+  const band = (a: number, b: number, names: [string, string, string]) => {
+    const mid = (a + b) / 2;
+    return mid < 0.34 ? names[0] : mid < 0.67 ? names[1] : names[2];
+  };
+
+  const v = band(y0, y1, ['上部', '中部', '下部']);
+  const h = band(x0, x1, ['靠左', '居中', '靠右']);
+
+  return {
+    imageId,
+    ...(label ? { imageLabel: label } : {}),
+    xRange: [Number(x0.toFixed(3)), Number(x1.toFixed(3))],
+    yRange: [Number(y0.toFixed(3)), Number(y1.toFixed(3))],
+    text: `位于${label ? `「${label}」` : '该图片'}的${v}${h}（横向 ${pct(x0)}~${pct(x1)}，纵向 ${pct(y0)}~${pct(y1)}）`,
+  };
+}
+
+/** 找出与目标相交的所有位图，逐一定位 */
+export function locateInImages(
+  target: Rect,
+  images: Array<{ id: string; bounds: Rect; label?: string }>,
+): RelativeToImage[] {
+  return images
+    .map((im) => locateInImage(target, im.bounds, im.id, im.label))
+    .filter((r): r is RelativeToImage => r !== null);
+}

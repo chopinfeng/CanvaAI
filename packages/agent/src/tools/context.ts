@@ -30,6 +30,12 @@ export interface Rasterizer {
 
 export interface AssetStore {
   put(bytes: Uint8Array, mime: string): Promise<string>;
+  /**
+   * 把 assetId 变成可内嵌的 data URI，供截图时把位图真正画进 SVG。
+   * 不实现的话，图片在截图里只是个占位框——视觉模型看到的是空盒子，
+   * 等于白截。
+   */
+  toDataUri?(assetId: string): string | undefined;
 }
 
 export interface ToolContext {

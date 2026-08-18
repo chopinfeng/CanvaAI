@@ -243,6 +243,7 @@ export class AgentLoop {
       ...this.history,
     ];
 
+    const tutor = this.opts.session.mode === 'tutor';
     let text = '';
     let calls: ToolCall[] = [];
 
@@ -256,7 +257,9 @@ export class AgentLoop {
       switch (chunk.kind) {
         case 'text':
           text += chunk.delta;
-          this.opts.emit({ t: 'agent.text', turnId, step, delta: chunk.delta });
+          // 辅导模式下先攒着不发：这一步是不是"推理"要等本步结束才知道，
+          // 而推理里带着答案。见下面 step 收尾处的说明。
+          if (!tutor) this.opts.emit({ t: 'agent.text', turnId, step, delta: chunk.delta });
           break;
         case 'reasoning':
           // 思维链不进历史：它不该污染下一轮的上下文，也不该击穿缓存
@@ -291,6 +294,22 @@ export class AgentLoop {
     const assistant: ChatMessage = { role: 'assistant', content: text || null };
     if (calls.length > 0) assistant.tool_calls = calls;
     this.history.push(assistant);
+
+    /**
+     * 辅导模式：把"过程"整个扣下，只放行最后的答复。
+     *
+     * 普通模式下中间步骤的正文会折进「思考过程」，用户想看可以展开——
+     * 但辅导模式里那段推理**就是答案本身**（"…解得 x=5/3"），
+     * 展开一次这一整套引导就白做了。所以干脆不下发：
+     * 客户端拿不到，也就没有可展开的东西。
+     *
+     * 代价是最终答复不再逐字流式显示。辅导模式每轮只说两句，这个代价可以接受。
+     */
+    if (tutor) {
+      if (calls.length === 0 && text.trim()) {
+        this.opts.emit({ t: 'agent.text', turnId, step, delta: text });
+      }
+    }
 
     this.opts.emit({ t: 'agent.step', turnId, step, hadTools: calls.length > 0 });
 

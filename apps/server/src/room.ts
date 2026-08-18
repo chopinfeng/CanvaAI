@@ -11,7 +11,7 @@ import { ORIGIN_AI, Scene } from '@canvai/canvas-core';
 import type { AgentInputEvent, ClientMessage, ServerMessage } from '@canvai/protocol';
 import type { FrameTagValue } from '@canvai/protocol';
 import { ClientMessageSchema, FrameTag, decodeFrame, encodeFrame } from '@canvai/protocol';
-import { AgentLoop, DeepSeekClient } from '@canvai/agent';
+import { AgentLoop, DeepSeekClient, ToolRegistry } from '@canvai/agent';
 import type { SessionState } from '@canvai/agent';
 import { assetStore } from './assets.ts';
 import { config, hasAgent, hasVision } from './config.ts';
@@ -79,8 +79,14 @@ export class Room {
       reasonerModel: config.deepseek.reasonerModel,
     });
 
+    // 没配视觉模型就把 canvas_snapshot 摘掉——留着只会让模型反复去调一个读不出内容的工具
+    const registry = new ToolRegistry(undefined, undefined, {
+      exclude: hasVision() ? [] : ['canvas_snapshot'],
+    });
+
     return new AgentLoop({
       model,
+      registry,
       scene: this.scene,
       session: this.session,
       emit: (msg) => this.broadcastControl(msg),

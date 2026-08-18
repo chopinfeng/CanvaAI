@@ -3,6 +3,7 @@ import {
   computeRelations,
   distance,
   hitTestShape,
+  locateInImages,
   polylineLength,
   pt,
   rectCenter,
@@ -94,7 +95,30 @@ export const execDescribe: ToolExecutor = async (raw, ctx) => {
   const data: Record<string, unknown> = {
     shapes: a.detail === 'brief' ? shapes.map((s) => ctx.scene.brief(s)) : shapes.map(compactShape),
   };
-  if (a.relations) data.relations = computeRelations(shapes);
+  if (a.relations) {
+    data.relations = computeRelations(shapes);
+
+    // 位图内容看不见，但别人画在它上面的东西落在哪一块是能算的
+    const images = ctx.scene
+      .all()
+      .filter((s) => s.type === 'image')
+      .map((s) => ({ id: s.id, bounds: shapeBounds(s), label: s.meta.label as string | undefined }));
+    if (images.length > 0) {
+      const onImage = shapes
+        .filter((s) => s.type !== 'image')
+        .flatMap((s) =>
+          locateInImages(shapeBounds(s), images).map((hit) => ({ shapeId: s.id, ...hit })),
+        );
+      if (onImage.length > 0) {
+        data.onImages = onImage;
+        if (!ctx.vision) {
+          data.imagesNote =
+            '位图里印着什么你看不到（本会话没有视觉模型），但上面的 onImages 是精确算出来的，' +
+            '用它描述位置即可；需要知道图里的内容就问用户。';
+        }
+      }
+    }
+  }
   return ok(data);
 };
 
@@ -263,21 +287,52 @@ export const execGetViewport: ToolExecutor = async (_raw, ctx) => {
 
 export const execSnapshot: ToolExecutor = async (raw, ctx) => {
   const a = canvasSnapshot.input.parse(raw);
+
+  // 这一条必须最先判：没有视觉模型时这个调用毫无意义，跟画布上有没有内容无关。
+  // 之前返回"降级成功"，模型以为再试一次就能看清，实测连调了 5 次。
+  if (a.describe && !ctx.vision) {
+    return err(
+      '本次会话没有配置视觉模型，截图读不出位图里印着什么',
+      '别再调 canvas_snapshot 了，这个会话里它永远读不了位图内容。' +
+        '要定位用户画在图片上的标注，改用 canvas_describe 带 relations——返回的 onImages 会给出' +
+        '相对位置（占图的几成高、几成宽）；想知道图里印的内容，直接问用户。',
+    );
+  }
   const region = (a.region as Rect | undefined) ?? ctx.scene.contentBounds();
   if (region[2] <= 0 || region[3] <= 0) {
     return err('画布是空的，没有内容可截图', '先用 canvas_query 确认画布上有内容，空画布直接开始画就好。');
   }
 
-  const svg = sceneToSvg(ctx.scene.all(), { region, scale: a.scale, annotateIds: true });
+  const svg = sceneToSvg(ctx.scene.all(), {
+    region,
+    scale: a.scale,
+    annotateIds: true,
+    // 位图必须真的画进去，否则视觉模型看到的是一排占位框
+    ...(ctx.assets?.toDataUri ? { resolveAsset: (id: string) => ctx.assets!.toDataUri!(id) } : {}),
+  });
 
   /** 渲染或视觉模型不可用时，退化成结构化描述——这条路往往还更准 */
   const degrade = (note: string) => {
     const shapes = ctx.scene.inRegion(region);
+    const images = ctx.scene
+      .all()
+      .filter((s) => s.type === 'image')
+      .map((s) => ({ id: s.id, bounds: shapeBounds(s), label: s.meta.label as string | undefined }));
+    const onImage = shapes
+      .filter((s) => s.type !== 'image')
+      .flatMap((s) => locateInImages(shapeBounds(s), images).map((hit) => ({ shapeId: s.id, ...hit })));
+
     return ok({
       degraded: true,
       note,
       shapes: shapes.map((s) => ctx.scene.brief(s)),
       relations: computeRelations(shapes),
+      ...(onImage.length > 0 ? { onImages: onImage } : {}),
+      hint:
+        '位图里印着什么你确实看不到，但**不要就此说"看不到用户标注的位置"**——' +
+        'onImages 给出了每个标注落在图片上的相对位置（几成高、几成宽），' +
+        '用它描述即可，例如"你标的是图中下部靠左那块"。' +
+        '若确实需要知道图里印的内容，直接问用户。',
     });
   };
 

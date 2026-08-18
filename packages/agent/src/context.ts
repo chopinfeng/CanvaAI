@@ -1,4 +1,4 @@
-import { round, shapeBounds } from '@canvai/canvas-core';
+import { locateInImages, round, shapeBounds } from '@canvai/canvas-core';
 import type { Scene } from '@canvai/canvas-core';
 import type { AgentInputEvent, LayerId, Rect } from '@canvai/protocol';
 import type { SessionState } from './tools/context.js';
@@ -68,6 +68,16 @@ export function buildContextHeader(input: HeaderInput): string {
           .slice(0, 8)
           .join(' ');
         lines.push(`[用户刚画了] ${e.shapeIds.length} 个图元于 ${fmtRect(e.region as Rect)}：${names}`);
+
+        // 画在扫描件上的标注，位置要说清楚。位图内容对你是黑箱，
+        // 但"落在图的哪一块"靠坐标就能算准——别答"我看不到你标的位置"。
+        const images = scene
+          .all()
+          .filter((s) => s.type === 'image')
+          .map((s) => ({ id: s.id, bounds: shapeBounds(s), label: s.meta.label as string | undefined }));
+        for (const hit of locateInImages(e.region as Rect, images)) {
+          lines.push(`  └ ${hit.text}`);
+        }
         break;
       }
       case 'select':
