@@ -29,8 +29,14 @@ if (!key) {
   process.exit(1);
 }
 
+/** Agent Plan 走 Anthropic 协议、另一个 base；普通方舟走 OpenAI 协议 */
+const isPlan = /\/api\/plan/.test(base);
+const proto = isPlan ? 'anthropic' : 'openai';
+
 const CANDIDATES = process.argv[2]
   ? [process.argv[2]]
+  : isPlan
+  ? ['ark-code-latest', 'ark-agent-latest']
   : [
       'doubao-seed-2-1-pro-260628',
       'doubao-seed-2-0-pro-260215',
@@ -39,26 +45,53 @@ const CANDIDATES = process.argv[2]
       'doubao-1-5-vision-pro-32k-250115',
     ];
 
-const post = async (body) =>
-  fetch(`${base}/chat/completions`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
-    body: JSON.stringify(body),
-  });
+const post = async ({ model, text, image, maxTokens = 64 }) => {
+  const content = image
+    ? proto === 'anthropic'
+      ? [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: image } }, { type: 'text', text }]
+      : [{ type: 'text', text }, { type: 'image_url', image_url: { url: `data:image/png;base64,${image}` } }]
+    : text;
 
-/* ---- 1. 认证 ---- */
-const list = await fetch(`${base}/models`, { headers: { authorization: `Bearer ${key}` } });
-if (!list.ok) {
-  console.error(`✗ 认证失败：HTTP ${list.status}。检查 API KEY。`);
-  process.exit(1);
+  return proto === 'anthropic'
+    ? fetch(`${base}/v1/messages`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': key,
+          authorization: `Bearer ${key}`,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({ model, max_tokens: maxTokens, messages: [{ role: 'user', content }] }),
+      })
+    : fetch(`${base}/chat/completions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+        body: JSON.stringify({ model, max_tokens: maxTokens, temperature: 0.1, messages: [{ role: 'user', content }] }),
+      });
+};
+
+const pickText = (j) =>
+  proto === 'anthropic'
+    ? (j.content ?? []).filter((c) => c.type === 'text').map((c) => c.text ?? '').join('')
+    : j.choices?.[0]?.message?.content ?? '';
+
+console.log(`端点 ${base}\n协议 ${proto}${isPlan ? '（Agent Plan 专属，需专属 API Key）' : ''}\n`);
+
+/* ---- 1. 认证（仅 OpenAI 协议端点支持列目录） ---- */
+if (!isPlan) {
+  const list = await fetch(`${base}/models`, { headers: { authorization: `Bearer ${key}` } });
+  if (!list.ok) {
+    console.error(`✗ 认证失败：HTTP ${list.status}。检查 API KEY。`);
+    process.exit(1);
+  }
+  const catalog = (await list.json()).data?.map((m) => m.id) ?? [];
+  console.log(`✓ 认证通过，目录里有 ${catalog.length} 个模型（目录 ≠ 已开通）\n`);
 }
-const catalog = (await list.json()).data?.map((m) => m.id) ?? [];
-console.log(`✓ 认证通过，目录里有 ${catalog.length} 个模型（目录 ≠ 已开通）\n`);
 
 /* ---- 2. 逐个试 ---- */
 let usable = null;
 for (const model of CANDIDATES) {
-  const r = await post({ model, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 });
+  const r = await post({ model, text: 'hi', maxTokens: 4 });
   if (r.ok) {
     console.log(`✓ ${model} 可用`);
     usable = model;
@@ -66,12 +99,15 @@ for (const model of CANDIDATES) {
   }
   const err = await r.json().catch(() => ({}));
   const code = err?.error?.code ?? `HTTP${r.status}`;
+  const msg = err?.error?.message ?? '';
   const why =
     code === 'ModelNotOpen'
       ? '模型存在但未开通 → 方舟控制台「开通管理」里开通它'
-      : code.includes('NotFound')
-        ? '该模型不存在或无权访问（可能已下线，或需要用接入点 ep-xxx）'
-        : err?.error?.message?.slice(0, 90) ?? '';
+      : r.status === 401
+        ? 'API Key 无效。Agent Plan 需要专属 Key，普通方舟 Key 在这里用不了'
+        : String(code).includes('NotFound')
+          ? '该模型不存在或无权访问（可能已下线，或需要接入点 ep-xxx）'
+          : msg.slice(0, 90);
   console.log(`✗ ${model.padEnd(34)} ${code} — ${why}`);
 }
 
@@ -87,28 +123,20 @@ if (!existsSync(crop)) {
   console.log('\n（没找到 .work/crops/S3.png，跳过读图实测）');
   process.exit(0);
 }
-const uri = `data:image/png;base64,${readFileSync(crop).toString('base64')}`;
 const r = await post({
   model: usable,
-  messages: [
-    {
-      role: 'user',
-      content: [
-        { type: 'text', text: '这是数学试卷扫描件。一句话说出：题号、讲的什么图形、配了几个小图。' },
-        { type: 'image_url', image_url: { url: uri } },
-      ],
-    },
-  ],
-  max_tokens: 300,
-  temperature: 0.1,
+  text: '这是数学试卷扫描件。一句话说出：题号、讲的什么图形、配了几个小图。',
+  image: readFileSync(crop).toString('base64'),
+  maxTokens: 300,
 });
 if (!r.ok) {
   console.log(`\n✗ 该模型不支持图片输入：${(await r.text()).slice(0, 200)}`);
   process.exit(2);
 }
-const text = (await r.json()).choices?.[0]?.message?.content?.trim() ?? '';
+const text = pickText(await r.json()).trim();
 console.log(`\n✓ 读图成功：${text.replace(/\n/g, ' ').slice(0, 200)}`);
 console.log(`\n把这三行填进 .env 后重启服务端即可：`);
 console.log(`  VLM_BASE_URL=${base}`);
 console.log(`  VLM_API_KEY=<你的 KEY>`);
 console.log(`  VLM_MODEL=${usable}`);
+if (isPlan) console.log(`  VLM_PROTOCOL=anthropic`);

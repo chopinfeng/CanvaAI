@@ -73,6 +73,8 @@ export const config = {
     baseUrl: env('VLM_BASE_URL'),
     apiKey: env('VLM_API_KEY'),
     model: env('VLM_MODEL'),
+    /** openai | anthropic；留空按 base URL 自动判断 */
+    protocol: env('VLM_PROTOCOL'),
   },
 
   asr: { provider: env('ASR_PROVIDER', 'none'), baseUrl: env('ASR_BASE_URL'), apiKey: env('ASR_API_KEY') },
