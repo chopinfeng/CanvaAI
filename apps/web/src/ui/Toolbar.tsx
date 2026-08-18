@@ -30,10 +30,37 @@ export function Toolbar() {
   const status = useStore((s) => s.status);
   const set = useStore((s) => s.set);
   const toggleLayer = useStore((s) => s.toggleLayer);
+  const undoDepth = useStore((s) => s.undoDepth);
+  const redoDepth = useStore((s) => s.redoDepth);
+  const undo = useStore((s) => s.undo);
+  const redo = useStore((s) => s.redo);
+
+  const mod = navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl+';
 
   return (
     <>
       <div className="toolbar">
+        <div className="tool-group">
+          <button
+            className="tool"
+            onClick={() => undo?.()}
+            disabled={undoDepth === 0}
+            title={`撤销（${mod}Z）。AI 画的东西也能撤，一次动作撤一步`}
+          >
+            ↶ 撤销
+          </button>
+          <button
+            className="tool"
+            onClick={() => redo?.()}
+            disabled={redoDepth === 0}
+            title={`重做（${mod}⇧Z）`}
+          >
+            ↷ 重做
+          </button>
+        </div>
+
+        <div className="divider" />
+
         <div className="tool-group">
           {TOOLS.map((t) => (
             <button

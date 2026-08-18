@@ -9,6 +9,13 @@ import { PointSchema, RectSchema, SceneDiffSchema } from './shape.js';
  *   0x01 Yjs 文档同步
  *   0x02 Yjs awareness（光标/选区/状态）
  *   0x03 音频 PCM（M4）
+ *   0x04 Yjs 文档同步（AI 产生的改动）
+ *
+ * 0x04 单独分出来只为一件事：撤销。
+ * 客户端要能撤销 AI 的动作，但绝不能撤销**别的协作者**的动作——
+ * 而这两者到了客户端都是"远端更新"，在 Yjs 的 origin 层面分不开。
+ * 服务端知道来源，于是在这里把 AI 的改动标出来，客户端据此用可撤销的
+ * origin 应用它们。
  * ------------------------------------------------------------------ */
 
 export const FrameTag = {
@@ -16,6 +23,7 @@ export const FrameTag = {
   Sync: 0x01,
   Awareness: 0x02,
   Audio: 0x03,
+  SyncAI: 0x04,
 } as const;
 export type FrameTagValue = (typeof FrameTag)[keyof typeof FrameTag];
 

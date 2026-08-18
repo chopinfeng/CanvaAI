@@ -82,6 +82,12 @@ interface State {
   tutorMode: boolean;
   /** 由画布层注入：不等了，立刻把攒下的笔画交给 Agent */
   flushDraws: (() => void) | null;
+  /** 撤销/重做栈深度，决定按钮能不能点 */
+  undoDepth: number;
+  redoDepth: number;
+  /** 由画布层注入 */
+  undo: (() => void) | null;
+  redo: (() => void) | null;
 
   /* 动作 */
   set: (patch: Partial<State>) => void;
@@ -121,6 +127,10 @@ export const useStore = create<State>((set) => ({
   foreground: true,
   tutorMode: false,
   flushDraws: null,
+  undoDepth: 0,
+  redoDepth: 0,
+  undo: null,
+  redo: null,
 
   set: (patch) => set(patch),
   setCamera: (patch) => set((s) => ({ camera: { ...s.camera, ...patch } })),

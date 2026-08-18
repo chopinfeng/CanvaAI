@@ -3,8 +3,9 @@ import * as awarenessProtocol from 'y-protocols/awareness';
 import * as syncProtocol from 'y-protocols/sync';
 import * as encoding from 'lib0/encoding';
 import * as decoding from 'lib0/decoding';
-import { Scene } from '@canvai/canvas-core';
+import { ORIGIN_AI, Scene, createUndoManager } from '@canvai/canvas-core';
 import type { ClientMessage, ServerMessage } from '@canvai/protocol';
+import type { FrameTagValue } from '@canvai/protocol';
 import { FrameTag, ServerMessageSchema, decodeFrame, encodeFrame } from '@canvai/protocol';
 
 export interface Presence {
@@ -31,6 +32,11 @@ export class Connection {
   readonly doc = new Y.Doc();
   readonly scene = new Scene(this.doc);
   readonly awareness = new awarenessProtocol.Awareness(this.doc);
+  /**
+   * 撤销栈。只收自己的（ORIGIN_LOCAL）和 AI 的（ORIGIN_AI）改动——
+   * 别人的内容不能被我撤掉。AI 的改动靠 SyncAI 帧识别，见下面的 handleFrame。
+   */
+  readonly undoManager = createUndoManager(this.scene);
 
   private ws: WebSocket | null = null;
   private retry = 0;
@@ -41,7 +47,7 @@ export class Connection {
     this.awareness.setLocalStateField('user', { ...opts.user, kind: 'user' });
 
     this.doc.on('update', (update: Uint8Array, origin: unknown) => {
-      if (origin === this) return; // 来自服务端的更新不用回传
+      if (origin === this || origin === ORIGIN_AI) return; // 来自服务端的更新不用回传
       const enc = encoding.createEncoder();
       syncProtocol.writeUpdate(enc, update);
       this.sendFrame(FrameTag.Sync, encoding.toUint8Array(enc));
@@ -140,6 +146,15 @@ export class Connection {
         break;
       }
 
+      case FrameTag.SyncAI: {
+        // 用 ORIGIN_AI 应用，撤销栈才收得进去——用户要能一键撤掉 AI 刚画的东西
+        const dec = decoding.createDecoder(payload);
+        const enc = encoding.createEncoder();
+        syncProtocol.readSyncMessage(dec, enc, this.doc, ORIGIN_AI);
+        if (encoding.length(enc) > 0) this.sendFrame(FrameTag.Sync, encoding.toUint8Array(enc));
+        break;
+      }
+
       case FrameTag.Awareness: {
         const dec = decoding.createDecoder(payload);
         awarenessProtocol.applyAwarenessUpdate(this.awareness, decoding.readVarUint8Array(dec), this);
@@ -167,7 +182,7 @@ export class Connection {
 
   private sendFrame(tag: number, payload: Uint8Array): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-    this.ws.send(encodeFrame(tag as 0 | 1 | 2 | 3, payload));
+    this.ws.send(encodeFrame(tag as FrameTagValue, payload));
   }
 
   setCursor(x: number, y: number): void {

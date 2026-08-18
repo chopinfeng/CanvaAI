@@ -7,8 +7,9 @@ import * as syncProtocol from 'y-protocols/sync';
 import * as encoding from 'lib0/encoding';
 import * as decoding from 'lib0/decoding';
 import type { WebSocket } from 'ws';
-import { Scene } from '@canvai/canvas-core';
+import { ORIGIN_AI, Scene } from '@canvai/canvas-core';
 import type { AgentInputEvent, ClientMessage, ServerMessage } from '@canvai/protocol';
+import type { FrameTagValue } from '@canvai/protocol';
 import { ClientMessageSchema, FrameTag, decodeFrame, encodeFrame } from '@canvai/protocol';
 import { AgentLoop, DeepSeekClient } from '@canvai/agent';
 import type { SessionState } from '@canvai/agent';
@@ -297,7 +298,7 @@ export class Room {
 
   private send(socket: WebSocket, tag: number, payload: Uint8Array): void {
     if (socket.readyState !== socket.OPEN) return;
-    socket.send(encodeFrame(tag as 0 | 1 | 2 | 3, payload), { binary: true });
+    socket.send(encodeFrame(tag as FrameTagValue, payload), { binary: true });
   }
 
   private sendControl(socket: WebSocket, msg: ServerMessage): void {
@@ -312,7 +313,9 @@ export class Room {
   private broadcastUpdate(update: Uint8Array, origin: unknown): void {
     const enc = encoding.createEncoder();
     syncProtocol.writeUpdate(enc, update);
-    this.broadcastFrame(FrameTag.Sync, encoding.toUint8Array(enc), origin);
+    // AI 的改动单独打标，客户端才能把它纳入撤销栈（见 FrameTag 的说明）
+    const tag = origin === ORIGIN_AI ? FrameTag.SyncAI : FrameTag.Sync;
+    this.broadcastFrame(tag, encoding.toUint8Array(enc), origin);
   }
 
   private broadcastFrame(tag: number, payload: Uint8Array, origin: unknown): void {

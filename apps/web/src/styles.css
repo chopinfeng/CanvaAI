@@ -57,7 +57,8 @@ html, body, #root {
   cursor: pointer;
   transition: background 120ms, color 120ms;
 }
-.tool:hover { background: #f5f5f4; color: var(--text); }
+.tool:hover:not(:disabled) { background: #f5f5f4; color: var(--text); }
+.tool:disabled { opacity: 0.3; cursor: default; }
 .tool.active { background: var(--text); color: #fff; }
 
 .swatch {

@@ -459,6 +459,7 @@ describe('辅导模式', () => {
     expect(sys).toContain('变相给答案');
     expect(sys).toContain('停下来等他回答');
     expect(sys).toContain('他答错了');
+    expect(sys).toContain('两句以内'); // 每轮说太多等于替他想完了
   });
 });
 

@@ -106,6 +106,38 @@ export function CanvasStage({ conn, me }: Props) {
   }, [conn, set]);
 
   /* ---------------------------------------------------------------- *
+   * 撤销 / 重做
+   * ---------------------------------------------------------------- */
+
+  useEffect(() => {
+    const m = conn.undoManager;
+    const sync = () => set({ undoDepth: m.undoStack.length, redoDepth: m.redoStack.length });
+
+    set({
+      undo: () => {
+        m.undo();
+        sync();
+      },
+      redo: () => {
+        m.redo();
+        sync();
+      },
+    });
+
+    m.on('stack-item-added', sync);
+    m.on('stack-item-popped', sync);
+    m.on('stack-cleared', sync);
+    sync();
+
+    return () => {
+      m.off('stack-item-added', sync);
+      m.off('stack-item-popped', sync);
+      m.off('stack-cleared', sync);
+      set({ undo: null, redo: null, undoDepth: 0, redoDepth: 0 });
+    };
+  }, [conn, set]);
+
+  /* ---------------------------------------------------------------- *
    * 尺寸 / 键盘
    * ---------------------------------------------------------------- */
 
@@ -126,15 +158,28 @@ export function CanvasStage({ conn, me }: Props) {
       const typing = (e.target as HTMLElement)?.tagName === 'INPUT' || (e.target as HTMLElement)?.tagName === 'TEXTAREA';
       if (typing) return;
 
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+      const mod = e.metaKey || e.ctrlKey;
+
+      if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault();
-        // TODO(M3): UndoManager 按 opId 分组
+        const st = useStore.getState();
+        // Cmd+Shift+Z 是 mac 的重做习惯，Ctrl+Y 是 Windows 的
+        if (e.shiftKey) st.redo?.();
+        else st.undo?.();
+        return;
+      }
+      if (mod && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        useStore.getState().redo?.();
+        return;
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selection.length > 0) {
         e.preventDefault();
         conn.scene.delete(selection, { origin: ORIGIN_LOCAL });
         set({ selection: [] });
       }
+      // 按着 Cmd/Ctrl 时不要抢单键快捷键——否则 Cmd+R 会在刷新的同时切成矩形工具
+      if (mod) return;
       const map: Record<string, string> = { v: 'select', p: 'pen', r: 'rect', o: 'ellipse', l: 'line', a: 'arrow', t: 'text', e: 'eraser' };
       if (map[e.key]) set({ tool: map[e.key] as never });
     };
