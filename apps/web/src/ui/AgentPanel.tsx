@@ -47,6 +47,7 @@ export function AgentPanel({ conn }: { conn: Connection }) {
   const turnRunning = useStore((s) => s.turnRunning);
   const aiStatus = useStore((s) => s.aiStatus);
   const awaitingIdle = useStore((s) => s.awaitingIdle);
+  const foreground = useStore((s) => s.foreground);
   const pushChat = useStore((s) => s.pushChat);
   const set = useStore((s) => s.set);
   const removeSuggestion = useStore((s) => s.removeSuggestion);
@@ -94,9 +95,15 @@ export function AgentPanel({ conn }: { conn: Connection }) {
         <strong>AI 搭档</strong>
         {aiStatus && <em>{aiStatus}</em>}
         {!turnRunning && !aiStatus && awaitingIdle && (
-          <em className="waiting" title="你停手 5 秒后我再接手，免得打断你">
-            等你画完…
-          </em>
+          foreground ? (
+            <em className="waiting" title="你停手 5 秒后我再接手，免得打断你">
+              等你画完…
+            </em>
+          ) : (
+            <em className="waiting" title="页面不在前台，我先不动你的画布。切回来我再接着看">
+              等你回来…
+            </em>
+          )
         )}
         {turnRunning && (
           <button className="link" onClick={() => conn.send({ t: 'agent.abort' })}>

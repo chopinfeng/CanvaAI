@@ -76,6 +76,8 @@ interface State {
   turnRunning: boolean;
   /** 画了东西但用户还在动，Agent 在等他停手 */
   awaitingIdle: boolean;
+  /** 页面是否在前台且有焦点。不在前台时 Agent 不动手，界面要说清楚原因 */
+  foreground: boolean;
   /** 由画布层注入：不等了，立刻把攒下的笔画交给 Agent */
   flushDraws: (() => void) | null;
 
@@ -114,6 +116,7 @@ export const useStore = create<State>((set) => ({
   ask: null,
   turnRunning: false,
   awaitingIdle: false,
+  foreground: true,
   flushDraws: null,
 
   set: (patch) => set(patch),

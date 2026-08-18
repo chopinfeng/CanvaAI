@@ -60,6 +60,8 @@ export function CanvasStage({ conn, me }: Props) {
   useEffect(() => {
     const queue = new IdleQueue<string>({
       idleMs: IDLE_BEFORE_AGENT_MS,
+      // 页面在后台或没获得焦点时不放行：人没在看，画布不该自己动起来
+      canFlush: isForeground,
       onFlush: (ids) => {
         const rects = ids.map((id) => conn.scene.get(id)).filter(Boolean).map((s) => shapeBounds(s!));
         conn.send({
@@ -80,8 +82,23 @@ export function CanvasStage({ conn, me }: Props) {
     const events = ['pointermove', 'pointerdown', 'pointerup', 'wheel', 'keydown', 'touchstart', 'touchmove'] as const;
     for (const e of events) window.addEventListener(e, markActive, { passive: true });
 
+    // 前后台切换：切回来时不立刻放行，重新计时等人坐定；
+    // 同时把状态同步给界面——闸门关着却不说，用户会以为 AI 坏了
+    const syncForeground = () => {
+      const fg = isForeground();
+      set({ foreground: fg });
+      if (fg) queue.resume();
+    };
+    syncForeground();
+    window.addEventListener('focus', syncForeground);
+    window.addEventListener('blur', syncForeground);
+    document.addEventListener('visibilitychange', syncForeground);
+
     return () => {
       for (const e of events) window.removeEventListener(e, markActive);
+      window.removeEventListener('focus', syncForeground);
+      window.removeEventListener('blur', syncForeground);
+      document.removeEventListener('visibilitychange', syncForeground);
       queue.dispose();
       idleQueue.current = null;
       set({ flushDraws: null, awaitingIdle: false });
@@ -576,6 +593,17 @@ function GridDots({ camera, size }: { camera: { x: number; y: number; zoom: numb
     }
   }
   return <>{dots}</>;
+}
+
+/**
+ * 页面是不是真的在人眼前。
+ *
+ * 两个条件都要：标签页可见（没被切走、窗口没最小化），
+ * 且窗口有焦点（没被别的应用盖在上面）。
+ * 只看 visibilityState 拦不住"浏览器还开着但用户在别的程序里"。
+ */
+function isForeground(): boolean {
+  return document.visibilityState === 'visible' && document.hasFocus();
 }
 
 /** 视口尺寸，下限 1px —— 0 会让 Konva 在 drawImage 上抛异常并白屏 */
