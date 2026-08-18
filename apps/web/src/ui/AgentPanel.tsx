@@ -46,6 +46,7 @@ export function AgentPanel({ conn }: { conn: Connection }) {
   const ask = useStore((s) => s.ask);
   const turnRunning = useStore((s) => s.turnRunning);
   const aiStatus = useStore((s) => s.aiStatus);
+  const awaitingIdle = useStore((s) => s.awaitingIdle);
   const pushChat = useStore((s) => s.pushChat);
   const set = useStore((s) => s.set);
   const removeSuggestion = useStore((s) => s.removeSuggestion);
@@ -58,6 +59,9 @@ export function AgentPanel({ conn }: { conn: Connection }) {
   const send = () => {
     const text = input.trim();
     if (!text) return;
+    // 用户主动开口就不必再等停手了，把攒下的笔画一并送出，
+    // Agent 这一回合才能同时看到"他画了什么"和"他说了什么"
+    useStore.getState().flushDraws?.();
     pushChat({ id: `u_${nanoid(6)}`, role: 'user', text });
     conn.send({ t: 'user.text', text });
     setInput('');
@@ -89,6 +93,11 @@ export function AgentPanel({ conn }: { conn: Connection }) {
         <span className="dot" data-running={turnRunning} />
         <strong>AI 搭档</strong>
         {aiStatus && <em>{aiStatus}</em>}
+        {!turnRunning && !aiStatus && awaitingIdle && (
+          <em className="waiting" title="你停手 5 秒后我再接手，免得打断你">
+            等你画完…
+          </em>
+        )}
         {turnRunning && (
           <button className="link" onClick={() => conn.send({ t: 'agent.abort' })}>
             停止
@@ -118,6 +127,7 @@ export function AgentPanel({ conn }: { conn: Connection }) {
               <li>「帮我把这几个节点连成流程图」</li>
               <li>「这道几何题怎么做？画条辅助线看看」</li>
             </ul>
+            <p className="hint">你画的时候我不会插嘴，等你停手几秒才接手。想让我立刻看，直接说一声就行。</p>
           </div>
         )}
 

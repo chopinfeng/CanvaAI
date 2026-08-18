@@ -152,9 +152,14 @@ html, body, #root {
   border-bottom: 1px solid var(--border);
   font-size: 14px;
 }
-.agent-panel header em { font-style: normal; color: var(--muted); font-size: 12px; flex: 1; }
 .agent-panel header strong { flex: 1; }
-.agent-panel header em + .link { flex: none; }
+.agent-panel header em { font-style: normal; color: var(--muted); font-size: 12px; flex: none; }
+.agent-panel header em.waiting { opacity: 0.75; animation: breathe 2.2s ease-in-out infinite; }
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.85; }
+}
 
 .dot {
   width: 8px;
@@ -194,6 +199,7 @@ html, body, #root {
 .empty { color: var(--muted); font-size: 13px; line-height: 1.7; }
 .empty ul { padding-left: 18px; margin: 8px 0 0; }
 .empty li { margin: 3px 0; }
+.empty .hint { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; opacity: 0.85; }
 
 .msg { display: flex; flex-direction: column; gap: 6px; }
 .msg-user { align-items: flex-end; }

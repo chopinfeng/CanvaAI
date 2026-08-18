@@ -74,6 +74,10 @@ interface State {
   suggestions: Suggestion[];
   ask: { askId: string; question: string; options?: string[] } | null;
   turnRunning: boolean;
+  /** 画了东西但用户还在动，Agent 在等他停手 */
+  awaitingIdle: boolean;
+  /** 由画布层注入：不等了，立刻把攒下的笔画交给 Agent */
+  flushDraws: (() => void) | null;
 
   /* 动作 */
   set: (patch: Partial<State>) => void;
@@ -109,6 +113,8 @@ export const useStore = create<State>((set) => ({
   suggestions: [],
   ask: null,
   turnRunning: false,
+  awaitingIdle: false,
+  flushDraws: null,
 
   set: (patch) => set(patch),
   setCamera: (patch) => set((s) => ({ camera: { ...s.camera, ...patch } })),
@@ -183,6 +189,15 @@ export const useStore = create<State>((set) => ({
 
   removeSuggestion: (opId) => set((s) => ({ suggestions: s.suggestions.filter((x) => x.opId !== opId) })),
 }));
+
+/**
+ * 开发期把 store 挂到 window 上。
+ * 画布状态大半在 canvas 里，DevTools 点不进去；有这个入口才能在控制台里
+ * 直接看当前图元、选区、Agent 是不是在等停手。生产构建不包含这段。
+ */
+if (import.meta.env.DEV) {
+  (globalThis as unknown as { __canvai?: unknown }).__canvai = { store: useStore };
+}
 
 /** 屏幕坐标 → 画布坐标 */
 export const toCanvas = (p: { x: number; y: number }, cam: Camera) => ({

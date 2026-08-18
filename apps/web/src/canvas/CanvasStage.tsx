@@ -5,6 +5,7 @@ import { ORIGIN_LOCAL, boundsOfPoints, hitTestShape, unionBounds, shapeBounds } 
 import type { Author, Rect as RectT, Shape, ShapeInput } from '@canvai/protocol';
 import type { Connection, Presence } from '../net/connection';
 import { toCanvas, useStore, viewportRect } from '../store';
+import { IdleQueue } from './idleQueue';
 import { ShapeNode } from './ShapeNode';
 
 interface Props {
@@ -12,8 +13,13 @@ interface Props {
   me: Author;
 }
 
-/** 用户画完后静默这么久才通知 Agent —— 避免每一笔都唤醒模型 */
-const DRAW_SETTLE_MS = 350;
+/**
+ * 用户彻底停手多久之后，AI 才介入。
+ *
+ * "停手"包含鼠标移动：手还在画布上游移说明人还在想，这时候插进来
+ * 既打断思路，也容易对着半成品下判断。期间画的内容会攒成一批一起交给 Agent。
+ */
+const IDLE_BEFORE_AGENT_MS = 5000;
 
 export function CanvasStage({ conn, me }: Props) {
   const stageRef = useRef<Konva.Stage>(null);
@@ -41,10 +47,46 @@ export function CanvasStage({ conn, me }: Props) {
   const panning = useRef(false);
   const lastPan = useRef({ x: 0, y: 0 });
   const spacePressed = useRef(false);
-  const pendingDraw = useRef<{ ids: string[]; timer: number | null }>({ ids: [], timer: null });
 
   const [others, setOthers] = useState<Presence[]>([]);
   const [aiCursor, setAiCursor] = useState<{ x: number; y: number } | null>(null);
+
+  /* ---------------------------------------------------------------- *
+   * 停手才叫 Agent
+   * ---------------------------------------------------------------- */
+
+  const idleQueue = useRef<IdleQueue<string> | null>(null);
+
+  useEffect(() => {
+    const queue = new IdleQueue<string>({
+      idleMs: IDLE_BEFORE_AGENT_MS,
+      onFlush: (ids) => {
+        const rects = ids.map((id) => conn.scene.get(id)).filter(Boolean).map((s) => shapeBounds(s!));
+        conn.send({
+          t: 'user.draw',
+          shapeIds: ids,
+          region: rects.length > 0 ? unionBounds(rects) : [0, 0, 0, 0],
+        });
+        set({ awaitingIdle: false });
+      },
+    });
+    idleQueue.current = queue;
+    // 用户直接开口时不该再等 5 秒，让对话框能立刻把攒下的笔画一起送出去
+    set({ flushDraws: () => queue.flushNow() });
+
+    // 任何输入都算"还在动"。鼠标移动必须算进来，否则会把"正在思考"误判成"已停手"。
+    // 监听挂在 window 上：用户在工具栏、对话框上操作同样是活动。
+    const markActive = () => queue.markActive();
+    const events = ['pointermove', 'pointerdown', 'pointerup', 'wheel', 'keydown', 'touchstart', 'touchmove'] as const;
+    for (const e of events) window.addEventListener(e, markActive, { passive: true });
+
+    return () => {
+      for (const e of events) window.removeEventListener(e, markActive);
+      queue.dispose();
+      idleQueue.current = null;
+      set({ flushDraws: null, awaitingIdle: false });
+    };
+  }, [conn, set]);
 
   /* ---------------------------------------------------------------- *
    * 尺寸 / 键盘
@@ -152,21 +194,10 @@ export function CanvasStage({ conn, me }: Props) {
     return p ? toCanvas(p, camera) : { x: 0, y: 0 };
   }, [camera]);
 
-  const notifyDraw = useCallback(
-    (ids: string[]) => {
-      const p = pendingDraw.current;
-      p.ids.push(...ids);
-      if (p.timer) window.clearTimeout(p.timer);
-      p.timer = window.setTimeout(() => {
-        const all = p.ids.splice(0, p.ids.length);
-        p.timer = null;
-        if (all.length === 0) return;
-        const rects = all.map((id) => conn.scene.get(id)).filter(Boolean).map((s) => shapeBounds(s!));
-        conn.send({ t: 'user.draw', shapeIds: all, region: rects.length > 0 ? unionBounds(rects) : [0, 0, 0, 0] });
-      }, DRAW_SETTLE_MS);
-    },
-    [conn],
-  );
+  const notifyDraw = useCallback((ids: string[]) => {
+    idleQueue.current?.push(...ids);
+    set({ awaitingIdle: true });
+  }, [set]);
 
   const onPointerDown = useCallback(
     (e: Konva.KonvaEventObject<PointerEvent>) => {
