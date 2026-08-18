@@ -150,15 +150,15 @@ async function buildCard(p: Problem, top: number, index: number): Promise<{ shap
   }
 
   if (p.figure) {
-    shapes.push(text(RIGHT_X, rightBottom + 18, '矢量化图形：', 14, MUTED, 'section-label'));
-    const origin = { x: RIGHT_X + 90, y: rightBottom + 210 };
+    shapes.push(text(RIGHT_X, rightBottom + 18, '矢量化图形（坐标由题给条件算出，已验算）：', 14, MUTED, 'section-label'));
+    const origin = { x: RIGHT_X + 120, y: rightBottom + 260 };
     shapes.push(...p.figure(origin));
-    rightBottom += 18 + 250;
+    rightBottom += 18 + 330;
   } else {
-    shapes.push(
-      text(RIGHT_X, rightBottom + 18, '（图形较复杂，未矢量化，以原图为准）', 13, '#a8a29e', 'figure-note'),
-    );
-    rightBottom += 18 + 20;
+    // 为什么不矢量化，写在画布上——否则看的人只会以为是漏了
+    const note = wrap(`未矢量化，以原图为准。原因：${p.figureNote ?? '图形无法由题给条件唯一确定。'}`, RIGHT_W, 13);
+    shapes.push(text(RIGHT_X, rightBottom + 18, note, 13, '#a8a29e', 'figure-note'));
+    rightBottom += 18 + countLines(note) * 13 * 1.4;
   }
 
   const bottom = Math.max(leftBottom, rightBottom);
@@ -195,6 +195,7 @@ doc.on('update', (update: Uint8Array, origin: unknown) => {
 });
 
 let done = false;
+let settle: NodeJS.Timeout | null = null;
 
 ws.on('open', () => {
   const enc = encoding.createEncoder();
@@ -213,8 +214,21 @@ ws.on('message', (data: ArrayBuffer | Buffer) => {
   if (encoding.length(enc) > 0) send(FrameTag.Sync, encoding.toUint8Array(enc));
 
   if (done) return;
-  done = true;
-  void seed();
+
+  /**
+   * 等同步真正结束再写。
+   *
+   * 第一条 Sync 是服务端的 step1（来要我们的状态），那时本地文档还是空的——
+   * 在那一刻去找"上次注入的图元"一个都找不到，旧内容不会被清掉，
+   * 重跑一次就在画布上叠一层（实测叠出 507 个图元）。
+   * 改成「不再收到 sync 消息 400ms」才动手。
+   */
+  if (settle) clearTimeout(settle);
+  settle = setTimeout(() => {
+    if (done) return;
+    done = true;
+    void seed();
+  }, 400);
 });
 
 async function seed(): Promise<void> {
