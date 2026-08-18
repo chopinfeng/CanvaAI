@@ -175,6 +175,20 @@ html, body, #root {
   50% { opacity: 1; transform: scale(1.15); }
 }
 
+.mode-toggle {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 11.5px;
+  padding: 2px 9px;
+  border-radius: 12px;
+  cursor: pointer;
+  flex: none;
+  white-space: nowrap;
+}
+.mode-toggle:hover { color: var(--text); border-color: var(--muted); }
+.mode-toggle.on { background: var(--ai); border-color: var(--ai); color: #fff; }
+
 .link {
   border: none;
   background: none;

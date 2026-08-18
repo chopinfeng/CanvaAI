@@ -14,3 +14,8 @@ __pycache__/
 coverage/
 .vite/
 logs/
+
+# 题目流水线：脚本与裁剪坐标入库，PDF 和图片产物不入库
+.work/pdf/
+.work/pages/
+.work/crops/

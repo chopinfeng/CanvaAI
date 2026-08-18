@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Arrow, Ellipse, Line, Rect, Text } from 'react-konva';
+import { Arrow, Ellipse, Image as KonvaImage, Line, Rect, Text } from 'react-konva';
 import { getStroke } from 'perfect-freehand';
 import type { Shape } from '@canvai/protocol';
 
@@ -53,6 +53,52 @@ function useDrawIn(shape: Shape): number {
   return progress;
 }
 
+/**
+ * 图片资源加载。
+ *
+ * 同一张原图往往会被多道题引用，缓存住避免重复解码；
+ * 加载中/失败时给个占位框，不能让画布上凭空少一块又没有任何提示。
+ */
+const imageCache = new Map<string, HTMLImageElement>();
+
+function useAssetImage(assetId: string | undefined): {
+  image: HTMLImageElement | null;
+  failed: boolean;
+} {
+  const [image, setImage] = useState<HTMLImageElement | null>(() =>
+    assetId ? imageCache.get(assetId) ?? null : null,
+  );
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!assetId) return;
+    const cached = imageCache.get(assetId);
+    if (cached) {
+      setImage(cached);
+      return;
+    }
+
+    let alive = true;
+    const img = new window.Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      if (!alive) return;
+      imageCache.set(assetId, img);
+      setImage(img);
+    };
+    img.onerror = () => {
+      if (alive) setFailed(true);
+    };
+    img.src = `/assets/${encodeURIComponent(assetId)}`;
+
+    return () => {
+      alive = false;
+    };
+  }, [assetId]);
+
+  return { image, failed };
+}
+
 /** 按进度截取点序列，最后一段做插值，避免一跳一跳 */
 function partialPoints(points: Array<number[]>, progress: number): number[] {
   const flat: number[] = [];
@@ -94,6 +140,7 @@ function partialPoints(points: Array<number[]>, progress: number): number[] {
 
 export function ShapeNode({ shape, opacity, highlight, onSelect, selected, draggable, onDragEnd }: Props) {
   const progress = useDrawIn(shape);
+  const asset = useAssetImage(shape.type === 'image' ? shape.assetId : undefined);
   const s = shape.style;
 
   const stroke = highlight ? '#f59e0b' : s.stroke ?? '#111827';
@@ -120,7 +167,6 @@ export function ShapeNode({ shape, opacity, highlight, onSelect, selected, dragg
 
   switch (shape.type) {
     case 'rect':
-    case 'image':
       return (
         <Rect
           {...common}
@@ -132,6 +178,31 @@ export function ShapeNode({ shape, opacity, highlight, onSelect, selected, dragg
           cornerRadius={2}
         />
       );
+
+    case 'image': {
+      const w = shape.w ?? 0;
+      const h = shape.h ?? 0;
+      if (asset.image) {
+        return (
+          <KonvaImage {...common} x={shape.x} y={shape.y} width={w} height={h} image={asset.image} stroke={undefined} strokeWidth={0} />
+        );
+      }
+      // 没加载出来时留个占位框——画布上凭空缺一块却不给提示最难排查
+      return (
+        <Rect
+          {...common}
+          x={shape.x}
+          y={shape.y}
+          width={w}
+          height={h}
+          fill={asset.failed ? '#fef2f2' : '#f5f5f4'}
+          stroke={asset.failed ? '#fca5a5' : '#d6d3d1'}
+          strokeWidth={1}
+          dash={[6, 4]}
+          cornerRadius={2}
+        />
+      );
+    }
 
     case 'ellipse':
       return (

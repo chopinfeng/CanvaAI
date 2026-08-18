@@ -68,7 +68,7 @@ export function App() {
 
     switch (msg.t) {
       case 'joined':
-        set({ status: 'open' });
+        set({ status: 'open', tutorMode: msg.mode === 'tutor' });
         break;
 
       case 'agent.turn.start':

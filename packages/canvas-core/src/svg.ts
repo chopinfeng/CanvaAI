@@ -20,6 +20,12 @@ export interface SvgOptions {
   layers?: string[];
   /** 在图元旁标注 id，给视觉模型定位用 */
   annotateIds?: boolean;
+  /**
+   * 把 assetId 换成可内嵌的 data URI。
+   * canvas-core 不碰文件系统，所以由调用方（服务端）注入。
+   * 不提供时图片会画成带标注的占位框——总比无声无息缺一块强。
+   */
+  resolveAsset?: (assetId: string) => string | undefined;
 }
 
 /**
@@ -85,8 +91,21 @@ function shapeToSvg(s: Shape, opts: SvgOptions): string {
 
   switch (s.type) {
     case 'rect':
-    case 'image':
       return `<rect x="${num(s.x)}" y="${num(s.y)}" width="${num(s.w ?? 0)}" height="${num(s.h ?? 0)}"${attrs}${transform}/>${label}`;
+
+    case 'image': {
+      const w = s.w ?? 0;
+      const h = s.h ?? 0;
+      const href = s.assetId ? opts.resolveAsset?.(s.assetId) : undefined;
+      if (href) {
+        return `<image x="${num(s.x)}" y="${num(s.y)}" width="${num(w)}" height="${num(h)}" href="${escapeXml(href)}" preserveAspectRatio="none"${transform}/>${label}`;
+      }
+      const note = s.meta.label ?? '图片';
+      return (
+        `<rect x="${num(s.x)}" y="${num(s.y)}" width="${num(w)}" height="${num(h)}" fill="#f5f5f4" stroke="#d6d3d1" stroke-dasharray="6 4"/>` +
+        `<text x="${num(s.x + w / 2)}" y="${num(s.y + h / 2)}" font-size="13" fill="#78716c" text-anchor="middle">[${escapeXml(String(note))}]</text>${label}`
+      );
+    }
 
     case 'ellipse': {
       const w = s.w ?? 0;

@@ -417,6 +417,51 @@ describe('说话通道 —— 推理不该冒充答复', () => {
   });
 });
 
+describe('辅导模式', () => {
+  it('assist 模式下不注入辅导约束', async () => {
+    const h = makeHarness([{ text: 'ok' }]);
+    h.loop.push({ kind: 'text', text: '这题怎么做', at: Date.now() });
+    await h.loop.drain();
+    expect(String(h.model.seen[0]![0]!.content)).not.toContain('辅导模式');
+  });
+
+  it('tutor 模式把约束接在稳定前缀之后，且不改动原提示', async () => {
+    const h = makeHarness([{ text: 'ok' }], { session: { mode: 'tutor' } });
+    h.loop.push({ kind: 'text', text: '这题怎么做', at: Date.now() });
+    await h.loop.drain();
+
+    const sys = String(h.model.seen[0]![0]!.content);
+    expect(sys.startsWith(SYSTEM_PROMPT)).toBe(true); // 原提示逐字保留在前
+    expect(sys).toContain('不准说出最终答案');
+    expect(sys).toContain('interact_ask_user');
+  });
+
+  it('切到 tutor 后，后续回合都带着约束', async () => {
+    const h = makeHarness([{ text: 'a' }, { text: 'b' }]);
+    h.loop.push({ kind: 'text', text: '先聊聊', at: Date.now() });
+    await h.loop.drain();
+    expect(String(h.model.seen[0]![0]!.content)).not.toContain('不准说出最终答案');
+
+    h.session.mode = 'tutor'; // 用户点了「辅导」开关
+    h.loop.push({ kind: 'text', text: '开始辅导', at: Date.now() });
+    await h.loop.drain();
+    expect(String(h.model.seen[1]![0]!.content)).toContain('不准说出最终答案');
+  });
+
+  it('约束里明确禁止"变相给答案"和"一口气讲完"', async () => {
+    const h = makeHarness([{ text: 'ok' }], { session: { mode: 'tutor' } });
+    h.loop.push({ kind: 'text', text: '教我', at: Date.now() });
+    await h.loop.drain();
+
+    const sys = String(h.model.seen[0]![0]!.content);
+    // 这几条是辅导模式的核心，改文案时不能把它们弄丢
+    expect(sys).toContain('不准把解题过程整段讲完');
+    expect(sys).toContain('变相给答案');
+    expect(sys).toContain('停下来等他回答');
+    expect(sys).toContain('他答错了');
+  });
+});
+
 describe('打断', () => {
   it('turn 进行中来了新事件会中断当前 turn', async () => {
     const h = makeHarness([

@@ -11,6 +11,11 @@ export interface SessionState {
    * direct ：AI 可直接改（用户显式开启）
    */
   editMode: 'suggest' | 'direct';
+  /**
+   * assist：协作画图，正常回答
+   * tutor ：辅导解题，一步步引导，不给答案（见 TUTOR_ADDENDUM）
+   */
+  mode: 'assist' | 'tutor';
 }
 
 /** 视觉模型兜底：只在结构化查询不够用时才走 */

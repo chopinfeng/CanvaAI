@@ -12,6 +12,7 @@ import type { AgentInputEvent, ClientMessage, ServerMessage } from '@canvai/prot
 import { ClientMessageSchema, FrameTag, decodeFrame, encodeFrame } from '@canvai/protocol';
 import { AgentLoop, DeepSeekClient } from '@canvai/agent';
 import type { SessionState } from '@canvai/agent';
+import { assetStore } from './assets.ts';
 import { config, hasAgent, hasVision } from './config.ts';
 import { log } from './log.ts';
 import { makeVisionProvider } from './vision.ts';
@@ -49,7 +50,7 @@ export class Room {
     this.doc = new Y.Doc();
     this.scene = new Scene(this.doc);
     this.awareness = new awarenessProtocol.Awareness(this.doc);
-    this.session = { selection: [], viewport: [0, 0, 1440, 900], zoom: 1, editMode: 'suggest' };
+    this.session = { selection: [], viewport: [0, 0, 1440, 900], zoom: 1, editMode: 'suggest', mode: 'assist' };
 
     this.doc.on('update', (update: Uint8Array, origin: unknown) => {
       this.broadcastUpdate(update, origin);
@@ -87,6 +88,7 @@ export class Room {
         const r = getRasterizer();
         return r ? { rasterizer: r } : {};
       })(),
+      assets: assetStore,
       onUsage: (u) => {
         const hit = u.cachedTokens ?? 0;
         const rate = u.promptTokens > 0 ? Math.round((hit / u.promptTokens) * 100) : 0;
@@ -125,6 +127,7 @@ export class Room {
       selfId: client.id,
       agentId: String(AGENT_CLIENT_ID),
       editMode: this.session.editMode,
+      mode: this.session.mode,
     });
 
     return client;
@@ -245,6 +248,10 @@ export class Room {
 
       case 'session.config':
         if (msg.editMode) this.session.editMode = msg.editMode;
+        if (msg.mode && msg.mode !== this.session.mode) {
+          this.session.mode = msg.mode;
+          log.info('session.mode', { room: this.id, mode: msg.mode });
+        }
         break;
 
       case 'join':

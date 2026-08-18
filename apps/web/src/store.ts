@@ -78,6 +78,8 @@ interface State {
   awaitingIdle: boolean;
   /** 页面是否在前台且有焦点。不在前台时 Agent 不动手，界面要说清楚原因 */
   foreground: boolean;
+  /** 辅导模式：AI 一步步引导，不直接给答案 */
+  tutorMode: boolean;
   /** 由画布层注入：不等了，立刻把攒下的笔画交给 Agent */
   flushDraws: (() => void) | null;
 
@@ -117,6 +119,7 @@ export const useStore = create<State>((set) => ({
   turnRunning: false,
   awaitingIdle: false,
   foreground: true,
+  tutorMode: false,
   flushDraws: null,
 
   set: (patch) => set(patch),

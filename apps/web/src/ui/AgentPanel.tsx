@@ -48,6 +48,7 @@ export function AgentPanel({ conn }: { conn: Connection }) {
   const aiStatus = useStore((s) => s.aiStatus);
   const awaitingIdle = useStore((s) => s.awaitingIdle);
   const foreground = useStore((s) => s.foreground);
+  const tutorMode = useStore((s) => s.tutorMode);
   const pushChat = useStore((s) => s.pushChat);
   const set = useStore((s) => s.set);
   const removeSuggestion = useStore((s) => s.removeSuggestion);
@@ -69,10 +70,11 @@ export function AgentPanel({ conn }: { conn: Connection }) {
   };
 
   const answer = (text: string) => {
-    if (!ask) return;
+    if (!ask || !text.trim()) return;
     conn.send({ t: 'agent.answer', askId: ask.askId, answer: text });
     pushChat({ id: `u_${nanoid(6)}`, role: 'user', text });
     set({ ask: null });
+    setInput(''); // 之前只有 send() 清了输入框，回答问题后残留在那儿
   };
 
   const resolve = (opId: string, accept: boolean) => {
@@ -105,6 +107,21 @@ export function AgentPanel({ conn }: { conn: Connection }) {
             </em>
           )
         )}
+        <button
+          className={`mode-toggle ${tutorMode ? 'on' : ''}`}
+          title={
+            tutorMode
+              ? '辅导模式：我一步步问，你自己算出答案。点一下切回协作模式'
+              : '协作模式：正常回答。点一下切到辅导模式，我就不直接给答案了'
+          }
+          onClick={() => {
+            const next = !tutorMode;
+            set({ tutorMode: next });
+            conn.send({ t: 'session.config', mode: next ? 'tutor' : 'assist' });
+          }}
+        >
+          {tutorMode ? '辅导中' : '辅导'}
+        </button>
         {turnRunning && (
           <button className="link" onClick={() => conn.send({ t: 'agent.abort' })}>
             停止
@@ -192,8 +209,8 @@ export function AgentPanel({ conn }: { conn: Connection }) {
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
-              ask ? answer(input.trim()) : send();
-              setInput('');
+              if (ask) answer(input.trim());
+              else send();
             }
           }}
           placeholder={ask ? '回答上面的问题…' : '说说你想画什么…'}

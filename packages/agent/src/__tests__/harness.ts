@@ -77,6 +77,7 @@ export function makeHarness(
     viewport: [0, 0, 1440, 900],
     zoom: 1,
     editMode: 'suggest',
+    mode: 'assist',
     ...init.session,
   };
   const emitted: ServerMessage[] = [];

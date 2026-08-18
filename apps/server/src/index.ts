@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
+import { MAX_ASSET_BYTES, assetStore, readAsset, sniffMime } from './assets.ts';
 import { config, envFiles, hasAgent, hasVision } from './config.ts';
 import { installCrashHandlers, log } from './log.ts';
 import { closeIdleRooms, getRoom, saveAllRooms } from './room.ts';
@@ -12,6 +13,61 @@ installCrashHandlers({ onFatal: saveAllRooms });
 const server = createServer((req, res) => {
   const origin = req.headers.origin;
   if (origin === config.webOrigin) res.setHeader('access-control-allow-origin', origin);
+
+  /* ---- 图片资源 ---- */
+
+  if (req.method === 'POST' && req.url === '/assets') {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on('data', (c: Buffer) => {
+      size += c.length;
+      if (size > MAX_ASSET_BYTES) {
+        res.writeHead(413).end('too large');
+        req.destroy();
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on('end', () => {
+      const bytes = new Uint8Array(Buffer.concat(chunks));
+      const mime = sniffMime(bytes);
+      if (!mime) {
+        res.writeHead(415, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: '只接受 PNG / JPEG / WebP' }));
+        return;
+      }
+      assetStore
+        .put(bytes, mime)
+        .then((id) => {
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ assetId: id }));
+        })
+        .catch((e: Error) => {
+          log.error('asset.put_failed', { message: e.message });
+          res.writeHead(500, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ error: e.message }));
+        });
+    });
+    return;
+  }
+
+  if (req.method === 'GET' && req.url?.startsWith('/assets/')) {
+    const id = decodeURIComponent(req.url.slice('/assets/'.length));
+    void readAsset(id).then((asset) => {
+      if (!asset) {
+        res.writeHead(404).end('not found');
+        return;
+      }
+      res.writeHead(200, {
+        'content-type': asset.mime,
+        // 内容哈希命名，永不变，放心长缓存
+        'cache-control': 'public, max-age=31536000, immutable',
+        'access-control-allow-origin': '*',
+      });
+      res.end(asset.bytes);
+    });
+    return;
+  }
 
   if (req.url === '/health') {
     res.writeHead(200, { 'content-type': 'application/json' });

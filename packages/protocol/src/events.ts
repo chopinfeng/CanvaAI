@@ -73,6 +73,7 @@ export const ClientMessageSchema = z.discriminatedUnion('t', [
   z.object({
     t: z.literal('session.config'),
     editMode: z.enum(['suggest', 'direct']).optional(),
+    mode: z.enum(['assist', 'tutor']).optional(),
     voice: z.boolean().optional(),
   }),
 
@@ -104,6 +105,7 @@ export const ServerMessageSchema = z.discriminatedUnion('t', [
     selfId: z.string(),
     agentId: z.string(),
     editMode: z.enum(['suggest', 'direct']),
+    mode: z.enum(['assist', 'tutor']),
   }),
 
   /** Agent turn 生命周期 */

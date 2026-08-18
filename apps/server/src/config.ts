@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 
@@ -42,12 +42,24 @@ const repoRoot = envFiles.length > 0 ? dirname(envFiles[envFiles.length - 1]!) :
 
 const env = (key: string, fallback = ''): string => process.env[key]?.trim() || fallback;
 
+/**
+ * 路径类配置一律锚定仓库根。
+ *
+ * `.env` 里写 `DATA_DIR=./data` 是最自然的写法，但相对的是**进程工作目录**：
+ * 从仓库根启动写到 <root>/data，从 apps/server 启动写到 apps/server/data，
+ * 房间快照和图片资源就这么被劈成两份，而且完全没有任何报错。
+ * 绝对路径照旧尊重，相对路径改为相对仓库根。
+ */
+const pathFromRoot = (key: string, fallback: string): string => {
+  const raw = env(key, fallback);
+  return isAbsolute(raw) ? raw : resolve(repoRoot, raw);
+};
+
 export const config = {
   port: Number(env('PORT', '3001')),
   webOrigin: env('WEB_ORIGIN', 'http://localhost:5173'),
-  dataDir: env('DATA_DIR', './data'),
-  /** 日志放仓库根目录，不跟着工作目录跑——排查问题时得知道去哪儿找 */
-  logDir: env('LOG_DIR', join(repoRoot, 'logs')),
+  dataDir: pathFromRoot('DATA_DIR', 'data'),
+  logDir: pathFromRoot('LOG_DIR', 'logs'),
   logLevel: env('LOG_LEVEL', 'info'),
 
   deepseek: {

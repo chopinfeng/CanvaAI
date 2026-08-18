@@ -5,7 +5,7 @@ import { buildContextHeader, describeDiff } from './context.js';
 import { extractLeakedCalls, hasLeakedCalls } from './model/leaked-calls.js';
 import type { ChatMessage, ModelClient, ToolCall, Usage } from './model/types.js';
 import { ModelError } from './model/types.js';
-import { SYSTEM_PROMPT } from './prompt.js';
+import { SYSTEM_PROMPT, TUTOR_ADDENDUM } from './prompt.js';
 import type { AssetStore, Rasterizer, SessionState, ToolContext, VisionProvider } from './tools/context.js';
 import { ToolRegistry } from './tools/registry.js';
 
@@ -219,6 +219,15 @@ export class AgentLoop {
     return { turnId, steps, reason, text: fullText, toolCalls, ...(error ? { error } : {}) };
   }
 
+  /**
+   * 辅导模式把 TUTOR_ADDENDUM 接在稳定前缀后面。
+   * 会话中途切模式会让前缀缓存失效一次——换取行为正确，这个代价值得。
+   */
+  private systemPrompt(): string {
+    const base = this.opts.systemPrompt ?? SYSTEM_PROMPT;
+    return this.opts.session.mode === 'tutor' ? base + TUTOR_ADDENDUM : base;
+  }
+
   /* ---------------------------------------------------------------- *
    * 一次模型流式请求
    * ---------------------------------------------------------------- */
@@ -230,7 +239,7 @@ export class AgentLoop {
     step: number,
   ): Promise<{ text: string; calls: ToolCall[] }> {
     const messages: ChatMessage[] = [
-      { role: 'system', content: this.opts.systemPrompt ?? SYSTEM_PROMPT },
+      { role: 'system', content: this.systemPrompt() },
       ...this.history,
     ];
 
