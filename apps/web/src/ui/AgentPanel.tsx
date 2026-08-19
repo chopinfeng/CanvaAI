@@ -49,6 +49,7 @@ const VERDICT: Record<string, { icon: string; label: string }> = {
 export function AgentPanel({ conn }: { conn: Connection }) {
   const [input, setInput] = useState('');
   const [collapsed, setCollapsed] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
   const chat = useStore((s) => s.chat);
   const todos = useStore((s) => s.todos);
   const suggestions = useStore((s) => s.suggestions);
@@ -61,6 +62,14 @@ export function AgentPanel({ conn }: { conn: Connection }) {
   const pushChat = useStore((s) => s.pushChat);
   const set = useStore((s) => s.set);
   const removeSuggestion = useStore((s) => s.removeSuggestion);
+
+  // 停在"确认重来？"上不管它，过一会儿自己退回去——别让一个危险按钮一直亮着。
+  // 给足时间：他得先读懂这四个字再决定，4 秒是催他。
+  useEffect(() => {
+    if (!confirmReset) return;
+    const t = setTimeout(() => setConfirmReset(false), 8000);
+    return () => clearTimeout(t);
+  }, [confirmReset]);
 
   const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -136,6 +145,21 @@ export function AgentPanel({ conn }: { conn: Connection }) {
             停止
           </button>
         )}
+        {/* 两步确认：一下清空聊天记录，误点的代价太大 */}
+        <button
+          className={`link ${confirmReset ? 'danger' : ''}`}
+          title="忘掉这一轮对话和辅导进度，从头开始。画布上的内容不动。"
+          onClick={() => {
+            if (!confirmReset) {
+              setConfirmReset(true);
+              return;
+            }
+            setConfirmReset(false);
+            conn.send({ t: 'session.reset' });
+          }}
+        >
+          {confirmReset ? '确认重来？' : '重来'}
+        </button>
         <button className="link" onClick={() => setCollapsed(true)}>
           收起
         </button>

@@ -85,6 +85,14 @@ export const ClientMessageSchema = z.discriminatedUnion('t', [
     voice: z.boolean().optional(),
   }),
 
+  /**
+   * 从头开始：忘掉这一轮对话、辅导进度和模式，回到刚进房间的状态。
+   *
+   * 只重置**会话**，不动画布——画布上的东西是用户的，
+   * 要连内容一起恢复出厂用 seed 脚本的 `--clean`。
+   */
+  z.object({ t: z.literal('session.reset') }),
+
   z.object({ t: z.literal('ping') }),
 ]);
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
@@ -161,6 +169,9 @@ export const ServerMessageSchema = z.discriminatedUnion('t', [
     verdict: z.enum(['right', 'partly', 'wrong']),
     comment: z.string(),
   }),
+
+  /** 会话被重置了：各端把聊天记录、清单、高亮一并清掉 */
+  z.object({ t: z.literal('session.reset') }),
 
   /** 状态气泡：「正在看你的图…」 */
   z.object({ t: z.literal('agent.status'), text: z.string() }),

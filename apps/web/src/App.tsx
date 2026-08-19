@@ -93,6 +93,19 @@ export function App() {
         s.endTurn(msg.turnId);
         break;
 
+      case 'session.reset':
+        set({
+          chat: [],
+          todos: [],
+          suggestions: [],
+          ask: null,
+          aiStatus: '',
+          spotlight: null,
+          highlights: {},
+          tutorMode: false,
+        });
+        break;
+
       case 'agent.judge':
         s.pushChat({
           id: `judge_${nanoid(6)}`,

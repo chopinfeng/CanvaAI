@@ -216,6 +216,8 @@ html, body, #root {
 .empty li { margin: 3px 0; }
 .empty .hint { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; opacity: 0.85; }
 
+.link.danger { color: var(--err); font-weight: 600; }
+
 /* 判定条：辅导时每答一次都要一眼看见对不对，所以不做成普通气泡 */
 .verdict {
   display: flex;

@@ -11,7 +11,8 @@
  *   npx tsx scripts/seed-exam-set.ts exam-set --clean  # 恢复出厂：连试用痕迹一起清掉
  *
  * 默认只清自己上次注入的图元，用户自己画的和 AI 的批注都留着——重跑不该毁掉别人的东西。
- * `--clean` 是演示前的"恢复出厂"：房间里的一切都清空，再灌一遍，会话也切回普通模式。
+ * `--clean` 是演示前的"恢复出厂"：房间里的一切都清空，再灌一遍，
+ * 并让服务端忘掉这一轮的对话历史、辅导账本和模式。
  */
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -250,8 +251,9 @@ async function seed(): Promise<void> {
     );
   }
   if (clean) {
-    // 辅导模式只活在服务端内存里，不在文档里，得单独说一声切回来
-    ws.send(encodeFrame(FrameTag.Control, new TextEncoder().encode(JSON.stringify({ t: 'session.config', mode: 'assist' }))));
+    // 会话状态（对话历史、辅导账本、模式）只活在服务端内存里，不在文档里。
+    // 不说这一声，画布是新的，Agent 却还记得上一场讲过的整道题。
+    ws.send(encodeFrame(FrameTag.Control, new TextEncoder().encode(JSON.stringify({ t: 'session.reset' }))));
   }
 
   let cursor = 80;

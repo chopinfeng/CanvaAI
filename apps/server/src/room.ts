@@ -268,6 +268,10 @@ export class Room {
         }
         break;
 
+      case 'session.reset':
+        this.resetSession();
+        break;
+
       case 'join':
         // join 在连接建立时已处理
         break;
@@ -308,6 +312,27 @@ export class Room {
   /* ---------------------------------------------------------------- *
    * 发送
    * ---------------------------------------------------------------- */
+
+  /**
+   * 从头开始。
+   *
+   * 光把画布清空是不够的——Agent 的对话历史还在，它记得刚才讲过的整道题，
+   * 会接着上一场的语气说话；辅导账本也还挂着。这三样一起清掉才叫"重新开始"。
+   *
+   * 不动画布：那上面是用户的东西。要连内容一起恢复出厂，用 seed 脚本的 `--clean`。
+   */
+  resetSession(): void {
+    this.agent?.abort();
+    this.agent?.resetHistory();
+    this.session.mode = 'assist';
+    this.session.tutor = null;
+    this.session.selection = [];
+    log.info('session.reset', { room: this.id });
+
+    this.broadcastControl({ t: 'session.reset' });
+    this.broadcastControl({ t: 'agent.todo', items: [] });
+    this.broadcastControl({ t: 'agent.spotlight', shapeIds: [], dim: 0 });
+  }
 
   private send(socket: WebSocket, tag: number, payload: Uint8Array): void {
     if (socket.readyState !== socket.OPEN) return;
