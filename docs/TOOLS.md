@@ -153,6 +153,29 @@ interact.set_status({ text })                             // "正在看你的图
 interact.set_todo({ items: Array<{ text; done }> })        // 长任务的进度可视化
 ```
 
+## tutor —— 一次辅导的账本
+
+```ts
+tutor.plan({ items: Array<{ text; done }> })   // 拆题 / 更新进度，每次传全量清单
+tutor.finish({ summary })                      // 收尾并切回普通模式；账没平会被拒绝
+```
+
+只在辅导模式下有意义。存在的理由是一个具体的失败：
+模型讲完第 (1) 问、用户说声"懂了"，它就顺势宣布讲完了——第 (2) 问再没人提起，
+模式也一直挂在辅导上下不来。所以把"这次要讲到哪儿为止"从模型的印象里
+挪到会话状态（`SessionState.tutor`）上，机制上保证：
+
+- **清单每一轮都写进 Context Header**，模型赖不掉；
+- `tutor.finish` 在还有未完成项时**直接报错**，并列出剩下哪些；
+- 开局那次 `tutor.plan` 里的 `done` 一律清零 —— 实测它会在用户还没答一个字时
+  就把第 (1) 问打上勾，那一问就此被跳过；
+- 一轮结束时如果既没提问、账又没平，主循环会**拦回来**补一次
+  （见 `AgentLoop.tutorHandBack`）——球断在中间就是辅导散掉的样子。
+
+想提前走只有一条路：用户自己说要走（要答案、或者去做别的），
+由 `detectTutorIntent` 识别后切模式。这条判断在**聊天框和答题框都生效**：
+辅导时 Agent 大部分时间停在 `interact.ask_user` 上，那句"先不学了"多半打在答题框里。
+
 ## sandbox
 
 ```ts

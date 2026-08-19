@@ -9,7 +9,7 @@
  * 所以「讲讲这个流程图」不进辅导（那是协作画图），「讲讲这道题」才进。
  */
 
-export type TutorIntent = 'enter' | 'exit' | null;
+export type TutorIntent = 'enter' | 'exit' | 'switch' | null;
 
 /** 想被一步步教 */
 const ENTER = [
@@ -19,6 +19,14 @@ const ENTER = [
   /辅导|一步[一步]*[地的]?(教|讲|来)|循序渐进/,
   /(我)?(不会|不懂|看不懂|没思路|卡住)/,
   /引导我|考考我|提示我/,
+];
+
+/** 不学了，去干别的 —— 和「要答案」是两回事，说法也不一样 */
+const SWITCH = [
+  /(先)?不(学|做|讲|练)了/,
+  /(换|说)个话题|聊点别的|先做别的|先放一放|待会儿?再(学|说|做)/,
+  /(我们)?(先|来|开始)?(帮我)?(画|设计|做)(个|一个|一张|张)?(图|流程图|架构图|方案|草图|房子|画)/,
+  /不用管(这道?题|它)了?/,
 ];
 
 /** 不想被绕，直接要结果 */
@@ -34,8 +42,9 @@ const EXIT = [
 export function detectTutorIntent(text: string): TutorIntent {
   const t = text.trim();
   if (!t) return null;
-  // 先判退出：用户说"别问了直接给答案"时，句子里往往同时带着"讲/题"
+  // 先判离开：用户说"别问了直接给答案"时，句子里往往同时带着"讲/题"
   if (EXIT.some((re) => re.test(t))) return 'exit';
+  if (SWITCH.some((re) => re.test(t))) return 'switch';
   if (ENTER.some((re) => re.test(t))) return 'enter';
   return null;
 }

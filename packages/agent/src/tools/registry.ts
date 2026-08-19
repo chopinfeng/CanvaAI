@@ -37,6 +37,7 @@ import {
   execSuggest,
   execZoomTo,
 } from './view-interact.js';
+import { execTutorFinish, execTutorPlan } from './tutor.js';
 
 const EXECUTORS: Record<string, ToolExecutor> = {
   canvas_query: execQuery,
@@ -71,6 +72,9 @@ const EXECUTORS: Record<string, ToolExecutor> = {
   interact_suggest: execSuggest,
   interact_set_status: execSetStatus,
   interact_set_todo: execSetTodo,
+
+  tutor_plan: execTutorPlan,
+  tutor_finish: execTutorFinish,
 };
 
 export class ToolRegistry {

@@ -99,6 +99,25 @@ export function buildContextHeader(input: HeaderInput): string {
     `[模式] ${session.editMode === 'direct' ? 'direct（可直接修改用户内容）' : 'suggest（改用户内容需先提案）'} · 第 ${turnNo} 轮`,
   );
 
+  /* ---- 辅导账本 ----
+   * 每一轮都摆一遍，成本几十个 token。不摆的话，讲到第五轮时
+   * "这次辅导要讲到哪儿为止"只剩下越滚越远的对话历史，模型会自己找台阶收尾。 */
+  if (session.mode === 'tutor' && session.tutor) {
+    const t = session.tutor;
+    lines.push(`[辅导中] 用户要学会的是：${t.goal}`);
+    if (t.outline.length === 0) {
+      lines.push('  └ 还没拆题。先 tutor_plan 列出他要逐个攻克的小问，否则没人知道这次讲到哪算完。');
+    } else {
+      for (const i of t.outline) lines.push(`  ${i.done ? '✓' : '▢'} ${i.text}`);
+      const left = t.outline.filter((i) => !i.done);
+      lines.push(
+        left.length > 0
+          ? `  └ 还剩 ${left.length} 个没解决，这次辅导不能结束。当前该攻的是「${left[0]!.text}」。`
+          : '  └ 都解决了，可以 tutor_finish 收尾。',
+      );
+    }
+  }
+
   return lines.join('\n');
 }
 

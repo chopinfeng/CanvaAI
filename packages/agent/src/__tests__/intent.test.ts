@@ -41,6 +41,25 @@ describe('想直接要答案', () => {
   }
 });
 
+describe('不学了，去干别的', () => {
+  for (const s of [
+    '先不学了',
+    '这题先放一放',
+    '换个话题',
+    '先做别的',
+    '帮我画个流程图',
+    '我们来设计一个方案',
+    '不用管这道题了',
+  ]) {
+    it(`「${s}」→ 离开辅导`, () => expect(detectTutorIntent(s)).toBe('switch'));
+  }
+
+  it('和「要答案」是两回事，说给用户的话也不一样', () => {
+    expect(detectTutorIntent('直接告诉我答案')).toBe('exit');
+    expect(detectTutorIntent('先不学了')).toBe('switch');
+  });
+});
+
 describe('不该误判的', () => {
   for (const s of [
     '在这个方块上面加个屋顶',

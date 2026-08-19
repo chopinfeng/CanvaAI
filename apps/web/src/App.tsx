@@ -99,10 +99,13 @@ export function App() {
           s.pushChat({
             id: `mode_${nanoid(6)}`,
             role: 'ai',
+            // 退出辅导的理由不止一种（讲完了 / 要答案 / 去做别的），
+            // 服务端知道是哪一种就带 note 过来，别用一句通稿盖掉
             text:
-              msg.mode === 'tutor'
+              msg.note ??
+              (msg.mode === 'tutor'
                 ? '（已切到辅导模式：我一步步问，你自己算出答案。想直接要结果就说一声。）'
-                : '（已切回协作模式：直接给你结果。）',
+                : '（已切回协作模式：直接给你结果。）'),
           });
         }
         break;

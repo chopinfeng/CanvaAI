@@ -1,6 +1,22 @@
 import type { Scene } from '@canvai/canvas-core';
 import type { Author, LayerId, Rect, ServerMessage, ToolResult } from '@canvai/protocol';
 
+/**
+ * 一次辅导的账本。
+ *
+ * 关键是 outline：辅导什么时候算讲完，不能由模型当场感觉，
+ * 得有一份两边都看得见的待办。用户问的是「这道题」，那 (1)(2) 两问
+ * 全被他自己解出来才算完——中途他说一句"懂了"不作数。
+ */
+export interface TutorSession {
+  /** 用户当时的原话，用来在每轮提醒模型这次到底在教什么 */
+  goal: string;
+  /** 待攻克的小问。全 done 才允许 tutor_finish */
+  outline: Array<{ text: string; done: boolean }>;
+  /** 进入辅导时的轮次，用于判断"刚进来还没拆题" */
+  startedTurn: number;
+}
+
 export interface SessionState {
   /** 用户当前选中的图元——用户说「这个」时的解析依据 */
   selection: string[];
@@ -16,6 +32,8 @@ export interface SessionState {
    * tutor ：辅导解题，一步步引导，不给答案（见 TUTOR_ADDENDUM）
    */
   mode: 'assist' | 'tutor';
+  /** 辅导进行中的账本；不在辅导里就是 null */
+  tutor: TutorSession | null;
 }
 
 /** 视觉模型兜底：只在结构化查询不够用时才走 */

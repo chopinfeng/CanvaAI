@@ -148,6 +148,8 @@ export const ServerMessageSchema = z.discriminatedUnion('t', [
     t: z.literal('session.mode'),
     mode: z.enum(['assist', 'tutor']),
     auto: z.boolean().default(false),
+    /** 为什么切的。退出辅导有好几种原因，说法不一样，别用一句通稿糊过去 */
+    note: z.string().optional(),
   }),
 
   /** 状态气泡：「正在看你的图…」 */

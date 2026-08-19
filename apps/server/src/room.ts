@@ -51,7 +51,14 @@ export class Room {
     this.doc = new Y.Doc();
     this.scene = new Scene(this.doc);
     this.awareness = new awarenessProtocol.Awareness(this.doc);
-    this.session = { selection: [], viewport: [0, 0, 1440, 900], zoom: 1, editMode: 'suggest', mode: 'assist' };
+    this.session = {
+      selection: [],
+      viewport: [0, 0, 1440, 900],
+      zoom: 1,
+      editMode: 'suggest',
+      mode: 'assist',
+      tutor: null,
+    };
 
     this.doc.on('update', (update: Uint8Array, origin: unknown) => {
       this.broadcastUpdate(update, origin);

@@ -391,6 +391,38 @@ export const interactSetTodo = defineTool({
 });
 
 /* ================================================================== *
+ * tutor —— 辅导模式的进度账本
+ *
+ * 没有这两个工具的时候，"这次辅导讲完了没有"没人记得：模型讲完第 (1) 问、
+ * 用户说一句"懂了"，它就顺势收尾了，第 (2) 问再也没人提起。
+ * 把待解决的小问显式记在会话上，每一轮都摆到模型眼前，它才赖不掉。
+ * ================================================================== */
+
+export const tutorPlan = defineTool({
+  name: 'tutor_plan',
+  description:
+    '把用户问的这道题拆成他要逐个攻克的小问，或更新哪些已经攻克了。' +
+    '进入辅导后的**第一件事**就是调它——没拆题就等于没人记得这次辅导要讲到哪里为止。' +
+    '题目有第 (1)(2) 问就至少拆成两条；一问里要分几步想清楚的，也拆开。' +
+    '每次传**完整清单**（不是增量），用户自己答出来的那条把 done 设成 true。' +
+    '注意：done 的标准是"用户自己算出来了"，不是"你讲过了"。',
+  input: z.object({
+    items: z
+      .array(z.object({ text: z.string(), done: z.boolean().default(false) }))
+      .min(1),
+  }),
+});
+
+export const tutorFinish = defineTool({
+  name: 'tutor_finish',
+  description:
+    '结束本次辅导，切回普通模式。**只有 tutor_plan 里的小问全部 done 了才会成功**，' +
+    '还有没解决的会被拒绝并告诉你剩哪些。' +
+    'summary 用一两句回顾他自己走通的思路（不是复述答案），说给用户听。',
+  input: z.object({ summary: z.string() }),
+});
+
+/* ================================================================== *
  * 返回值 schema（供服务端自检 / 测试断言）
  * ================================================================== */
 
@@ -439,6 +471,8 @@ export const TOOL_DEFS = [
   interactSuggest,
   interactSetStatus,
   interactSetTodo,
+  tutorPlan,
+  tutorFinish,
 ] as const satisfies readonly ToolDef[];
 
 export type ToolName = (typeof TOOL_DEFS)[number]['name'];

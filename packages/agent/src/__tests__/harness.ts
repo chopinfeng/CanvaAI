@@ -69,7 +69,15 @@ export const USER: Author = { id: 'u1', kind: 'user', name: '用户' };
 
 export function makeHarness(
   steps: Array<{ text?: string; calls?: ToolCall[] }>,
-  init: { scene?: Scene; session?: Partial<SessionState> } = {},
+  init: {
+    scene?: Scene;
+    session?: Partial<SessionState>;
+    /**
+     * 收到 interact_ask_user 就自动replied——不然回合会一直阻塞到 maxMs，
+     * 每条这样的用例白等 5 秒。给一个函数可以按问题内容答不同的话。
+     */
+    autoAnswer?: string | ((question: string) => string);
+  } = {},
 ): Harness {
   const scene = init.scene ?? new Scene();
   const session: SessionState = {
@@ -78,15 +86,23 @@ export function makeHarness(
     zoom: 1,
     editMode: 'suggest',
     mode: 'assist',
+    tutor: null,
     ...init.session,
   };
   const emitted: ServerMessage[] = [];
   const model = new ScriptedModel(steps);
-  const loop = new AgentLoop({
+  const loop: AgentLoop = new AgentLoop({
     model,
     scene,
     session,
-    emit: (m) => emitted.push(m),
+    emit: (m) => {
+      emitted.push(m);
+      if (m.t === 'agent.ask' && init.autoAnswer !== undefined) {
+        const answer = typeof init.autoAnswer === 'function' ? init.autoAnswer(m.question) : init.autoAnswer;
+        // 下一个微任务再答，让 ask 先把 pendingAsk 挂上
+        queueMicrotask(() => loop.push({ kind: 'answer', askId: m.askId, answer, at: Date.now() }));
+      }
+    },
     maxSteps: 8,
     maxMs: 5_000,
   });

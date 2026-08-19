@@ -80,6 +80,10 @@ export class AgentLoop {
   push(event: AgentInputEvent): void {
     // 用户回答问题不算打断，是当前 turn 在等的东西
     if (event.kind === 'answer' && this.pendingAsk) {
+      // 但先过一遍意图：辅导模式下 Agent 大部分时间都停在 interact_ask_user 上，
+      // 用户想走的那句话（"先不学了""直接告诉我答案"）多半就打在答题框里。
+      // 不在这儿判，它会被当成一句普通回答咽下去，模式一直挂着下不来。
+      this.applyIntent([event]);
       const ask = this.pendingAsk;
       this.pendingAsk = null;
       ask.resolve(event.answer);
@@ -156,6 +160,10 @@ export class AgentLoop {
     let error: string | undefined;
     /** 同类工具连续失败计数，撞到 3 就停手，避免烧 token 空转 */
     const failStreak = new Map<string, number>();
+    /** 本轮把球交回给用户了没有（辅导模式下用） */
+    let asked = false;
+    /** 交回球的提醒只发一次，免得两边互相等着变成死循环 */
+    let nudged = false;
 
     try {
       for (;;) {
@@ -179,8 +187,19 @@ export class AgentLoop {
         steps++;
         fullText += out.text;
 
-        if (out.calls.length === 0) break;
+        if (out.calls.length === 0) {
+          // 辅导里"没调工具就结束"= 球断在这儿了：用户等着被问，
+          // 而模型以为自己讲完了。补一句系统提醒，再给它一次机会。
+          const nudge = nudged ? null : this.tutorHandBack(asked);
+          if (nudge) {
+            nudged = true;
+            this.history.push({ role: 'user', content: nudge });
+            continue;
+          }
+          break;
+        }
 
+        if (out.calls.some((c) => c.function.name === 'interact_ask_user')) asked = true;
         toolCalls += out.calls.length;
         await this.executeCalls(out.calls, ctx, turnId, failStreak);
 
@@ -228,15 +247,78 @@ export class AgentLoop {
    * 而用户的自然表达就是那句话，没人会先去找开关。
    */
   private applyIntent(events: AgentInputEvent[]): void {
+    const session = this.opts.session;
     for (const e of events) {
-      if (e.kind !== 'text' && e.kind !== 'speech') continue;
-      const intent = detectTutorIntent(e.text);
+      const said = e.kind === 'text' || e.kind === 'speech' ? e.text : e.kind === 'answer' ? e.answer : null;
+      if (said === null) continue;
+      const intent = detectTutorIntent(said);
       if (!intent) continue;
-      const next = intent === 'enter' ? 'tutor' : 'assist';
-      if (this.opts.session.mode === next) continue;
-      this.opts.session.mode = next;
-      this.opts.emit({ t: 'session.mode', mode: next, auto: true });
+
+      if (intent === 'enter') {
+        // 只有主动开口才算"想被教"。答题框里的"我不会"是对某个问题的回答，
+        // 不是要切模式——普通模式下 Agent 也会提问，那时把他拖进辅导纯属误伤。
+        if (e.kind === 'answer') continue;
+        // 已经在辅导里就什么都不做：「我不会」这类话也命中 enter，
+        // 而它在辅导中途是再正常不过的一句，拿它重置进度会把讲过的全丢掉。
+        if (session.mode === 'tutor') continue;
+        session.mode = 'tutor';
+        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo };
+        this.opts.emit({ t: 'session.mode', mode: 'tutor', auto: true });
+        continue;
+      }
+
+      // exit / switch：都是离开辅导，但离开的理由不一样，说给用户的话也不该一样
+      if (session.mode !== 'tutor') continue;
+      const left = session.tutor?.outline.filter((i) => !i.done) ?? [];
+      session.mode = 'assist';
+      session.tutor = null;
+      this.opts.emit({ t: 'agent.todo', items: [] });
+      this.opts.emit({
+        t: 'session.mode',
+        mode: 'assist',
+        auto: true,
+        note:
+          intent === 'exit'
+            ? '（已切回协作模式：直接给你结果。）'
+            : left.length > 0
+              ? `（先放下这道题——还剩 ${left.length} 个小问没做完，想接着学随时说。）`
+              : '（已退出辅导，去做新任务。）',
+      });
     }
+  }
+
+  /**
+   * 辅导这一轮该不该被放走？不该的话，返回要塞给模型的那句提醒。
+   *
+   * 用户的诉求很简单：他问的题没讲完，这次辅导就不能算结束。
+   * 光靠提示词压不住——模型讲完一半、用户说声"懂了"，它就顺势收尾了。
+   * 所以在回合出口这里拦一道：辅导中、账上还有没解决的小问、这一轮又没向他提问，
+   * 就不放行，把还剩什么摆回它面前。
+   */
+  private tutorHandBack(asked: boolean): string | null {
+    const session = this.opts.session;
+    if (session.mode !== 'tutor' || !session.tutor || asked) return null;
+    const t = session.tutor;
+
+    if (t.outline.length === 0) {
+      return (
+        `[系统] 辅导刚开始，你还没拆题——那这次讲到哪儿算完就没人说得清。` +
+        `先用 tutor_plan 把「${t.goal}」拆成用户要逐个攻克的小问（第 (1)(2) 问至少各算一条），` +
+        `再用 interact_ask_user 就第一个小问提一个他答得上来的问题，然后结束本回合。`
+      );
+    }
+
+    const left = t.outline.filter((i) => !i.done);
+    if (left.length === 0) {
+      return '[系统] 小问都解决了，这次辅导可以收尾了。用 tutor_finish 提交一两句回顾（说他自己走通的思路，不是复述答案）。';
+    }
+
+    return (
+      `[系统] 这一轮你没有向用户提问，球断在这里了——他在等你，你以为讲完了。` +
+      `账上还剩 ${left.length} 个小问没解决：${left.map((i) => i.text).join('；')}。` +
+      `就「${left[0]!.text}」用 interact_ask_user 提一个他答得上来的问题，然后结束本回合。` +
+      `如果他刚才其实已经自己算出来了，先用 tutor_plan 把那条标成 done。`
+    );
   }
 
   /**
