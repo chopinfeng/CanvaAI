@@ -16,6 +16,12 @@ export interface TutorSession {
   /** 进入辅导时的轮次，用于判断"刚进来还没拆题" */
   startedTurn: number;
   /**
+   * 这次辅导挂上的知识点，以及每一次判定落在它们身上的结果。
+   * 讲完时一次性写进掌握度——中途写的话，学生半路走人会留下一堆
+   * "被引导着做对了"的假记录。
+   */
+  attempts: Array<{ conceptId: string; ok: boolean; guided: boolean }>;
+  /**
    * 他答了但还没给判定的那一次。
    * 有值的时候不许再提下一个问题——否则他一路答下来，
    * 不知道自己刚才那步是对是错，等于白答。
@@ -76,6 +82,22 @@ export interface AssetStore {
   toDataUri?(assetId: string): string | undefined;
 }
 
+/**
+ * 知识图谱的出口。
+ *
+ * agent 包不认识服务端的图和存储，只认这个口子——
+ * 单测里塞个假的就能验证"讲完一道题之后掌握度确实变了"，
+ * 不用起一个真的图谱服务。
+ */
+export interface KnowledgePort {
+  /** 按名字找知识点，讲题前用它把"勾股定理"落到一个真实的 id 上 */
+  search(query: string, limit?: number): Array<{ id: string; name: string; label: string; definition?: string }>;
+  /** 学这个之前得先会哪些——学生卡住时顺着它往回退一步 */
+  prerequisites(id: string): Array<{ id: string; name: string }>;
+  /** 记一批练习结果，落到这个学生的掌握度上 */
+  record(attempts: Array<{ conceptId: string; ok: boolean; guided: boolean }>): Promise<void>;
+}
+
 export interface ToolContext {
   scene: Scene;
   author: Author;
@@ -91,6 +113,7 @@ export interface ToolContext {
   vision?: VisionProvider;
   rasterizer?: Rasterizer;
   assets?: AssetStore;
+  knowledge?: KnowledgePort;
 
   /** 本回合内 AI 产生的 opId，供 interact_suggest 引用 */
   recentOpIds: string[];

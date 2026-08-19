@@ -7,7 +7,14 @@ import { extractLeakedCalls, hasLeakedCalls } from './model/leaked-calls.js';
 import type { ChatMessage, ModelClient, ToolCall, Usage } from './model/types.js';
 import { ModelError } from './model/types.js';
 import { SYSTEM_PROMPT, TUTOR_ADDENDUM } from './prompt.js';
-import type { AssetStore, Rasterizer, SessionState, ToolContext, VisionProvider } from './tools/context.js';
+import type {
+  AssetStore,
+  KnowledgePort,
+  Rasterizer,
+  SessionState,
+  ToolContext,
+  VisionProvider,
+} from './tools/context.js';
 import { ToolRegistry } from './tools/registry.js';
 
 export interface AgentLoopOptions {
@@ -25,6 +32,7 @@ export interface AgentLoopOptions {
   vision?: VisionProvider;
   rasterizer?: Rasterizer;
   assets?: AssetStore;
+  knowledge?: KnowledgePort;
   onUsage?: (usage: Usage) => void;
 }
 
@@ -182,6 +190,7 @@ export class AgentLoop {
       ...(this.opts.vision ? { vision: this.opts.vision } : {}),
       ...(this.opts.rasterizer ? { rasterizer: this.opts.rasterizer } : {}),
       ...(this.opts.assets ? { assets: this.opts.assets } : {}),
+      ...(this.opts.knowledge ? { knowledge: this.opts.knowledge } : {}),
     };
 
     let steps = 0;
@@ -302,7 +311,7 @@ export class AgentLoop {
         // 而它在辅导中途是再正常不过的一句，拿它重置进度会把讲过的全丢掉。
         if (session.mode === 'tutor') continue;
         session.mode = 'tutor';
-        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo, pending: null, rightSince: 0, markedSinceAsk: false };
+        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [] };
         this.opts.emit({ t: 'session.mode', mode: 'tutor', auto: true });
         continue;
       }

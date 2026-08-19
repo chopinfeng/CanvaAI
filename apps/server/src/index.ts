@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { handleKg } from './kg-api.ts';
 import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
 import { MAX_ASSET_BYTES, assetStore, readAsset, sniffMime } from './assets.ts';
@@ -13,6 +14,13 @@ installCrashHandlers({ onFatal: saveAllRooms });
 const server = createServer((req, res) => {
   const origin = req.headers.origin;
   if (origin === config.webOrigin) res.setHeader('access-control-allow-origin', origin);
+
+  /* ---- 知识图谱：查图、看掌握度、记练习结果 ---- */
+
+  if (req.url?.startsWith('/kg')) {
+    void handleKg(req, res);
+    return;
+  }
 
   /* ---- 图片资源 ---- */
 

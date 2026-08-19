@@ -16,6 +16,7 @@ import type { SessionState } from '@canvai/agent';
 import { assetStore } from './assets.ts';
 import { config, hasAgent, hasVision } from './config.ts';
 import { log } from './log.ts';
+import { makeKnowledgePort } from './knowledge.ts';
 import { makeVisionProvider } from './vision.ts';
 import { getRasterizer } from './rasterizer.ts';
 
@@ -87,12 +88,15 @@ export class Room {
     });
 
     // 没配视觉模型就把 canvas_snapshot 摘掉——留着只会让模型反复去调一个读不出内容的工具
+    const knowledge = makeKnowledgePort(this.id);
+
     const registry = new ToolRegistry(undefined, undefined, {
       exclude: hasVision() ? [] : ['canvas_snapshot'],
     });
 
     return new AgentLoop({
       model,
+      knowledge,
       registry,
       scene: this.scene,
       session: this.session,

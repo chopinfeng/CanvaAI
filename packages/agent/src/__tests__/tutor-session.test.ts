@@ -565,7 +565,7 @@ describe('停手要明说', () => {
   it('问题还挂在他屏幕上、回合被打断时不插话', async () => {
     // 不自动作答：回合会一直阻塞在 interact_ask_user 上
     const h = makeHarness([{ calls: [PLAN([{ text: '(1) 求 DF' }]), ask('DF 是多少？')] }, { text: '好' }], {
-      session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false } },
+      session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [] } },
     });
 
     const running = speak(h, '继续');
@@ -594,7 +594,7 @@ describe('等用户思考的时间不占回合额度', () => {
         { text: '好' },
       ],
       {
-        session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false } },
+        session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [] } },
         maxMs: 120,
         // 想的时间比整个回合额度还长——挂钟计时的话这里必死
         autoAnswerDelayMs: 260,
@@ -658,7 +658,7 @@ describe('讲解要指着图说', () => {
         zoom: 1,
         editMode: 'suggest',
         mode: 'tutor',
-        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false },
+        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [] },
       },
       events: [],
       turnNo: 3,
@@ -676,7 +676,7 @@ describe('讲解要指着图说', () => {
         zoom: 1,
         editMode: 'suggest',
         mode: 'tutor',
-        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: true },
+        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: true, attempts: [] },
       },
       events: [],
       turnNo: 3,
@@ -751,7 +751,7 @@ describe('账本每一轮都摆在模型眼前', () => {
           ],
           startedTurn: 1,
           pending: null,
-          rightSince: 0, markedSinceAsk: false
+          rightSince: 0, markedSinceAsk: false, attempts: []
         },
       },
       events: [],
@@ -768,7 +768,7 @@ describe('账本每一轮都摆在模型眼前', () => {
   it('还没拆题时催拆题', () => {
     const header = buildContextHeader({
       scene: new Scene(),
-      session: { ...base, tutor: { goal: '讲讲这题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false } },
+      session: { ...base, tutor: { goal: '讲讲这题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [] } },
       events: [],
       turnNo: 1,
     });

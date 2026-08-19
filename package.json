@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.22.0",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "pnpm -r --parallel --filter \"./apps/*\" dev",
     "build": "pnpm -r build",
@@ -17,5 +19,8 @@
     "@types/node": "^22.10.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0"
   }
 }

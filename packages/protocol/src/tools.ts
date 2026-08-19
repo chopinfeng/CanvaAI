@@ -415,6 +415,17 @@ export const tutorPlan = defineTool({
   }),
 });
 
+export const kgLookup = defineTool({
+  name: 'kg_lookup',
+  description:
+    '在 K12 学科知识图谱里查知识点，拿到它的 id、定义和前置知识。\n' +
+    '拆完题就查一次：把「勾股定理」这几个字落到一个真实的知识点 id 上，' +
+    '之后 tutor_judge 才能把他这次答得对不对记到这个点上，图谱才会跟着长。\n' +
+    '学生卡住时也用它——返回的 prerequisites 就是"他可能是前面那块没学好"。',
+  input: z.object({ query: z.string(), limit: z.number().int().min(1).max(20).default(5) }),
+  readonly: true,
+});
+
 export const tutorJudge = defineTool({
   name: 'tutor_judge',
   description:
@@ -427,6 +438,11 @@ export const tutorJudge = defineTool({
   input: z.object({
     verdict: z.enum(['right', 'partly', 'wrong']),
     comment: z.string(),
+    /**
+     * 这一问考的是哪几个知识点（kg_lookup 拿到的 id）。
+     * 填了，这次判定就会落进他的掌握度；不填也能用，只是图谱不会长。
+     */
+    conceptIds: z.array(z.string()).optional(),
   }),
 });
 
@@ -488,6 +504,7 @@ export const TOOL_DEFS = [
   interactSuggest,
   interactSetStatus,
   interactSetTodo,
+  kgLookup,
   tutorPlan,
   tutorJudge,
   tutorFinish,

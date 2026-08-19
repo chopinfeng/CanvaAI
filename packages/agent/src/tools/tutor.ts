@@ -1,4 +1,4 @@
-import { tutorFinish, tutorJudge, tutorPlan, err, ok } from '@canvai/protocol';
+import { kgLookup, tutorFinish, tutorJudge, tutorPlan, err, ok } from '@canvai/protocol';
 import type { ToolExecutor } from './context.js';
 
 /**
@@ -102,6 +102,19 @@ export const execTutorJudge: ToolExecutor = async (raw, ctx) => {
   t.pending = null;
   // 只有"完全对"才换来一张打勾的门票。半对说明这一步还没走通。
   if (a.verdict === 'right') t.rightSince += 1;
+
+  /**
+   * 把这次判定记到知识点上——先攒着，讲完再一次写进去。
+   *
+   * 中途就写的话，学生半路走人会在图谱上留下一串"被引导着做对了"的记录，
+   * 而他其实并没有走完。
+   * guided 恒为 true：辅导模式下他是被一路问出来的，
+   * 和自己独立做对不能记一样的分（见 knowledge/mastery.ts）。
+   */
+  for (const id of a.conceptIds ?? []) {
+    t.attempts.push({ conceptId: id, ok: a.verdict === 'right', guided: true });
+  }
+
   ctx.emit({ t: 'agent.judge', verdict: a.verdict, comment: a.comment });
 
   return ok({
@@ -147,6 +160,23 @@ export const execTutorFinish: ToolExecutor = async (raw, ctx) => {
   }
 
   const count = t.outline.length;
+
+  /**
+   * 讲完了才写图谱。
+   *
+   * 写失败不能把收尾也搞砸——学生这道题确实讲完了，
+   * 掌握度没记上是我们的问题，不该表现成"这次辅导没结束"。
+   */
+  let learned = 0;
+  if (ctx.knowledge && t.attempts.length > 0) {
+    try {
+      await ctx.knowledge.record(t.attempts);
+      learned = t.attempts.length;
+    } catch {
+      learned = 0;
+    }
+  }
+
   ctx.session.tutor = null;
   ctx.session.mode = 'assist';
   ctx.emit({ t: 'agent.todo', items: [] });
@@ -161,5 +191,38 @@ export const execTutorFinish: ToolExecutor = async (raw, ctx) => {
     note: `（这次辅导到此结束——这道题的 ${count} 个小问都是你自己做出来的。要再讲一道就说一声。）`,
   });
 
-  return ok({ finished: true, solved: count });
+  return ok({ finished: true, solved: count, knowledgeUpdated: learned });
+};
+
+/**
+ * 在知识图谱里查知识点。
+ *
+ * 拆完题查一次，把「勾股定理」这几个字落到一个真实的 id 上——
+ * 之后 tutor_judge 带上这个 id，学生答得对不对才落得进他的掌握度。
+ * 没有这一步，图谱就只是个好看的装饰，永远不会跟着学生长。
+ */
+export const execKgLookup: ToolExecutor = async (raw, ctx) => {
+  const a = kgLookup.input.parse(raw);
+  if (!ctx.knowledge) {
+    return err(
+      '这个部署没有接知识图谱',
+      '照常辅导就行，不用再查了。tutor_judge 的 conceptIds 也不用填。',
+    );
+  }
+
+  const hits = ctx.knowledge.search(a.query, a.limit);
+  if (hits.length === 0) {
+    return ok({
+      hits: [],
+      note: `图谱里没找到「${a.query}」。换个更常见的说法再试一次（比如用课本上的叫法），或者就不挂知识点了。`,
+    });
+  }
+
+  return ok({
+    hits: hits.map((h) => ({
+      ...h,
+      prerequisites: ctx.knowledge!.prerequisites(h.id),
+    })),
+    summary: `找到 ${hits.length} 个：${hits.map((h) => h.name).join('、')}`,
+  });
 };
