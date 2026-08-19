@@ -6,6 +6,7 @@ import { ErrorBoundary } from './ui/ErrorBoundary';
 import { Toolbar } from './ui/Toolbar';
 import { CanvasStage } from './canvas/CanvasStage';
 import { Connection } from './net/connection';
+import { shapeBounds } from '@canvai/canvas-core';
 import { useStore } from './store';
 
 const COLORS = ['#2563eb', '#059669', '#dc2626', '#d97706', '#7c3aed'];
@@ -92,6 +93,21 @@ export function App() {
         s.endTurn(msg.turnId);
         break;
 
+      case 'session.mode': {
+        set({ tutorMode: msg.mode === 'tutor' });
+        if (msg.auto) {
+          s.pushChat({
+            id: `mode_${nanoid(6)}`,
+            role: 'ai',
+            text:
+              msg.mode === 'tutor'
+                ? '（已切到辅导模式：我一步步问，你自己算出答案。想直接要结果就说一声。）'
+                : '（已切回协作模式：直接给你结果。）',
+          });
+        }
+        break;
+      }
+
       case 'agent.status':
         set({ aiStatus: msg.text });
         break;
@@ -105,15 +121,70 @@ export function App() {
         break;
 
       case 'agent.viewport': {
-        // AI 把用户的视线带过去：算出让该区域居中的相机参数
+        /**
+         * AI 把用户的视线带过去。
+         *
+         * 这里必须防住坏参数：视口是 Agent 说了算的，一个离谱的 rect
+         * 会把人扔到一片空白上——而用户完全不知道发生了什么，
+         * 只会觉得"画布没了"。宁可忽略这次指令，也不能让画面失去内容。
+         */
         if (!msg.rect) break;
-        const [x, y, w, h] = msg.rect;
-        const zoom = Math.max(0.1, Math.min(3, Math.min(window.innerWidth / w, window.innerHeight / h) * 0.9));
+
+        const [rx, ry, rw, rh] = msg.rect;
+        if (![rx, ry, rw, rh].every(Number.isFinite) || rw <= 0 || rh <= 0) {
+          console.warn('[canvai] 忽略异常的视口指令', msg.rect);
+          break;
+        }
+
+        /**
+         * 窗口尺寸拿不到就别算了。
+         *
+         * 标签页在后台、窗口最小化时 innerWidth 会是 0，硬算出来的相机
+         * 参数是垃圾（实测缩放被压到 0.05，用户回到前台看见一片空白）。
+         * 这和 Konva 在 0 宽高上 drawImage 崩溃是同一个根因。
+         */
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        if (vw < 100 || vh < 100) break;
+
+        const shapes = useStore.getState().shapes;
+
+        /**
+         * 把请求区域收敛到实际有内容的范围内。
+         *
+         * 视口是 Agent 说了算的，而它偶尔会给出一个大得离谱的区域
+         * （实测出现过 25600×14400）。照单全收的话缩放会被压到最小，
+         * 用户面对的就是一片空白，还完全不知道发生了什么。
+         * 与其拒绝，不如收敛——落到内容上总比落到虚空里强。
+         */
+        let target: [number, number, number, number] = [rx, ry, rw, rh];
+        if (shapes.length > 0) {
+          const bs = shapes.map(shapeBounds);
+          const cx0 = Math.min(...bs.map((b) => b[0]));
+          const cy0 = Math.min(...bs.map((b) => b[1]));
+          const cx1 = Math.max(...bs.map((b) => b[0] + b[2]));
+          const cy1 = Math.max(...bs.map((b) => b[1] + b[3]));
+          const pad = 80;
+
+          const x0 = Math.max(rx, cx0 - pad);
+          const y0 = Math.max(ry, cy0 - pad);
+          const x1 = Math.min(rx + rw, cx1 + pad);
+          const y1 = Math.min(ry + rh, cy1 + pad);
+
+          if (x1 - x0 < 1 || y1 - y0 < 1) {
+            console.warn('[canvai] 视口指令与画布内容不相交，已忽略', msg.rect);
+            break;
+          }
+          target = [x0, y0, x1 - x0, y1 - y0];
+        }
+
+        const [x, y, w, h] = target;
+        const zoom = Math.max(0.05, Math.min(3, Math.min(vw / w, vh / h) * 0.9));
         set({
           camera: {
             zoom,
-            x: window.innerWidth / 2 - (x + w / 2) * zoom,
-            y: window.innerHeight / 2 - (y + h / 2) * zoom,
+            x: vw / 2 - (x + w / 2) * zoom,
+            y: vh / 2 - (y + h / 2) * zoom,
           },
         });
         break;
@@ -124,12 +195,21 @@ export function App() {
         break;
 
       case 'agent.highlight': {
-        const next = { ...useStore.getState().highlights };
+        // 空数组 = 清除全部高亮
+        if (msg.shapeIds.length === 0) {
+          set({ highlights: {} });
+          break;
+        }
+        // 辅导时提问前的标注要一直亮着（ms=0）——学生思考作答要几十秒，
+        // 默认 1.2 秒早灭了，等于没标
+        const next = msg.ms === 0 ? {} : { ...useStore.getState().highlights };
         for (const id of msg.shapeIds) next[id] = msg.kind;
         set({ highlights: next });
-        window.setTimeout(() => {
-          for (const id of msg.shapeIds) useStore.getState().clearHighlight(id);
-        }, msg.ms);
+        if (msg.ms > 0) {
+          window.setTimeout(() => {
+            for (const id of msg.shapeIds) useStore.getState().clearHighlight(id);
+          }, msg.ms);
+        }
         break;
       }
 

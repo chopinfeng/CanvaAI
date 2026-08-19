@@ -6,3 +6,4 @@ export * from './tools/registry.js';
 export * from './context.js';
 export * from './loop.js';
 export * from './prompt.js';
+export * from './intent.js';

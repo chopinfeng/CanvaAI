@@ -307,10 +307,15 @@ export const canvasSpotlight = defineTool({
 
 export const canvasHighlight = defineTool({
   name: 'canvas_highlight',
-  description: '短暂高亮一批图元（发光/描边/脉冲）。用于「注意这条边」这种指示。',
+  description:
+    '高亮一批图元（发光/描边/脉冲）。用于「注意这条边」这种指示。\n' +
+    '**ms=0 表示一直亮着，直到你下次高亮别的或传空数组清除。**\n' +
+    '辅导时提问前的标注一定要用 ms=0——学生读题、思考、作答要几十秒，' +
+    '默认的 1.2 秒早就灭了，等于没标。',
   input: z.object({
-    ids: z.array(z.string()).min(1),
+    ids: z.array(z.string()),
     kind: z.enum(['glow', 'outline', 'pulse']).default('glow'),
+    /** 0 = 持续显示，直到下次高亮或清除 */
     ms: z.number().default(1200),
   }),
 });

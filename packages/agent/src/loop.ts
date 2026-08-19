@@ -2,6 +2,7 @@ import { nanoid } from 'nanoid';
 import type { Scene } from '@canvai/canvas-core';
 import type { AgentInputEvent, Author, ServerMessage, ToolResult } from '@canvai/protocol';
 import { buildContextHeader, describeDiff } from './context.js';
+import { detectTutorIntent } from './intent.js';
 import { extractLeakedCalls, hasLeakedCalls } from './model/leaked-calls.js';
 import type { ChatMessage, ModelClient, ToolCall, Usage } from './model/types.js';
 import { ModelError } from './model/types.js';
@@ -121,6 +122,7 @@ export class AgentLoop {
     const deadline = setTimeout(() => controller.abort(), this.opts.maxMs);
     const startedAt = Date.now();
 
+    this.applyIntent(events);
     this.opts.emit({ t: 'agent.turn.start', turnId });
 
     // Context Header 拼在本轮用户消息里 —— 永远是序列的最后一条
@@ -217,6 +219,24 @@ export class AgentLoop {
 
     this.opts.emit({ t: 'agent.turn.end', turnId, reason });
     return { turnId, steps, reason, text: fullText, toolCalls, ...(error ? { error } : {}) };
+  }
+
+  /**
+   * 用户说「给我讲这道题」时自动进入辅导模式，说「直接告诉我答案」时退出。
+   *
+   * 不这么做的话，辅导模式等于不存在——它的开关在面板角落，
+   * 而用户的自然表达就是那句话，没人会先去找开关。
+   */
+  private applyIntent(events: AgentInputEvent[]): void {
+    for (const e of events) {
+      if (e.kind !== 'text' && e.kind !== 'speech') continue;
+      const intent = detectTutorIntent(e.text);
+      if (!intent) continue;
+      const next = intent === 'enter' ? 'tutor' : 'assist';
+      if (this.opts.session.mode === next) continue;
+      this.opts.session.mode = next;
+      this.opts.emit({ t: 'session.mode', mode: next, auto: true });
+    }
   }
 
   /**

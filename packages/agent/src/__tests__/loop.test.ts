@@ -463,6 +463,61 @@ describe('辅导模式', () => {
   });
 });
 
+describe('说一句就进入辅导', () => {
+  it('「给我讲这道题」自动切到辅导模式，并注入约束', async () => {
+    const h = makeHarness([{ text: '好' }]);
+    expect(h.session.mode).toBe('assist');
+
+    h.loop.push({ kind: 'text', text: '给我讲这道题', at: Date.now() });
+    await h.loop.drain();
+
+    expect(h.session.mode).toBe('tutor');
+    expect(String(h.model.seen[0]![0]!.content)).toContain('不准说出最终答案');
+  });
+
+  it('切换会通知客户端，且标明是自动切的', async () => {
+    const h = makeHarness([{ text: '好' }]);
+    h.loop.push({ kind: 'text', text: '这道题怎么做', at: Date.now() });
+    await h.loop.drain();
+
+    const ev = h.events('session.mode');
+    expect(ev).toHaveLength(1);
+    expect(ev[0]!.mode).toBe('tutor');
+    expect(ev[0]!.auto).toBe(true);
+  });
+
+  it('「直接告诉我答案」退出辅导模式', async () => {
+    const h = makeHarness([{ text: 'a' }, { text: 'b' }], { session: { mode: 'tutor' } });
+    h.loop.push({ kind: 'text', text: '直接告诉我答案', at: Date.now() });
+    await h.loop.drain();
+
+    expect(h.session.mode).toBe('assist');
+    expect(String(h.model.seen[0]![0]!.content)).not.toContain('不准说出最终答案');
+  });
+
+  it('语音说的话同样生效', async () => {
+    const h = makeHarness([{ text: '好' }]);
+    h.loop.push({ kind: 'speech', text: '这题我不会，教我做', at: Date.now() });
+    await h.loop.drain();
+    expect(h.session.mode).toBe('tutor');
+  });
+
+  it('画图类的话不会误切', async () => {
+    const h = makeHarness([{ text: '好' }]);
+    h.loop.push({ kind: 'text', text: '帮我把这几个节点连成流程图', at: Date.now() });
+    await h.loop.drain();
+    expect(h.session.mode).toBe('assist');
+    expect(h.events('session.mode')).toHaveLength(0);
+  });
+
+  it('已经在辅导模式时再说一次，不重复通知', async () => {
+    const h = makeHarness([{ text: 'a' }, { text: 'b' }], { session: { mode: 'tutor' } });
+    h.loop.push({ kind: 'text', text: '给我讲这道题', at: Date.now() });
+    await h.loop.drain();
+    expect(h.events('session.mode')).toHaveLength(0);
+  });
+});
+
 describe('打断', () => {
   it('turn 进行中来了新事件会中断当前 turn', async () => {
     const h = makeHarness([
@@ -541,5 +596,53 @@ describe('连线绑定', () => {
     // auto 锚点：从 n1 的右边出发，到 n2 的左边
     expect(arrow!.x).toBe(100);
     expect(scene.all().some((s) => s.text === '调用')).toBe(true);
+  });
+});
+
+describe('坐标点的两种写法', () => {
+  it('{x,y} 和 [x,y] 都接受 —— 数组是模型很自然会用的形式', async () => {
+    const h = makeHarness([
+      { calls: [call('canvas_pointer_move', { to: [300, 200], ms: 10 })] },
+      { calls: [call('canvas_pointer_move', { to: { x: 400, y: 250 }, ms: 10 })] },
+      { text: '到位' },
+    ]);
+    h.loop.push({ kind: 'text', text: '看这里', at: Date.now() });
+    await h.loop.drain();
+
+    const failed = h.events('agent.tool').filter((e) => e.call.state === 'error');
+    expect(failed).toHaveLength(0);
+
+    const ptr = h.events('agent.pointer');
+    expect(ptr.map((p) => p.to)).toEqual([
+      { x: 300, y: 200 },
+      { x: 400, y: 250 },
+    ]);
+  });
+});
+
+describe('持续高亮', () => {
+  it('ms=0 表示一直亮着，供学生边看边想', async () => {
+    const scene = new Scene();
+    scene.create([{ type: 'rect', id: 'sh_a', x: 0, y: 0, w: 10, h: 10 }], { author: USER });
+    const h = makeHarness(
+      [{ calls: [call('canvas_highlight', { ids: ['sh_a'], kind: 'glow', ms: 0 })] }, { text: 'ok' }],
+      { scene },
+    );
+    h.loop.push({ kind: 'text', text: '标一下', at: Date.now() });
+    await h.loop.drain();
+
+    const hl = h.events('agent.highlight');
+    expect(hl).toHaveLength(1);
+    expect(hl[0]!.ms).toBe(0);
+  });
+
+  it('传空数组用于清除，不再被 min(1) 拦下', async () => {
+    const h = makeHarness([{ calls: [call('canvas_highlight', { ids: [] })] }, { text: 'ok' }]);
+    h.loop.push({ kind: 'text', text: '清掉标记', at: Date.now() });
+    await h.loop.drain();
+
+    const payload = JSON.parse(h.loop.getHistory().find((m) => m.role === 'tool')!.content as string);
+    // 空数组时没有有效 id，工具会说明；关键是不再因为 schema 的 min(1) 直接报参数错
+    expect(String(payload.error ?? '') + String(payload.hint ?? '')).not.toContain('at least 1');
   });
 });

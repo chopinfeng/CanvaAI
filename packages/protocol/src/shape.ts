@@ -4,8 +4,19 @@ import { z } from 'zod';
  * 基础几何
  * ------------------------------------------------------------------ */
 
-export const PointSchema = z.object({ x: z.number(), y: z.number() });
-export type Point = z.infer<typeof PointSchema>;
+/**
+ * 坐标点。同时接受 {x,y} 和 [x,y] 两种写法。
+ *
+ * 数组是模型很自然会用的形式（points 里到处都是 [x,y]），
+ * 只认对象的话它会先错一次再自我纠正——白烧一次调用。
+ */
+export const PointSchema = z
+  .union([
+    z.object({ x: z.number(), y: z.number() }),
+    z.tuple([z.number(), z.number()]).transform(([x, y]) => ({ x, y })),
+  ])
+  .pipe(z.object({ x: z.number(), y: z.number() }));
+export type Point = { x: number; y: number };
 
 /** [x, y, w, h]，页面坐标系：左上原点，y 向下 */
 export const RectSchema = z.tuple([z.number(), z.number(), z.number(), z.number()]);

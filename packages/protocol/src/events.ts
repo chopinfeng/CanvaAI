@@ -140,6 +140,16 @@ export const ServerMessageSchema = z.discriminatedUnion('t', [
   /** 工具调用可视化 */
   z.object({ t: z.literal('agent.tool'), turnId: z.string(), call: ToolCallViewSchema }),
 
+  /**
+   * 会话模式变了。auto=true 表示是从用户的话里识别出来的，不是他点的开关——
+   * 界面必须把这件事显示出来，静默切换会让人搞不清 AI 为什么忽然改了脾气。
+   */
+  z.object({
+    t: z.literal('session.mode'),
+    mode: z.enum(['assist', 'tutor']),
+    auto: z.boolean().default(false),
+  }),
+
   /** 状态气泡：「正在看你的图…」 */
   z.object({ t: z.literal('agent.status'), text: z.string() }),
 

@@ -32,6 +32,8 @@ async function freshRoom(id: string) {
 const roomFile = (id: string) => join(dataDir, 'rooms', `${id}.ydoc`);
 
 describe('房间快照', () => {
+  // 这两条会二次 vi.resetModules() 再 import room.ts —— 整个模块图（含 agent 包）要重新
+  // 转译一遍。单跑 1.6s，全量并跑时挤过默认的 5s。给足余量，别让它偶发红。
   it('存了能读回来', async () => {
     const a = await freshRoom('r1');
     a.scene.create([{ type: 'rect', id: 'sh_keep', x: 10, y: 20, w: 30, h: 40 }], {
@@ -43,7 +45,7 @@ describe('房间快照', () => {
     const b = await freshRoom('r1');
     expect(b.scene.size).toBe(1);
     expect(b.scene.get('sh_keep')!.w).toBe(30);
-  });
+  }, 30_000);
 
   it('写入是原子的：不留半截文件，也不留临时文件', async () => {
     const room = await freshRoom('r2');
@@ -75,7 +77,7 @@ describe('房间快照', () => {
     // 原件另存了一份，便于人工抢救
     const files = await readdir(join(dataDir, 'rooms'));
     expect(files.some((f) => f.startsWith('r3.ydoc.corrupt.'))).toBe(true);
-  });
+  }, 30_000);
 
   it('房间不存在时是正常的新房间，不算损坏', async () => {
     const room = await freshRoom('never-seen');
