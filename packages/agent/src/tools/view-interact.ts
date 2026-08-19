@@ -80,6 +80,17 @@ export const execSay: ToolExecutor = async (raw, ctx) => {
 
 export const execAskUser: ToolExecutor = async (raw, ctx) => {
   const a = interactAskUser.input.parse(raw);
+
+  // 辅导时：他上一次的回答还没判定，就不许问下一个。
+  // 一路只被追问、从不被告知对错，答十道题也不知道自己错在哪。
+  const t = ctx.session.tutor;
+  if (ctx.session.mode === 'tutor' && t?.pending) {
+    return err(
+      `他刚才回答了「${t.pending.answer}」，你还没说这答案对不对`,
+      '先调 tutor_judge 给个判定（right / partly / wrong 加一句为什么），再来问下一个问题。',
+    );
+  }
+
   const answer = await ctx.ask(a.question, a.options);
   return ok({ answer });
 };

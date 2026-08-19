@@ -15,6 +15,19 @@ export interface TutorSession {
   outline: Array<{ text: string; done: boolean }>;
   /** 进入辅导时的轮次，用于判断"刚进来还没拆题" */
   startedTurn: number;
+  /**
+   * 他答了但还没给判定的那一次。
+   * 有值的时候不许再提下一个问题——否则他一路答下来，
+   * 不知道自己刚才那步是对是错，等于白答。
+   */
+  pending: { question: string; answer: string } | null;
+  /**
+   * 上次打勾之后，用户又答对了几次。
+   *
+   * 打勾的门票。没有它，模型会在用户一个字都没答的时候连调两次 tutor_plan
+   * 把小问标成 done——实测就是这么绕过开局那道限制的。
+   */
+  rightSince: number;
 }
 
 export interface SessionState {

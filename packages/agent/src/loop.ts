@@ -262,7 +262,7 @@ export class AgentLoop {
         // 而它在辅导中途是再正常不过的一句，拿它重置进度会把讲过的全丢掉。
         if (session.mode === 'tutor') continue;
         session.mode = 'tutor';
-        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo };
+        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo, pending: null, rightSince: 0 };
         this.opts.emit({ t: 'session.mode', mode: 'tutor', auto: true });
         continue;
       }
@@ -297,8 +297,20 @@ export class AgentLoop {
    */
   private tutorHandBack(asked: boolean): string | null {
     const session = this.opts.session;
-    if (session.mode !== 'tutor' || !session.tutor || asked) return null;
+    if (session.mode !== 'tutor' || !session.tutor) return null;
     const t = session.tutor;
+
+    // 这一条要在 asked 之前判：问了、他也答了、然后一声不吭就收工，
+    // 恰恰是最常见的那种"只被追问、从不被告知对错"。
+    if (t.pending) {
+      return (
+        `[系统] 用户回答了「${t.pending.answer}」，你到现在也没说这答案对不对，就把这一轮结束了。` +
+        `他不知道自己刚才那步站不站得住，接着往下走就是蒙的。` +
+        `先用 tutor_judge 给个判定（right / partly / wrong 加一句为什么），再提下一个问题。`
+      );
+    }
+
+    if (asked) return null;
 
     if (t.outline.length === 0) {
       return (
@@ -528,6 +540,7 @@ export class AgentLoop {
     return new Promise<string>((resolve) => {
       const onAbort = () => {
         this.pendingAsk = null;
+        // 中断不算"答过"：没答的东西没什么可判定的
         resolve('[用户没有回答，操作被中断]');
       };
       signal.addEventListener('abort', onAbort, { once: true });
@@ -535,6 +548,10 @@ export class AgentLoop {
         askId,
         resolve: (answer) => {
           signal.removeEventListener('abort', onAbort);
+          // 挂上"待判定"。清它的只有 tutor_judge——在那之前不许问下一个问题。
+          if (this.opts.session.mode === 'tutor' && this.opts.session.tutor) {
+            this.opts.session.tutor.pending = { question, answer };
+          }
           resolve(answer);
         },
       };

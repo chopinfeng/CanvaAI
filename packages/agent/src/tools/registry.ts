@@ -37,7 +37,7 @@ import {
   execSuggest,
   execZoomTo,
 } from './view-interact.js';
-import { execTutorFinish, execTutorPlan } from './tutor.js';
+import { execTutorFinish, execTutorJudge, execTutorPlan } from './tutor.js';
 
 const EXECUTORS: Record<string, ToolExecutor> = {
   canvas_query: execQuery,
@@ -74,6 +74,7 @@ const EXECUTORS: Record<string, ToolExecutor> = {
   interact_set_todo: execSetTodo,
 
   tutor_plan: execTutorPlan,
+  tutor_judge: execTutorJudge,
   tutor_finish: execTutorFinish,
 };
 

@@ -105,6 +105,9 @@ export function buildContextHeader(input: HeaderInput): string {
   if (session.mode === 'tutor' && session.tutor) {
     const t = session.tutor;
     lines.push(`[辅导中] 用户要学会的是：${t.goal}`);
+    if (t.pending) {
+      lines.push(`  ⚠ 他回答了「${t.pending.answer}」，你还没判对错。先 tutor_judge，再问下一个。`);
+    }
     if (t.outline.length === 0) {
       lines.push('  └ 还没拆题。先 tutor_plan 列出他要逐个攻克的小问，否则没人知道这次讲到哪算完。');
     } else {

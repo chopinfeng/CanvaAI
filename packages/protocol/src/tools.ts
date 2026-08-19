@@ -413,6 +413,21 @@ export const tutorPlan = defineTool({
   }),
 });
 
+export const tutorJudge = defineTool({
+  name: 'tutor_judge',
+  description:
+    '对用户刚才的回答给个明确判定。**问完一个问题、他答了，下一步必须是这个**——' +
+    '不判定就接着问下一题，他不知道自己刚才那步是对是错，一路答下来心里全是空的。' +
+    'verdict：right 完全对 / partly 方向对但有错处 / wrong 不对。' +
+    'comment 一句话说清「对/不对在哪」，不要在这里把下一步的答案捎带说出来。' +
+    '开头不用再写"对/不对"——界面已经有判定标签了，直接说理由。' +
+    'wrong 时也不准直接给正确答案，只点出矛盾在哪（"直角对着的边应该最长，你再看看"）。',
+  input: z.object({
+    verdict: z.enum(['right', 'partly', 'wrong']),
+    comment: z.string(),
+  }),
+});
+
 export const tutorFinish = defineTool({
   name: 'tutor_finish',
   description:
@@ -472,6 +487,7 @@ export const TOOL_DEFS = [
   interactSetStatus,
   interactSetTodo,
   tutorPlan,
+  tutorJudge,
   tutorFinish,
 ] as const satisfies readonly ToolDef[];
 

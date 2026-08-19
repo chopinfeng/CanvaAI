@@ -152,6 +152,16 @@ export const ServerMessageSchema = z.discriminatedUnion('t', [
     note: z.string().optional(),
   }),
 
+  /**
+   * 对用户上一次回答的判定。辅导时每答一次必有一条——
+   * 只是接着问下一题，用户不知道自己刚才那步站不站得住。
+   */
+  z.object({
+    t: z.literal('agent.judge'),
+    verdict: z.enum(['right', 'partly', 'wrong']),
+    comment: z.string(),
+  }),
+
   /** 状态气泡：「正在看你的图…」 */
   z.object({ t: z.literal('agent.status'), text: z.string() }),
 

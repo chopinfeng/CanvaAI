@@ -35,6 +35,15 @@ const TOOL_LABEL: Record<string, string> = {
   interact_suggest: '提交提案',
   interact_set_status: '更新状态',
   interact_set_todo: '列了计划',
+  tutor_plan: '拆题',
+  tutor_judge: '判对错',
+  tutor_finish: '收尾',
+};
+
+const VERDICT: Record<string, { icon: string; label: string }> = {
+  right: { icon: '✓', label: '答对了' },
+  partly: { icon: '≈', label: '对了一半' },
+  wrong: { icon: '✗', label: '不对' },
 };
 
 export function AgentPanel({ conn }: { conn: Connection }) {
@@ -156,6 +165,18 @@ export function AgentPanel({ conn }: { conn: Connection }) {
         )}
 
         {chat.map((c) => {
+          // 判定单独渲染：用户要一眼看见自己刚才那步对不对，不能混在普通气泡里
+          if (c.verdict) {
+            const v = VERDICT[c.verdict]!;
+            return (
+              <div key={c.id} className={`verdict verdict-${c.verdict}`}>
+                <span className="mark">{v.icon}</span>
+                <span className="label">{v.label}</span>
+                <span className="why">{c.text}</span>
+              </div>
+            );
+          }
+
           const answer = answerOf(c);
           const thinking = thinkingOf(c);
           return (

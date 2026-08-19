@@ -93,6 +93,15 @@ export function App() {
         s.endTurn(msg.turnId);
         break;
 
+      case 'agent.judge':
+        s.pushChat({
+          id: `judge_${nanoid(6)}`,
+          role: 'ai',
+          text: msg.comment,
+          verdict: msg.verdict,
+        });
+        break;
+
       case 'session.mode': {
         set({ tutorMode: msg.mode === 'tutor' });
         if (msg.auto) {

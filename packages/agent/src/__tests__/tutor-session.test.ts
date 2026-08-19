@@ -18,6 +18,8 @@ const PLAN = (items: Array<{ text: string; done?: boolean }>) =>
   call('tutor_plan', { items: items.map((i) => ({ text: i.text, done: i.done ?? false })) });
 
 const say = (text: string) => call('interact_say', { text });
+const judge = (verdict: 'right' | 'partly' | 'wrong', comment: string) =>
+  call('tutor_judge', { verdict, comment });
 const ask = (question: string) => call('interact_ask_user', { question });
 
 /** 用户说了句话 → 跑一个回合 */
@@ -38,11 +40,14 @@ describe('进入辅导时建账', () => {
 
   it('辅导中途再说「我不会」不会把进度清零', async () => {
     const h = tutor([
-      { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }])] },
-      { calls: [PLAN([{ text: '(1) 求 DF', done: true }, { text: '(2) 求 BE' }]), ask('那 (2) 呢？')] },
+      { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }]), ask('DF 是多少？')] },
+      { calls: [judge('right', '对'), PLAN([{ text: '(1) 求 DF', done: true }, { text: '(2) 求 BE' }])] },
+      { calls: [ask('那 (2) 呢？')] },
+      { calls: [judge('partly', '差一点')] },
       { text: '嗯' },
       // 第二个回合：用户说"我不会"，这也命中 enter 规则
       { calls: [ask('那先看这条边？')] },
+      { calls: [judge('right', '对')] },
       { text: '嗯' },
     ]);
     await speak(h, '给我讲这道题');
@@ -92,8 +97,14 @@ describe('账没平就不许结束', () => {
 
   it('全打勾之后才放行：切回普通模式、清掉清单、说一句回顾', async () => {
     const h = tutor([
-      { calls: [PLAN([{ text: '(1) 求 DF 与 FC' }, { text: '(2) 求线段 BE' }])] },
-      { calls: [PLAN([{ text: '(1) 求 DF 与 FC', done: true }, { text: '(2) 求线段 BE', done: true }])] },
+      { calls: [PLAN([{ text: '(1) 求 DF 与 FC' }, { text: '(2) 求线段 BE' }]), ask('DF 是多少？')] },
+      { calls: [judge('right', '对'), PLAN([{ text: '(1) 求 DF 与 FC', done: true }, { text: '(2) 求线段 BE' }]), ask('BE 呢？')] },
+      {
+        calls: [
+          judge('right', '也对'),
+          PLAN([{ text: '(1) 求 DF 与 FC', done: true }, { text: '(2) 求线段 BE', done: true }]),
+        ],
+      },
       { calls: [call('tutor_finish', { summary: '你自己走通了折叠→勾股这条路' })] },
       { text: '' },
     ]);
@@ -111,8 +122,8 @@ describe('账没平就不许结束', () => {
   });
 });
 
-describe('开局不许预先打勾', () => {
-  it('第一次拆题时标的 done 会被清掉，一问都跳不过去', async () => {
+describe('打勾要有门票', () => {
+  it('用户一个字没答就想打勾 → 撤回', async () => {
     const h = tutor([
       // 实测模型真会这么干：用户一个字还没答，第 (1) 问就已经打上勾了
       { calls: [PLAN([{ text: '(1) 求 DF 与 FC', done: true }, { text: '(2) 求 BE' }]), ask('DF 怎么来的？')] },
@@ -126,25 +137,75 @@ describe('开局不许预先打勾', () => {
     ]);
   });
 
-  it('只管开局那一次；之后正常打勾照旧', async () => {
+  it('连调两次 tutor_plan 也绕不过去——实测模型就是这么钻空子的', async () => {
     const h = tutor([
-      { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }])] },
-      { calls: [PLAN([{ text: '(1) 求 DF', done: true }, { text: '(2) 求 BE' }]), ask('那 (2) 呢？')] },
+      {
+        calls: [
+          PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }]),
+          PLAN([{ text: '(1) 求 DF', done: true }, { text: '(2) 求 BE' }]),
+          ask('DF 是多少？'),
+        ],
+      },
+      { calls: [judge('right', '对')] },
+      { text: '好' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    // 那次打勾发生在用户回答之前，不算数
+    expect(h.session.tutor?.outline[0]!.done).toBe(false);
+  });
+
+  it('他答对了、判了 right，这一勾才打得上', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }]), ask('DF 是多少？')] },
+      { calls: [judge('right', '对，12'), PLAN([{ text: '(1) 求 DF', done: true }, { text: '(2) 求 BE' }])] },
+      { calls: [ask('那 (2) 呢？')] },
       { text: '嗯' },
     ]);
     await speak(h, '给我讲这道题');
 
     expect(h.session.tutor?.outline[0]!.done).toBe(true);
   });
+
+  it('判成 partly 换不来门票——那一步还没走通', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 DF' }]), ask('DF 是多少？')] },
+      { calls: [judge('partly', '方向对，算错了一步'), PLAN([{ text: '(1) 求 DF', done: true }])] },
+      { calls: [ask('再算一遍？')] },
+      { text: '嗯' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    expect(h.session.tutor?.outline[0]!.done).toBe(false);
+  });
+
+  it('一张门票只够打一个勾', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }]), ask('DF 是多少？')] },
+      { calls: [judge('right', '对')] },
+      { calls: [PLAN([{ text: '(1) 求 DF', done: true }, { text: '(2) 求 BE' }])] },
+      // 又想接着把 (2) 也打上，可他还没答过 (2)
+      { calls: [PLAN([{ text: '(1) 求 DF', done: true }, { text: '(2) 求 BE', done: true }])] },
+      { calls: [ask('那 (2) 呢？')] },
+      { text: '嗯' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    expect(h.session.tutor?.outline).toEqual([
+      { text: '(1) 求 DF', done: true },
+      { text: '(2) 求 BE', done: false },
+    ]);
+  });
 });
 
 describe('重发清单不会抹掉已完成的', () => {
   it('模型漏标 done 时，旧的打勾保留下来', async () => {
     const h = tutor([
-      { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }])] },
-      { calls: [PLAN([{ text: '(1) 求 DF', done: true }, { text: '(2) 求 BE' }])] },
-      // 第三次重发时把 (1) 的 done 漏了——真实模型会犯这个错
+      { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }]), ask('DF 是多少？')] },
+      { calls: [judge('right', '对'), PLAN([{ text: '(1) 求 DF', done: true }, { text: '(2) 求 BE' }])] },
+      // 再次重发时把 (1) 的 done 漏了——真实模型会犯这个错
       { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }]), ask('(2) 里 EC 是多少？')] },
+      { calls: [judge('right', '对')] },
       { text: '嗯' },
     ]);
     await speak(h, '给我讲这道题');
@@ -218,6 +279,117 @@ describe('每一轮都要把球交回给用户', () => {
   });
 });
 
+describe('他答完，必须先说对不对', () => {
+  /**
+   * 只被一路追问、从不知道自己刚才那步是对是错，答十道题也没长进。
+   * 所以做成硬约束：手上压着一次没判定的回答，就不许问下一个。
+   */
+  it('没判定就问下一个 → interact_ask_user 被拒', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }]), ask('AF 等于哪条边？')] },
+      // 他答了，这里却直接问下一个
+      { calls: [ask('那 DF 呢？')] },
+      { calls: [judge('right', '对，翻折后 AF=AB'), ask('那 DF 呢？')] },
+      { text: '好' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    const rejected = h
+      .events('agent.tool')
+      .filter((m) => m.call.name === 'interact_ask_user' && m.call.state === 'error');
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]!.call.error).toContain('你还没说这答案对不对');
+  });
+
+  it('判定会发给用户，带上对错和理由', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 DF' }]), ask('AF 等于哪条边？')] },
+      { calls: [judge('right', '对，翻折前后 AB 和 AF 重合')] },
+      { text: '好' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    const j = h.events('agent.judge');
+    expect(j).toHaveLength(1);
+    expect(j[0]!.verdict).toBe('right');
+    expect(j[0]!.comment).toContain('重合');
+    expect(h.session.tutor?.pending).toBeNull();
+  });
+
+  it('判完就能接着问', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 DF' }]), ask('AF 等于哪条边？')] },
+      { calls: [judge('partly', '方向对，但 AF 对应的是 AB 不是 AD'), ask('那再看看 AD？')] },
+      { text: '好' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    const errs = h
+      .events('agent.tool')
+      .filter((m) => m.call.name === 'interact_ask_user' && m.call.state === 'error');
+    expect(errs).toHaveLength(0);
+    expect(h.events('agent.ask')).toHaveLength(2);
+  });
+
+  it('答了却一声不吭就收工 → 系统拦回来', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 DF' }]), ask('AF 等于哪条边？')] },
+      { text: '嗯，那我们继续。' }, // 没判定就想结束这一轮
+      { calls: [judge('right', '对')] },
+      { text: '好' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    const nudge = h.loop
+      .getHistory()
+      .find((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('也没说这答案对不对'));
+    expect(nudge).toBeDefined();
+    expect(h.events('agent.judge')).toHaveLength(1);
+  });
+
+  it('最后一次回答没判定就想收尾 → tutor_finish 被拒', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 DF' }])] },
+      { calls: [PLAN([{ text: '(1) 求 DF', done: true }]), ask('DF 是多少？')] },
+      { calls: [call('tutor_finish', { summary: '讲完了' })] },
+      { calls: [judge('right', '对，12')] },
+      { text: '好' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    const finish = h.events('agent.tool').filter((m) => m.call.name === 'tutor_finish').at(-1)!;
+    expect(finish.call.state).toBe('error');
+    expect(finish.call.error).toContain('还没给判定');
+    expect(h.session.mode).toBe('tutor');
+  });
+
+  it('没人答过就判定 → 报错，不会凭空发一条判定给用户', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 DF' }]), judge('right', '很好')] },
+      { calls: [ask('DF 是多少？')] },
+      { text: '好' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    const j = h.events('agent.tool').filter((m) => m.call.name === 'tutor_judge').at(-1)!;
+    expect(j.call.state).toBe('error');
+    expect(h.events('agent.judge')).toHaveLength(0);
+  });
+
+  it('普通模式不受影响：提问不需要先判定', async () => {
+    const h = makeHarness(
+      [{ calls: [ask('圆角还是直角？')] }, { calls: [ask('多大半径？')] }, { text: '好' }],
+      { autoAnswer: '圆角' },
+    );
+    await speak(h, '帮我把这几个节点连起来');
+
+    const errs = h
+      .events('agent.tool')
+      .filter((m) => m.call.name === 'interact_ask_user' && m.call.state === 'error');
+    expect(errs).toHaveLength(0);
+  });
+});
+
 describe('用户自己要走的时候', () => {
   it('说「直接告诉我答案」→ 退出辅导，销账', async () => {
     const h = tutor([
@@ -235,8 +407,9 @@ describe('用户自己要走的时候', () => {
 
   it('说「先不学了，帮我画个流程图」→ 退出辅导，并说清还剩几问', async () => {
     const h = tutor([
-      { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }])] },
-      { calls: [PLAN([{ text: '(1) 求 DF', done: true }, { text: '(2) 求 BE' }]), ask('第二步？')] },
+      { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }]), ask('第一步？')] },
+      { calls: [judge('right', '对'), PLAN([{ text: '(1) 求 DF', done: true }, { text: '(2) 求 BE' }]), ask('第二步？')] },
+      { calls: [judge('partly', '差一点')] },
       { text: '嗯' },
       { text: '行，那我们画图。' },
     ]);
@@ -319,6 +492,8 @@ describe('账本每一轮都摆在模型眼前', () => {
             { text: '(2) 求线段 BE 的长', done: false },
           ],
           startedTurn: 1,
+          pending: null,
+          rightSince: 0,
         },
       },
       events: [],
@@ -335,7 +510,7 @@ describe('账本每一轮都摆在模型眼前', () => {
   it('还没拆题时催拆题', () => {
     const header = buildContextHeader({
       scene: new Scene(),
-      session: { ...base, tutor: { goal: '讲讲这题', outline: [], startedTurn: 1 } },
+      session: { ...base, tutor: { goal: '讲讲这题', outline: [], startedTurn: 1, pending: null, rightSince: 0 } },
       events: [],
       turnNo: 1,
     });

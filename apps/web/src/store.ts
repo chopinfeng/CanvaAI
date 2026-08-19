@@ -19,6 +19,8 @@ export interface ChatEntry {
   id: string;
   role: 'user' | 'ai';
   text: string;
+  /** 对用户上一次回答的判定。有值时这条消息按判定条渲染，不是普通气泡 */
+  verdict?: 'right' | 'partly' | 'wrong';
   steps?: Step[];
   /** AI 消息还在流式输出中 */
   streaming?: boolean;

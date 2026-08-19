@@ -156,8 +156,9 @@ interact.set_todo({ items: Array<{ text; done }> })        // 长任务的进度
 ## tutor —— 一次辅导的账本
 
 ```ts
-tutor.plan({ items: Array<{ text; done }> })   // 拆题 / 更新进度，每次传全量清单
-tutor.finish({ summary })                      // 收尾并切回普通模式；账没平会被拒绝
+tutor.plan({ items: Array<{ text; done }> })          // 拆题 / 更新进度，每次传全量清单
+tutor.judge({ verdict: 'right'|'partly'|'wrong'; comment })  // 判他刚才那次回答
+tutor.finish({ summary })                             // 收尾并切回普通模式；账没平会被拒绝
 ```
 
 只在辅导模式下有意义。存在的理由是一个具体的失败：
@@ -167,8 +168,11 @@ tutor.finish({ summary })                      // 收尾并切回普通模式；
 
 - **清单每一轮都写进 Context Header**，模型赖不掉；
 - `tutor.finish` 在还有未完成项时**直接报错**，并列出剩下哪些；
-- 开局那次 `tutor.plan` 里的 `done` 一律清零 —— 实测它会在用户还没答一个字时
-  就把第 (1) 问打上勾，那一问就此被跳过；
+- **答完必须表态**：手上压着一次没判定的回答，`interact.ask_user` 会被拒。
+  只被一路追问、从不知道自己刚才那步是对是错，答十道题也没长进；
+- **打勾要有门票**：一个小问要标成 done，得先有一次 `tutor.judge` 判 `right`。
+  只挡开局那一次不够——实测模型会在同一轮里连调两次 `tutor.plan`，
+  第一次老实拆题，第二次就把第 (1) 问打上勾，用户还一个字都没答；
 - 一轮结束时如果既没提问、账又没平，主循环会**拦回来**补一次
   （见 `AgentLoop.tutorHandBack`）——球断在中间就是辅导散掉的样子。
 
