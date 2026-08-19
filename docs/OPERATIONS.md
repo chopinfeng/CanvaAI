@@ -98,7 +98,20 @@ panic 文本直接写进裸 stderr——不经过 `console`，也没有任何 JS
 npx tsx apps/server/scripts/seed-exam-set.ts exam-set --clean
 ```
 
+单题房间同理：
+
+```bash
+npx tsx apps/server/scripts/seed-problem.ts <room> --clean
+```
+
 清掉房间里的全部图元（含用户手绘和 AI 批注）后重灌，并让服务端忘掉会话。
+
+单题那张纸默认**带着一份学生的错误作答**（用来演示"引导他自己发现错在哪"）。
+想要一张只有题干和图的干净卷子，加 `--blank`：
+
+```bash
+npx tsx apps/server/scripts/seed-problem.ts <room> --clean --blank
+```
 
 > 只清画布不清会话会很怪：画面是新的，Agent 却还记得刚才讲过的整道题，
 > 张口就接着上一场说。所以 `--clean` 两件事一起做。

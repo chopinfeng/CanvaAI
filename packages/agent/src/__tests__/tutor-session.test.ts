@@ -506,7 +506,7 @@ describe('停手要明说', () => {
   it('问题还挂在他屏幕上、回合被打断时不插话', async () => {
     // 不自动作答：回合会一直阻塞在 interact_ask_user 上
     const h = makeHarness([{ calls: [PLAN([{ text: '(1) 求 DF' }]), ask('DF 是多少？')] }, { text: '好' }], {
-      session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0 } },
+      session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false } },
     });
 
     const running = speak(h, '继续');
@@ -535,7 +535,7 @@ describe('等用户思考的时间不占回合额度', () => {
         { text: '好' },
       ],
       {
-        session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0 } },
+        session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false } },
         maxMs: 120,
         // 想的时间比整个回合额度还长——挂钟计时的话这里必死
         autoAnswerDelayMs: 260,
@@ -589,6 +589,73 @@ describe('一整场辅导是一个回合，别被步数上限掐断', () => {
   });
 });
 
+describe('讲解要指着图说', () => {
+  it('上一个问题之后没在图上指过东西 → 上下文里提醒它', () => {
+    const header = buildContextHeader({
+      scene: new Scene(),
+      session: {
+        selection: [],
+        viewport: [0, 0, 1440, 900],
+        zoom: 1,
+        editMode: 'suggest',
+        mode: 'tutor',
+        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false },
+      },
+      events: [],
+      turnNo: 3,
+    });
+    expect(header).toContain('还没在图上指过任何东西');
+    expect(header).toContain('canvas_highlight(ms:0)');
+  });
+
+  it('指过了就不再念叨', () => {
+    const header = buildContextHeader({
+      scene: new Scene(),
+      session: {
+        selection: [],
+        viewport: [0, 0, 1440, 900],
+        zoom: 1,
+        editMode: 'suggest',
+        mode: 'tutor',
+        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: true },
+      },
+      events: [],
+      turnNo: 3,
+    });
+    expect(header).not.toContain('还没在图上指过');
+  });
+
+  it('高亮一下就记上；他答完之后重新归零，下一个问题要重新指', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 DF' }])] },
+      { calls: [call('canvas_highlight', { ids: ['sh_a'], ms: 0 })] },
+      { calls: [ask('这条边多长？')] },
+      { calls: [judge('right', '对')] },
+      { text: '好' },
+    ]);
+    h.scene.create([{ type: 'line', id: 'sh_a', points: [[0, 0], [10, 10]] }], {
+      author: { id: 'u1', kind: 'user' },
+    });
+    await speak(h, '给我讲这道题');
+
+    // 他已经答过一轮，所以下一个问题需要重新指一次
+    expect(h.session.tutor?.markedSinceAsk).toBe(false);
+  });
+
+  it('高亮到已经删掉的 id：报错说清该怎么办，而不是干瞪眼', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 DF' }]), call('canvas_highlight', { ids: ['sh_gone'], ms: 0 })] },
+      { calls: [ask('看这里？')] },
+      { text: '好' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    const hl = h.events('agent.tool').filter((m) => m.call.name === 'canvas_highlight').at(-1)!;
+    expect(hl.call.state).toBe('error');
+    expect(hl.call.error).toContain('sh_gone');
+  });
+});
+
 describe('账本每一轮都摆在模型眼前', () => {
   const base: SessionState = {
     selection: [],
@@ -612,7 +679,7 @@ describe('账本每一轮都摆在模型眼前', () => {
           ],
           startedTurn: 1,
           pending: null,
-          rightSince: 0,
+          rightSince: 0, markedSinceAsk: false
         },
       },
       events: [],
@@ -629,7 +696,7 @@ describe('账本每一轮都摆在模型眼前', () => {
   it('还没拆题时催拆题', () => {
     const header = buildContextHeader({
       scene: new Scene(),
-      session: { ...base, tutor: { goal: '讲讲这题', outline: [], startedTurn: 1, pending: null, rightSince: 0 } },
+      session: { ...base, tutor: { goal: '讲讲这题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false } },
       events: [],
       turnNo: 1,
     });

@@ -108,6 +108,13 @@ export function buildContextHeader(input: HeaderInput): string {
     if (t.pending) {
       lines.push(`  ⚠ 他回答了「${t.pending.answer}」，你还没判对错。先 tutor_judge，再问下一个。`);
     }
+    if (!t.markedSinceAsk) {
+      lines.push(
+        '  ⚠ 自上一个问题以来你还没在图上指过任何东西。' +
+          '下一个问题之前，先 canvas_highlight(ms:0) / canvas_spotlight 把要看的那块点亮，' +
+          '需要的话在 annot 层补一条辅助线或一个标注——让他看见你在说哪儿，别让他在文字里猜。',
+      );
+    }
     if (t.outline.length === 0) {
       lines.push('  └ 还没拆题。先 tutor_plan 列出他要逐个攻克的小问，否则没人知道这次讲到哪算完。');
     } else {

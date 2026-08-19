@@ -45,9 +45,18 @@ export const execSpotlight: ToolExecutor = async (raw, ctx) => {
 export const execHighlight: ToolExecutor = async (raw, ctx) => {
   const a = canvasHighlight.input.parse(raw);
   const exist = a.ids.filter((id) => ctx.scene.has(id));
-  if (exist.length === 0) return err('这些图元都不存在', '先 canvas_query 拿到有效 id。');
+  if (exist.length === 0) {
+    // 实测最常见的成因：拿自己上一步删掉的辅助图形的 id 再去高亮
+    return err(
+      `这些 id 在画布上都不存在：${a.ids.join(' ')}`,
+      '常见原因是引用了自己刚删掉的辅助图形。先 canvas_query 拿当前的 id' +
+        '（讲题时按 layer:"annot" 或 role 筛更快），或者干脆 canvas_create 重新画一个再高亮——' +
+        'create 的返回里就带着新 id。',
+    );
+  }
   ctx.emit({ t: 'agent.highlight', shapeIds: exist, kind: a.kind, ms: a.ms });
-  return ok({ highlighted: exist });
+  const missing = a.ids.filter((id) => !ctx.scene.has(id));
+  return ok({ highlighted: exist, ...(missing.length > 0 ? { skippedMissing: missing } : {}) });
 };
 
 export const execPointerMove: ToolExecutor = async (raw, ctx) => {

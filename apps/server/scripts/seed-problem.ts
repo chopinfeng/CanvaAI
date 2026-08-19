@@ -9,6 +9,12 @@
  *
  * 用法：
  *   npx tsx scripts/seed-problem.ts [roomId]
+ *   npx tsx scripts/seed-problem.ts [roomId] --blank   # 只要题目和图，不要那份作答
+ *   npx tsx scripts/seed-problem.ts [roomId] --clean   # 恢复出厂：连试用痕迹一起清掉
+ *
+ * 默认只清自己上次注入的图元——重跑不该毁掉用户画的和 AI 批的东西。
+ * `--clean` 是演示前的"恢复出厂"：房间里的一切都清空，再灌一遍，
+ * 并让服务端忘掉这一轮的对话历史、辅导账本和模式。
  */
 import { WebSocket } from 'ws';
 import * as Y from 'yjs';
@@ -19,7 +25,11 @@ import { Scene } from '@canvai/canvas-core';
 import type { ShapeInput } from '@canvai/protocol';
 import { FrameTag, decodeFrame, encodeFrame } from '@canvai/protocol';
 
-const roomId = process.argv[2] ?? 'exam';
+const argv = process.argv.slice(2);
+const clean = argv.includes('--clean');
+/** 只要"原始题目"那一页：题干 + 图形，不含预置的学生作答 */
+const blank = argv.includes('--blank');
+const roomId = argv.find((a) => !a.startsWith('--')) ?? 'exam';
 const PORT = process.env.PORT ?? '3001';
 
 /* ------------------------------------------------------------------ *
@@ -60,7 +70,7 @@ const seg = (p: [number, number], q: [number, number], color: string, width = 2,
   meta: { role: 'figure' },
 });
 
-const shapes: ShapeInput[] = [
+const problem: ShapeInput[] = [
   /* ---- 题干（自编）---- */
   label(
     '矩形 ABCD 中，AB = 13，AD = 5，点 E 在边 BC 上，\n' +
@@ -111,13 +121,20 @@ const shapes: ShapeInput[] = [
     meta: { role: 'right-angle-mark' },
   },
 
-  /* ---- 学生作答（含一个典型错误）----
-   * 前面全对，最后一步把 Rt△ECF 的斜边认错了：直角在 C，
-   * 斜边应是 EF（=EB=x），而作答把 EC 当成了斜边。
-   *   正确：x² = (5−x)² + 1²  ⇒ 10x = 26 ⇒ x = 13/5
-   *   错解：(5−x)² = x² + 1²  ⇒ 10x = 24 ⇒ x = 12/5
-   * 两个答案长得都像对的，正适合演示"引导学生自己发现错在哪"。
-   */
+];
+
+/**
+ * 学生作答（含一个典型错误）。
+ *
+ * 前面全对，最后一步把 Rt△ECF 的斜边认错了：直角在 C，
+ * 斜边应是 EF（=EB=x），而作答把 EC 当成了斜边。
+ *   正确：x² = (5−x)² + 1²  ⇒ 10x = 26 ⇒ x = 13/5
+ *   错解：(5−x)² = x² + 1²  ⇒ 10x = 24 ⇒ x = 12/5
+ * 两个答案长得都像对的，正适合演示"引导学生自己发现错在哪"。
+ *
+ * 想从一张白纸开始讲（而不是批一份现成的错解）就加 `--blank`。
+ */
+const studentWork: ShapeInput[] = [
   label('【学生作答】', [980, 150], 17, RED),
   label(
     '解：由折叠得 AF = AB = 13\n' +
@@ -147,6 +164,8 @@ const shapes: ShapeInput[] = [
     meta: { role: 'grading-mark' },
   },
 ];
+
+const shapes: ShapeInput[] = blank ? problem : [...problem, ...studentWork];
 
 /* ------------------------------------------------------------------ *
  * 连上房间，写入，等同步完成
@@ -197,11 +216,21 @@ ws.on('message', (data: ArrayBuffer | Buffer) => {
 });
 
 function doSeed(): void {
-
-  const existing = scene.byLayer('user').filter((s) => s.author.id === 'seed');
-  if (existing.length > 0) {
-    scene.delete(existing.map((s) => s.id));
-    console.log(`清掉上一次注入的 ${existing.length} 个图元`);
+  const all = scene.all();
+  const stale = clean ? all : all.filter((s) => s.author.id === 'seed');
+  if (stale.length > 0) {
+    const mine = stale.filter((s) => s.author.id === 'seed').length;
+    scene.delete(stale.map((s) => s.id));
+    console.log(
+      clean
+        ? `恢复出厂：清掉全部 ${stale.length} 个图元（其中上次注入的 ${mine} 个，试用痕迹 ${stale.length - mine} 个）`
+        : `清掉上一次注入的 ${stale.length} 个图元`,
+    );
+  }
+  if (clean) {
+    // 会话状态（对话历史、辅导账本、模式）只活在服务端内存里，不在文档里。
+    // 不说这一声，画布是新的，Agent 却还记得上一场讲过的整道题。
+    send(FrameTag.Control, new TextEncoder().encode(JSON.stringify({ t: 'session.reset' })));
   }
 
   const { ids } = scene.create(shapes, {
@@ -209,7 +238,10 @@ function doSeed(): void {
     layer: 'user',
   });
 
-  console.log(`已向房间「${roomId}」注入 ${ids.length} 个图元（user 图层）`);
+  console.log(
+    `已向房间「${roomId}」注入 ${ids.length} 个图元（user 图层）` +
+      (blank ? '——只有题目和图，没有那份学生作答' : ''),
+  );
   setTimeout(() => {
     ws.close();
     process.exit(0);

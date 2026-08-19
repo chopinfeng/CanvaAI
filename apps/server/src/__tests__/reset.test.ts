@@ -42,7 +42,7 @@ describe('会话重置', () => {
       outline: [{ text: '(1) 求 DF', done: true }],
       startedTurn: 1,
       pending: { question: 'DF?', answer: '12' },
-      rightSince: 1,
+      rightSince: 1, markedSinceAsk: false
     };
     room.session.selection = ['sh_keep'];
 
@@ -76,7 +76,7 @@ describe('会话重置', () => {
   it('重置之后不会有半路的辅导账本残留下来', async () => {
     const room = await freshRoom('r3');
     room.session.mode = 'tutor';
-    room.session.tutor = { goal: 'x', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0 };
+    room.session.tutor = { goal: 'x', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false };
 
     room.resetSession();
     room.resetSession(); // 重置两次也不该炸

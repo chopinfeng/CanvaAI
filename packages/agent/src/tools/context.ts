@@ -28,6 +28,13 @@ export interface TutorSession {
    * 把小问标成 done——实测就是这么绕过开局那道限制的。
    */
   rightSince: number;
+  /**
+   * 自上一个问题以来，有没有在图上指过东西（高亮/聚光/带看/画辅助线）。
+   *
+   * "△ECF 里直角在哪个顶点" 这种问题，配着图上点亮的那块看，
+   * 和光读一行字，是两件事。没标就问，等于让他在文字里猜你指哪儿。
+   */
+  markedSinceAsk: boolean;
 }
 
 export interface SessionState {

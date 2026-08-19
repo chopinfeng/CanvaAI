@@ -39,6 +39,16 @@ export interface TurnResult {
 
 const DEFAULT_AUTHOR: Author = { id: 'agent', kind: 'ai', name: 'AI' };
 
+/** 算"在图上指了东西"的工具。讲题时每一个问题都该挂在其中之一上 */
+const POINTING_TOOLS = new Set([
+  'canvas_highlight',
+  'canvas_spotlight',
+  'canvas_zoom_to',
+  'canvas_create',
+  'canvas_ink',
+  'canvas_pointer_move',
+]);
+
 /**
  * Agent 主循环。
  *
@@ -292,7 +302,7 @@ export class AgentLoop {
         // 而它在辅导中途是再正常不过的一句，拿它重置进度会把讲过的全丢掉。
         if (session.mode === 'tutor') continue;
         session.mode = 'tutor';
-        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo, pending: null, rightSince: 0 };
+        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo, pending: null, rightSince: 0, markedSinceAsk: false };
         this.opts.emit({ t: 'session.mode', mode: 'tutor', auto: true });
         continue;
       }
@@ -578,6 +588,9 @@ export class AgentLoop {
 
     if (result.ok) {
       failStreak.delete(name);
+      if (POINTING_TOOLS.has(name) && this.opts.session.tutor) {
+        this.opts.session.tutor.markedSinceAsk = true;
+      }
       this.opts.emit({
         t: 'agent.tool',
         turnId,
@@ -634,6 +647,8 @@ export class AgentLoop {
           // 挂上"待判定"。清它的只有 tutor_judge——在那之前不许问下一个问题。
           if (this.opts.session.mode === 'tutor' && this.opts.session.tutor) {
             this.opts.session.tutor.pending = { question, answer };
+            // 下一个问题要重新在图上指一次，上一轮点亮的地方不算数
+            this.opts.session.tutor.markedSinceAsk = false;
           }
           resolve(answer);
         },
