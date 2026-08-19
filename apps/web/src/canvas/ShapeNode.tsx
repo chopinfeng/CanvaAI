@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Arrow, Ellipse, Image as KonvaImage, Line, Rect, Text } from 'react-konva';
 import { getStroke } from 'perfect-freehand';
 import type { Shape } from '@canvai/protocol';
+import { usePulse } from './pulse.js';
 
 interface Props {
   shape: Shape;
@@ -143,8 +144,19 @@ export function ShapeNode({ shape, opacity, highlight, onSelect, selected, dragg
   const asset = useAssetImage(shape.type === 'image' ? shape.assetId : undefined);
   const s = shape.style;
 
+  /**
+   * 高亮靠"动"来抓注意力，不靠把别处压暗。
+   *
+   * 早先是给非高亮部分整体降透明度（聚光），实测反而更糟：
+   * 讲题时学生需要同时看清标出来的那条边**和**它周围的图，
+   * 压暗了周围，参照物就没了，等于把整张图变模糊。
+   * 现在别处一点不动，只让高亮的这几个呼吸。
+   */
+  const pulse = usePulse(!!highlight);
+
   const stroke = highlight ? '#f59e0b' : s.stroke ?? '#111827';
-  const strokeWidth = (s.strokeWidth ?? 2) * (highlight ? 1.8 : 1) * (selected ? 1.2 : 1);
+  const strokeWidth =
+    (s.strokeWidth ?? 2) * (highlight ? 1.7 + pulse * 0.5 : 1) * (selected ? 1.2 : 1);
   const baseOpacity = (s.opacity ?? 1) * opacity;
 
   const common = {
@@ -162,7 +174,14 @@ export function ShapeNode({ shape, opacity, highlight, onSelect, selected, dragg
     draggable: draggable ?? false,
     onDragEnd: (e: { target: { x(): number; y(): number } }) => onDragEnd?.(shape.id, e.target.x(), e.target.y()),
     ...(selected ? { shadowColor: '#2563eb', shadowBlur: 8, shadowOpacity: 0.6 } : {}),
-    ...(highlight === 'glow' ? { shadowColor: '#f59e0b', shadowBlur: 20, shadowOpacity: 0.9 } : {}),
+    // glow 和 pulse 都做成呼吸，差别只在幅度：pulse 更急一点，用于"就看这儿"
+    ...(highlight === 'glow' || highlight === 'pulse'
+      ? {
+          shadowColor: '#f59e0b',
+          shadowBlur: (highlight === 'pulse' ? 10 : 14) + pulse * (highlight === 'pulse' ? 22 : 14),
+          shadowOpacity: 0.55 + pulse * 0.45,
+        }
+      : {}),
   };
 
   switch (shape.type) {

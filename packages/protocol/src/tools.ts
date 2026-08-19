@@ -300,9 +300,11 @@ export const canvasZoomTo = defineTool({
 export const canvasSpotlight = defineTool({
   name: 'canvas_spotlight',
   description:
-    '聚光：把指定图元之外的内容压暗。分步讲解时逐步聚光到当前在讲的部分，效果远好于纯语言描述。' +
-    '传空数组取消聚光。',
-  input: z.object({ ids: z.array(z.string()), dim: z.number().min(0).max(1).default(0.15) }),
+    '聚焦：把这几个图元持续标出来，一直亮到你下次换地方或传空数组清掉。\n' +
+    '**它不会把别处压暗**——讲题时学生要同时看清标出的那条边和它周围的图，' +
+    '压暗周围等于把整张图变模糊。标出来的部分会做呼吸动画，动的东西人眼自己会追过去。\n' +
+    '和 canvas_highlight(ms:0) 的区别只在幅度：这个更急一点，用于"就看这儿"。',
+  input: z.object({ ids: z.array(z.string()) }),
 });
 
 export const canvasHighlight = defineTool({

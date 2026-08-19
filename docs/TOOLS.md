@@ -78,6 +78,14 @@ canvas.erase({ region: Rect; layer?: LayerId })
 
 ## canvas.view — 讲解的主角
 
+> **不要靠压暗别处来突出重点。** `canvas.spotlight` 早先是真的"聚光"：
+> 把没点名的图元整体降透明度。实测讲题时更糟——学生要同时看清标出来的那条边
+> **和它周围的图**，周围一暗参照物就没了，等于把整张图变模糊。
+> 现在它和 `canvas.highlight(ms:0)` 一样只是"一直标着"，别处一点不动；
+> 标出来的部分做呼吸动画（`apps/web/src/canvas/pulse.ts`），
+> 动的东西人眼自己会追过去，这是免费的注意力。
+> 全局只跑一条 rAF，所有高亮同步起伏——各跑各的会看上去像在抖。
+
 ```ts
 canvas.set_viewport({ x, y, zoom, animate?: boolean })
 canvas.zoom_to({ ids?: ShapeId[]; region?: Rect; padding? })

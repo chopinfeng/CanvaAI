@@ -36,10 +36,28 @@ export const execZoomTo: ToolExecutor = async (raw, ctx) => {
   return ok({ region: padded.map((n) => round(n, 1)) });
 };
 
+/**
+ * 聚焦：把这几个图元持续标出来。
+ *
+ * 早先它是真的"聚光"——把没点名的部分整体压暗。讲题时反而更糟：
+ * 学生要同时看清标出来的那条边和它周围的图，周围一暗参照物就没了。
+ * 现在只是一个"一直亮着"的高亮，别处一点不动。
+ */
 export const execSpotlight: ToolExecutor = async (raw, ctx) => {
   const a = canvasSpotlight.input.parse(raw);
-  ctx.emit({ t: 'agent.spotlight', shapeIds: a.ids, dim: a.dim });
-  return ok({ spotlighted: a.ids.length, cleared: a.ids.length === 0 });
+  if (a.ids.length === 0) {
+    ctx.emit({ t: 'agent.highlight', shapeIds: [], kind: 'pulse', ms: 0 });
+    return ok({ cleared: true });
+  }
+  const exist = a.ids.filter((id) => ctx.scene.has(id));
+  if (exist.length === 0) {
+    return err(
+      `这些 id 在画布上都不存在：${a.ids.join(' ')}`,
+      '常见原因是引用了自己刚删掉的辅助图形。先 canvas_query 拿当前的 id，或者重新画一个再聚焦。',
+    );
+  }
+  ctx.emit({ t: 'agent.highlight', shapeIds: exist, kind: 'pulse', ms: 0 });
+  return ok({ focused: exist });
 };
 
 export const execHighlight: ToolExecutor = async (raw, ctx) => {

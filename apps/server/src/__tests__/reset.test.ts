@@ -56,7 +56,7 @@ describe('会话重置', () => {
     expect(room.scene.has('sh_keep')).toBe(true);
   });
 
-  it('通知各端把聊天记录、清单、聚光一并清掉', async () => {
+  it('通知各端把聊天记录、清单、高亮一并清掉', async () => {
     const room = await freshRoom('r2');
     const seen: ServerMessage[] = [];
     const spy = vi.spyOn(room, 'broadcastControl').mockImplementation((m) => {
@@ -69,8 +69,8 @@ describe('会话重置', () => {
     expect(seen.map((m) => m.t)).toContain('session.reset');
     const todo = seen.find((m) => m.t === 'agent.todo');
     expect(todo && 'items' in todo ? todo.items : null).toEqual([]);
-    const spot = seen.find((m) => m.t === 'agent.spotlight');
-    expect(spot && 'shapeIds' in spot ? spot.shapeIds : null).toEqual([]);
+    const hl = seen.find((m) => m.t === 'agent.highlight');
+    expect(hl && 'shapeIds' in hl ? hl.shapeIds : null).toEqual([]);
   });
 
   it('重置之后不会有半路的辅导账本残留下来', async () => {

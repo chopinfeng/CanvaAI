@@ -25,7 +25,7 @@ const TOOL_LABEL: Record<string, string> = {
   canvas_ink: '手绘了一笔',
   canvas_erase: '擦掉了',
   canvas_zoom_to: '带你看向',
-  canvas_spotlight: '聚光',
+  canvas_spotlight: '聚焦',
   canvas_highlight: '高亮',
   canvas_pointer_move: '移动光标',
   canvas_layer_set_visible: '切换图层',

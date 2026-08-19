@@ -331,7 +331,7 @@ export class Room {
 
     this.broadcastControl({ t: 'session.reset' });
     this.broadcastControl({ t: 'agent.todo', items: [] });
-    this.broadcastControl({ t: 'agent.spotlight', shapeIds: [], dim: 0 });
+    this.broadcastControl({ t: 'agent.highlight', shapeIds: [], kind: 'glow', ms: 0 });
   }
 
   private send(socket: WebSocket, tag: number, payload: Uint8Array): void {

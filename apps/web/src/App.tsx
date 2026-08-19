@@ -100,7 +100,6 @@ export function App() {
           suggestions: [],
           ask: null,
           aiStatus: '',
-          spotlight: null,
           highlights: {},
           tutorMode: false,
         });
@@ -214,10 +213,6 @@ export function App() {
         });
         break;
       }
-
-      case 'agent.spotlight':
-        set({ spotlight: msg.shapeIds.length > 0 ? { ids: msg.shapeIds, dim: msg.dim } : null });
-        break;
 
       case 'agent.highlight': {
         // 空数组 = 清除全部高亮

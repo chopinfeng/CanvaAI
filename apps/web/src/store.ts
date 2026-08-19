@@ -67,7 +67,6 @@ interface State {
   /* AI 在场 */
   aiPointer: { x: number; y: number; ms: number } | null;
   aiStatus: string;
-  spotlight: { ids: string[]; dim: number } | null;
   highlights: Record<string, 'glow' | 'outline' | 'pulse'>;
 
   /* 对话 */
@@ -117,7 +116,6 @@ export const useStore = create<State>((set) => ({
 
   aiPointer: null,
   aiStatus: '',
-  spotlight: null,
   highlights: {},
 
   chat: [],

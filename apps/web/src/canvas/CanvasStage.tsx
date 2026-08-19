@@ -34,7 +34,6 @@ export function CanvasStage({ conn, me }: Props) {
   const strokeWidth = useStore((s) => s.strokeWidth);
   const selection = useStore((s) => s.selection);
   const layerVisible = useStore((s) => s.layerVisible);
-  const spotlight = useStore((s) => s.spotlight);
   const highlights = useStore((s) => s.highlights);
   const aiPointer = useStore((s) => s.aiPointer);
   const aiStatus = useStore((s) => s.aiStatus);
@@ -411,14 +410,14 @@ export function CanvasStage({ conn, me }: Props) {
     [shapes, layerVisible],
   );
 
-  const dimOf = useCallback(
-    (s: Shape): number => {
-      const layerAlpha = s.layer === 'suggest' ? 0.5 : 1;
-      if (!spotlight || spotlight.ids.length === 0) return layerAlpha;
-      return spotlight.ids.includes(s.id) ? layerAlpha : layerAlpha * spotlight.dim;
-    },
-    [spotlight],
-  );
+  /**
+   * 只有提案层半透明。
+   *
+   * 早先这里还有一条"聚光"：把没被点名的图元整体压暗。实测讲题时更糟——
+   * 学生要同时看清标出来的那条边和它周围的图，周围一暗参照物就没了，
+   * 等于把整张图变模糊。现在改成只让高亮的那几个动起来（见 pulse.ts）。
+   */
+  const dimOf = useCallback((s: Shape): number => (s.layer === 'suggest' ? 0.5 : 1), []);
 
   const selectShape = useCallback(
     (id: string, additive: boolean) => {

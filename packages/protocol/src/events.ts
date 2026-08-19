@@ -193,12 +193,13 @@ export const ServerMessageSchema = z.discriminatedUnion('t', [
     animate: z.boolean().default(true),
   }),
 
-  /** 聚光/高亮 */
-  z.object({
-    t: z.literal('agent.spotlight'),
-    shapeIds: z.array(z.string()),
-    dim: z.number().default(0.15),
-  }),
+  /**
+   * 高亮：把这几个图元标出来（客户端做呼吸动画）。
+   *
+   * 早先还有一条 agent.spotlight，把没点名的部分整体压暗。
+   * 讲题时反而更糟——学生要同时看清标出来的那条边和它周围的图，
+   * 周围一暗参照物就没了。压暗这条路整个去掉了，只留"让它动起来"。
+   */
   z.object({
     t: z.literal('agent.highlight'),
     shapeIds: z.array(z.string()),
