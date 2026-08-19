@@ -165,15 +165,7 @@ export function AgentPanel({ conn }: { conn: Connection }) {
         </button>
       </header>
 
-      {todos.length > 0 && (
-        <div className="todos">
-          {todos.map((t, i) => (
-            <div key={i} className={t.done ? 'done' : ''}>
-              {t.done ? '✓' : '○'} {t.text}
-            </div>
-          ))}
-        </div>
-      )}
+      {todos.length > 0 && <Progress items={todos} />}
 
       <div className="chat" ref={listRef}>
         {chat.length === 0 && (
@@ -195,8 +187,20 @@ export function AgentPanel({ conn }: { conn: Connection }) {
             return (
               <div key={c.id} className={`verdict verdict-${c.verdict}`}>
                 <span className="mark">{v.icon}</span>
-                <span className="label">{v.label}</span>
-                <span className="why">{c.text}</span>
+                <div className="verdict-text">
+                  <span className="label">{v.label}</span>
+                  <span className="why">{c.text}</span>
+                </div>
+              </div>
+            );
+          }
+
+          // 撒花那条自成一格，不做成普通气泡
+          if (c.text.startsWith('🎉')) {
+            return (
+              <div key={c.id} className="cheer">
+                <span className="cheer-mark">🎉</span>
+                <span>{c.text.replace(/^🎉\s*/, '')}</span>
               </div>
             );
           }
@@ -205,13 +209,7 @@ export function AgentPanel({ conn }: { conn: Connection }) {
           const thinking = thinkingOf(c);
           return (
             <div key={c.id} className={`msg msg-${c.role}`}>
-              {c.tools && c.tools.length > 0 && (
-                <div className="tools">
-                  {c.tools.map((t) => (
-                    <ToolChip key={t.id} call={t} />
-                  ))}
-                </div>
-              )}
+              {c.tools && c.tools.length > 0 && <Activity tools={c.tools} live={!!c.streaming} />}
               {thinking && <Thinking text={thinking} live={!!c.streaming && !answer} />}
               {answer && <div className="bubble">{answer}</div>}
               {c.streaming && !answer && !thinking && <div className="bubble pending">…</div>}
@@ -234,6 +232,7 @@ export function AgentPanel({ conn }: { conn: Connection }) {
 
       {ask && (
         <div className="ask">
+          <div className="ask-tag">该你了</div>
           <div className="question">{ask.question}</div>
           {ask.options && (
             <div className="options">
@@ -247,7 +246,7 @@ export function AgentPanel({ conn }: { conn: Connection }) {
         </div>
       )}
 
-      <div className="composer">
+      <div className={`composer ${ask ? 'answering' : ''}`}>
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -265,6 +264,81 @@ export function AgentPanel({ conn }: { conn: Connection }) {
           发送
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * 辅导进度。
+ *
+ * 早先是一条灰带，和别的信息一样重，扫一眼看不出"还剩几问"。
+ * 而"还剩一问"本身就是让学生坐下去的理由，值得一个分母和一根进度条。
+ */
+function Progress({ items }: { items: Array<{ text: string; done: boolean }> }) {
+  const done = items.filter((i) => i.done).length;
+  const current = items.findIndex((i) => !i.done);
+
+  return (
+    <div className="progress">
+      <div className="progress-head">
+        <span className="progress-count">
+          <b>{done}</b>/{items.length}
+        </span>
+        <div className="progress-bar">
+          <span style={{ width: `${(done / items.length) * 100}%` }} />
+        </div>
+      </div>
+      <ol className="progress-list">
+        {items.map((t, i) => (
+          <li key={i} className={t.done ? 'done' : i === current ? 'current' : ''}>
+            <span className="progress-mark">{t.done ? '✓' : i === current ? '▸' : ''}</span>
+            {t.text}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+/**
+ * 干活的过程，压成一行。
+ *
+ * 一轮辅导里工具调用能有十几次，早先一次一行灰条——过程把内容挤没了，
+ * 用户要滚半天才找得到那句真正说给他听的话。现在默认只留一行
+ * 「做了 N 件事 · 最后一件是什么」，想看细节再展开。
+ * 出错的那几条例外，永远露在外面：那是用户唯一需要知道的过程。
+ */
+function Activity({ tools, live }: { tools: ToolCallView[]; live: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const errors = tools.filter((t) => t.state === 'error');
+  const running = tools.find((t) => t.state === 'running');
+  const last = tools[tools.length - 1];
+  const head = running ?? last;
+
+  return (
+    <div className="activity">
+      <button className={`activity-head ${live ? 'live' : ''}`} onClick={() => setExpanded((v) => !v)}>
+        <span className="activity-dot">{running ? '◌' : '✓'}</span>
+        <span className="activity-label">{head ? TOOL_LABEL[head.name] ?? head.name : ''}</span>
+        {tools.length > 1 && <span className="activity-count">{tools.length} 步</span>}
+        <span className="activity-caret">{expanded ? '▾' : '▸'}</span>
+      </button>
+
+      {expanded && (
+        <div className="tools">
+          {tools.map((t) => (
+            <ToolChip key={t.id} call={t} />
+          ))}
+        </div>
+      )}
+
+      {/* 出错的永远露在外面——那是过程里唯一值得打断用户的东西 */}
+      {!expanded &&
+        errors.map((t) => (
+          <div className="tools" key={t.id}>
+            <ToolChip call={t} />
+          </div>
+        ))}
     </div>
   );
 }

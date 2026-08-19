@@ -81,6 +81,11 @@ interface State {
   foreground: boolean;
   /** 辅导模式：AI 一步步引导，不直接给答案 */
   tutorMode: boolean;
+  /**
+   * 撒花的触发计数。用递增的数而不是布尔——
+   * 连讲两道题时布尔量不会变化，第二次就不放了。
+   */
+  celebrate: number | null;
   /** 由画布层注入：不等了，立刻把攒下的笔画交给 Agent */
   flushDraws: (() => void) | null;
   /** 撤销/重做栈深度，决定按钮能不能点 */
@@ -126,6 +131,7 @@ export const useStore = create<State>((set) => ({
   awaitingIdle: false,
   foreground: true,
   tutorMode: false,
+  celebrate: null,
   flushDraws: null,
   undoDepth: 0,
   redoDepth: 0,

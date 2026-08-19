@@ -4,6 +4,7 @@ import type { Author, ServerMessage } from '@canvai/protocol';
 import { AgentPanel } from './ui/AgentPanel';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import { Toolbar } from './ui/Toolbar';
+import { Confetti } from './ui/Confetti';
 import { CanvasStage } from './canvas/CanvasStage';
 import { Connection } from './net/connection';
 import { shapeBounds } from '@canvai/canvas-core';
@@ -102,6 +103,21 @@ export function App() {
           aiStatus: '',
           highlights: {},
           tutorMode: false,
+          celebrate: null,
+        });
+        break;
+
+      case 'agent.ask.done':
+        // 可能是这台答的，也可能是别处答的——只要 id 对得上就收掉
+        if (useStore.getState().ask?.askId === msg.askId) set({ ask: null });
+        break;
+
+      case 'agent.celebrate':
+        set({ celebrate: (useStore.getState().celebrate ?? 0) + 1 });
+        s.pushChat({
+          id: `cheer_${nanoid(6)}`,
+          role: 'ai',
+          text: `🎉 这道题讲完了——${msg.solved} 问都是你自己做出来的。`,
         });
         break;
 
@@ -263,6 +279,7 @@ export function App() {
       </ErrorBoundary>
       <Toolbar />
       <AgentPanel conn={conn} />
+      <Confetti />
     </div>
   );
 }

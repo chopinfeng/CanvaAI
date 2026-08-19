@@ -633,6 +633,7 @@ export class AgentLoop {
       const onAbort = () => {
         this.pendingAsk = null;
         this.askInterrupted = true;
+        this.opts.emit({ t: 'agent.ask.done', askId });
         // 中断不算"答过"：没答的东西没什么可判定的
         resolve('[用户没有回答，操作被中断]');
       };
@@ -641,6 +642,8 @@ export class AgentLoop {
         askId,
         resolve: (answer) => {
           signal.removeEventListener('abort', onAbort);
+          // 房间里别的客户端也得把提问卡收掉
+          this.opts.emit({ t: 'agent.ask.done', askId });
           if (this.controller) this.armBudget(this.controller);
           // 他开口了，这一轮不是空转——步数额度重新起算
           this.stepFloor = this.stepsInTurn;

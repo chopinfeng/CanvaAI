@@ -173,6 +173,20 @@ export const ServerMessageSchema = z.discriminatedUnion('t', [
   /** 会话被重置了：各端把聊天记录、清单、高亮一并清掉 */
   z.object({ t: z.literal('session.reset') }),
 
+  /**
+   * 这个问题已经有人答了（或者回合被打断了），各端把提问卡收掉。
+   *
+   * 房间里可能开着好几个客户端。早先只有"自己点了发送"才会清掉提问卡，
+   * 于是另一台上那张卡会一直挂着，用户对着一个早就答过的问题发呆。
+   */
+  z.object({ t: z.literal('agent.ask.done'), askId: z.string() }),
+
+  /**
+   * 撒花。只在**真讲完一道题**时发（tutor_finish 成功）——
+   * 用户自己要走、中途停下都不发，见者有份就不值钱了。
+   */
+  z.object({ t: z.literal('agent.celebrate'), solved: z.number() }),
+
   /** 状态气泡：「正在看你的图…」 */
   z.object({ t: z.literal('agent.status'), text: z.string() }),
 

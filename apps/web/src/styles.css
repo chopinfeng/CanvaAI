@@ -9,6 +9,14 @@
   --ok: #059669;
   --err: #dc2626;
   --shadow: 0 4px 16px rgb(0 0 0 / 8%), 0 1px 3px rgb(0 0 0 / 6%);
+
+  /* 面板用的一套表面色。和画布的米白拉开，让它看上去是"浮"在上面的一块 */
+  --surface: #ffffff;
+  --surface-sunk: #f7f7f6;
+  --border-soft: #f0efed;
+  --ai-soft: #f5f3ff;
+  --panel-shadow: 0 12px 32px -8px rgb(28 25 23 / 12%), 0 2px 8px rgb(28 25 23 / 6%),
+    0 0 0 1px rgb(28 25 23 / 4%);
   color-scheme: light;
 }
 
@@ -137,10 +145,10 @@ html, body, #root {
   width: 344px;
   display: flex;
   flex-direction: column;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: var(--shadow);
+  background: var(--surface);
+  border: none;
+  border-radius: 18px;
+  box-shadow: var(--panel-shadow);
   z-index: 10;
   overflow: hidden;
 }
@@ -149,11 +157,13 @@ html, body, #root {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border);
+  padding: 13px 15px;
+  border-bottom: 1px solid var(--border-soft);
   font-size: 14px;
+  /* 一层极淡的渐变，让顶栏和内容分开又不靠一条硬线 */
+  background: linear-gradient(#fff, #fcfcfb);
 }
-.agent-panel header strong { flex: 1; }
+.agent-panel header strong { flex: 1; letter-spacing: 0.2px; }
 .agent-panel header em { font-style: normal; color: var(--muted); font-size: 12px; flex: none; }
 .agent-panel header em.waiting { opacity: 0.75; animation: breathe 2.2s ease-in-out infinite; }
 
@@ -200,16 +210,47 @@ html, body, #root {
 }
 .link:hover { color: var(--text); }
 
-.todos {
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--border);
-  font-size: 12px;
-  color: var(--muted);
-  background: #fafaf9;
+/* 辅导进度：有分母、有进度条，扫一眼就知道还剩几问 */
+.progress {
+  padding: 11px 15px 12px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--surface-sunk);
 }
-.todos .done { color: var(--ok); text-decoration: line-through; }
+.progress-head { display: flex; align-items: center; gap: 9px; }
+.progress-count { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.progress-count b { color: var(--ai); font-size: 13px; }
+.progress-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: #e7e5e4;
+  overflow: hidden;
+}
+.progress-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--ai), #a78bfa);
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.progress-list { list-style: none; margin: 9px 0 0; padding: 0; font-size: 12px; line-height: 1.65; }
+.progress-list li {
+  display: flex;
+  gap: 6px;
+  color: var(--muted);
+  padding: 1px 0;
+}
+.progress-mark { width: 11px; flex: none; text-align: center; }
+.progress-list .done { color: #a8a29e; }
+.progress-list .done .progress-mark { color: var(--ok); }
+/* 当前这一问要能一眼挑出来——它就是"还没做完"的那件事 */
+.progress-list .current { color: var(--text); font-weight: 600; }
+.progress-list .current .progress-mark { color: var(--ai); }
 
-.chat { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.chat { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 13px; }
+.chat::-webkit-scrollbar { width: 8px; }
+.chat::-webkit-scrollbar-thumb { background: #e7e5e4; border-radius: 4px; border: 2px solid var(--surface); }
+.chat::-webkit-scrollbar-track { background: transparent; }
 
 .empty { color: var(--muted); font-size: 13px; line-height: 1.7; }
 .empty ul { padding-left: 18px; margin: 8px 0 0; }
@@ -218,38 +259,94 @@ html, body, #root {
 
 .link.danger { color: var(--err); font-weight: 600; }
 
+/* 撒花：盖在最上面，但一点都不挡手——庆祝归庆祝，别打断他继续画 */
+.confetti {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+
 /* 判定条：辅导时每答一次都要一眼看见对不对，所以不做成普通气泡 */
 .verdict {
   display: flex;
-  align-items: baseline;
-  gap: 7px;
-  padding: 8px 11px;
-  border-radius: 10px;
-  border-left: 3px solid currentColor;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px 12px;
+  border-radius: 13px;
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.65;
+  animation: rise 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.verdict .mark { font-weight: 700; }
-.verdict .label { font-weight: 600; white-space: nowrap; }
+/* 圆形徽章比一条左边框更"是个判定"，也更容易在长对话里扫到 */
+.verdict .mark {
+  flex: none;
+  width: 19px;
+  height: 19px;
+  margin-top: 1px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: currentColor;
+}
+.verdict .mark::first-letter { color: #fff; }
+.verdict-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.verdict .label { font-weight: 600; font-size: 12px; letter-spacing: 0.3px; }
 .verdict .why { color: var(--text); font-weight: 400; }
 .verdict-right  { color: var(--ok);   background: #ecfdf5; }
 .verdict-partly { color: #b45309;     background: #fffbeb; }
 .verdict-wrong  { color: var(--err);  background: #fef2f2; }
 
+/* 讲完一道题：和撒花一起出现的那条 */
+.cheer {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 13px;
+  border-radius: 13px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #6d28d9;
+  background: linear-gradient(135deg, #f5f3ff, #fdf4ff);
+  box-shadow: inset 0 0 0 1px #ddd6fe;
+  animation: rise 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.cheer-mark { font-size: 19px; line-height: 1; }
+
 .msg { display: flex; flex-direction: column; gap: 6px; }
 .msg-user { align-items: flex-end; }
 
+.msg { animation: rise 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
 .bubble {
-  max-width: 88%;
-  padding: 8px 11px;
-  border-radius: 12px;
+  max-width: 90%;
+  padding: 9px 12px;
+  border-radius: 14px;
   font-size: 13.5px;
-  line-height: 1.6;
+  line-height: 1.68;
   white-space: pre-wrap;
   word-break: break-word;
 }
-.msg-user .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
-.msg-ai .bubble { background: #f5f5f4; border-bottom-left-radius: 4px; }
+.msg-user .bubble {
+  background: linear-gradient(135deg, #3b82f6, var(--accent));
+  color: #fff;
+  border-bottom-right-radius: 5px;
+  box-shadow: 0 2px 8px -2px rgb(37 99 235 / 45%);
+}
+/* AI 说的话给白底 + 描边，而不是灰块——灰块会显得是"次要信息" */
+.msg-ai .bubble {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-bottom-left-radius: 5px;
+}
 .bubble.pending { color: var(--muted); letter-spacing: 2px; }
 
 /* 思考轨迹：在场但不抢戏 */
@@ -282,6 +379,37 @@ html, body, #root {
   border-left: 2px solid var(--border);
   white-space: pre-wrap;
 }
+
+/* 干活的过程压成一行，别把真正说给用户听的话挤出屏幕 */
+.activity { display: flex; flex-direction: column; gap: 5px; }
+.activity-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 4px 10px 4px 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 20px;
+  background: var(--surface-sunk);
+  color: var(--muted);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.activity-head:hover { border-color: var(--border); color: var(--text); }
+.activity-dot { font-size: 10px; color: var(--ok); flex: none; }
+.activity-head.live .activity-dot { color: var(--ai); animation: spin 1s linear infinite; display: inline-block; }
+.activity-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-count {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: #eceae8;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.activity-caret { flex: none; font-size: 9px; opacity: 0.6; }
 
 .tools { display: flex; flex-direction: column; gap: 3px; }
 
@@ -326,46 +454,104 @@ html, body, #root {
 }
 .suggestion .accept { background: var(--ai); color: #fff; border-color: var(--ai); }
 
+/**
+ * 「该你了」。
+ *
+ * 这是整个面板里唯一一件**用户必须动手**的事，早先却只是底部一个小方块，
+ * 混在十几条灰色过程里根本看不见。现在给它最高的视觉权重：
+ * 撑满、抬起来、标题字号、进场动一下。
+ */
 .ask {
-  margin: 0 14px 10px;
-  padding: 10px 12px;
-  border: 1px solid #fed7aa;
-  background: #fff7ed;
-  border-radius: 10px;
+  margin: 0 15px 11px;
+  padding: 13px 14px 14px;
+  border: none;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #fffbf5, #fff7ed);
+  box-shadow: 0 6px 18px -8px rgb(180 83 9 / 32%), inset 0 0 0 1px #fed7aa;
   font-size: 13px;
-}
-.ask .options { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.ask .options button {
-  padding: 4px 10px;
-  border: 1px solid var(--border);
-  background: #fff;
-  border-radius: 14px;
-  cursor: pointer;
-  font-size: 12.5px;
+  animation: ask-in 0.36s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.composer { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); }
+@keyframes ask-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+.ask-tag {
+  display: inline-block;
+  margin-bottom: 7px;
+  padding: 2px 8px;
+  border-radius: 7px;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.ask .question { font-size: 14px; line-height: 1.6; color: #7c2d12; font-weight: 500; }
+.ask .options { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+.ask .options button {
+  padding: 6px 13px;
+  border: 1px solid #fed7aa;
+  background: #fff;
+  border-radius: 16px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: #9a3412;
+  font-weight: 500;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.ask .options button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px -2px rgb(180 83 9 / 30%);
+  border-color: #f59e0b;
+}
+.ask .options button:active { transform: none; }
+
+.composer {
+  display: flex;
+  gap: 8px;
+  padding: 12px 15px 13px;
+  border-top: 1px solid var(--border-soft);
+  background: linear-gradient(#fcfcfb, #fff);
+}
 .composer textarea {
   flex: 1;
   resize: none;
   border: 1px solid var(--border);
-  border-radius: 9px;
-  padding: 8px 10px;
+  border-radius: 12px;
+  padding: 9px 11px;
   font: inherit;
   font-size: 13.5px;
   outline: none;
+  background: var(--surface-sunk);
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
-.composer textarea:focus { border-color: var(--accent); }
+.composer textarea:focus {
+  border-color: var(--accent);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgb(37 99 235 / 12%);
+}
+/* 等着他答题时，输入框也要看得出"是在等你" */
+.composer.answering textarea { border-color: #fdba74; background: #fffdfa; }
+.composer.answering textarea:focus {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgb(245 158 11 / 16%);
+}
 .composer button {
-  padding: 0 14px;
+  padding: 0 15px;
   border: none;
-  border-radius: 9px;
+  border-radius: 12px;
   background: var(--text);
   color: #fff;
   cursor: pointer;
   font-size: 13px;
+  font-weight: 500;
+  transition: opacity 0.15s, transform 0.12s;
 }
-.composer button:disabled { opacity: 0.35; cursor: default; }
+.composer button:not(:disabled):hover { transform: translateY(-1px); }
+.composer.answering button:not(:disabled) { background: #ea580c; }
+.composer button:disabled { opacity: 0.3; cursor: default; }
 
 .crash {
   position: absolute;
@@ -418,4 +604,17 @@ html, body, #root {
 @media (max-width: 760px) {
   .agent-panel { left: 12px; right: 12px; width: auto; top: auto; height: 46vh; }
   .layer-panel { transform: scale(0.9); transform-origin: top left; }
+}
+
+/**
+ * 系统里关了动效就全部停掉。
+ * 这里的动画全是"锦上添花"那一类，没有一个是理解界面所必需的，
+ * 所以可以一刀切，不用逐个想替代方案。
+ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

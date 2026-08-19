@@ -121,6 +121,38 @@ describe('账没平就不许结束', () => {
     expect(h.events('agent.todo').at(-1)!.items).toEqual([]);
     expect(h.events('agent.say').at(-1)!.text).toContain('折叠');
   });
+
+  it('讲完了会撒花，带上他自己做出来几问', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }]), ask('DF?')] },
+      { calls: [judge('right', '对'), PLAN([{ text: '(1) 求 DF', done: true }, { text: '(2) 求 BE' }]), ask('BE?')] },
+      {
+        calls: [
+          judge('right', '也对'),
+          PLAN([{ text: '(1) 求 DF', done: true }, { text: '(2) 求 BE', done: true }]),
+        ],
+      },
+      { calls: [call('tutor_finish', { summary: '走通了' })] },
+      { text: '' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    const cheer = h.events('agent.celebrate');
+    expect(cheer).toHaveLength(1);
+    expect(cheer[0]!.solved).toBe(2);
+  });
+
+  it('账没平被拒的那次不撒花——见者有份就不值钱了', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }])] },
+      { calls: [call('tutor_finish', { summary: '讲完了' })] },
+      { calls: [ask('那 (2) 呢？')] },
+      { text: '好' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    expect(h.events('agent.celebrate')).toHaveLength(0);
+  });
 });
 
 describe('打勾要有门票', () => {
@@ -308,6 +340,20 @@ describe('他答完，必须先说对不对', () => {
     expect(rejected[0]!.call.error).toContain('你还没说这答案对不对');
   });
 
+  it('有人答了就通知各端把提问卡收掉——多开一个客户端不该对着旧问题发呆', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 DF' }]), ask('DF 是多少？')] },
+      { calls: [judge('right', '对')] },
+      { text: '好' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    const asked = h.events('agent.ask');
+    const done = h.events('agent.ask.done');
+    expect(done).toHaveLength(1);
+    expect(done[0]!.askId).toBe(asked[0]!.askId);
+  });
+
   it('判定会发给用户，带上对错和理由', async () => {
     const h = tutor([
       { calls: [PLAN([{ text: '(1) 求 DF' }]), ask('AF 等于哪条边？')] },
@@ -398,6 +444,19 @@ describe('他答完，必须先说对不对', () => {
 });
 
 describe('用户自己要走的时候', () => {
+  it('半路走人不撒花', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }]), ask('第一步？')] },
+      { calls: [judge('right', '对')] },
+      { text: '嗯' },
+      { text: '行。' },
+    ]);
+    await speak(h, '给我讲这道题');
+    await speak(h, '先不学了，帮我画个流程图');
+
+    expect(h.events('agent.celebrate')).toHaveLength(0);
+  });
+
   it('说「直接告诉我答案」→ 退出辅导，销账', async () => {
     const h = tutor([
       { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }]), ask('第一步？')] },

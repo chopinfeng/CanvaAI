@@ -150,6 +150,9 @@ export const execTutorFinish: ToolExecutor = async (raw, ctx) => {
   ctx.session.tutor = null;
   ctx.session.mode = 'assist';
   ctx.emit({ t: 'agent.todo', items: [] });
+  // 走到头的那一下要有个明确的收束——十几轮"再想想"之后，
+  // 只发一句总结太轻了
+  ctx.emit({ t: 'agent.celebrate', solved: count });
   ctx.emit({ t: 'agent.say', text: a.summary, interruptible: true });
   ctx.emit({
     t: 'session.mode',
