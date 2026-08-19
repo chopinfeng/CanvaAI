@@ -8,6 +8,10 @@
  *   npx tsx scripts/seed-exam-set.ts [roomId] [题号...]
  *   npx tsx scripts/seed-exam-set.ts exam-set          # 全部 20 题
  *   npx tsx scripts/seed-exam-set.ts drill S3 T8       # 只灌指定题
+ *   npx tsx scripts/seed-exam-set.ts exam-set --clean  # 恢复出厂：连试用痕迹一起清掉
+ *
+ * 默认只清自己上次注入的图元，用户自己画的和 AI 的批注都留着——重跑不该毁掉别人的东西。
+ * `--clean` 是演示前的"恢复出厂"：房间里的一切都清空，再灌一遍，会话也切回普通模式。
  */
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -27,7 +31,9 @@ const CROPS = join(here, '../../../.work/crops');
 const PORT = process.env.PORT ?? '3001';
 const BASE = `http://localhost:${PORT}`;
 
-const [, , roomArg, ...only] = process.argv;
+const argv = process.argv.slice(2);
+const clean = argv.includes('--clean');
+const [roomArg, ...only] = argv.filter((a) => a !== '--clean');
 const roomId = roomArg ?? 'exam-set';
 const picked = only.length > 0 ? PROBLEMS.filter((p) => only.includes(p.id)) : PROBLEMS;
 
@@ -232,10 +238,20 @@ ws.on('message', (data: ArrayBuffer | Buffer) => {
 });
 
 async function seed(): Promise<void> {
-  const stale = scene.all().filter((s) => s.author.id === 'seed');
+  const all = scene.all();
+  const stale = clean ? all : all.filter((s) => s.author.id === 'seed');
   if (stale.length > 0) {
+    const mine = stale.filter((s) => s.author.id === 'seed').length;
     scene.delete(stale.map((s) => s.id));
-    console.log(`清掉上一次注入的 ${stale.length} 个图元`);
+    console.log(
+      clean
+        ? `恢复出厂：清掉全部 ${stale.length} 个图元（其中上次注入的 ${mine} 个，试用痕迹 ${stale.length - mine} 个）`
+        : `清掉上一次注入的 ${stale.length} 个图元`,
+    );
+  }
+  if (clean) {
+    // 辅导模式只活在服务端内存里，不在文档里，得单独说一声切回来
+    ws.send(encodeFrame(FrameTag.Control, new TextEncoder().encode(JSON.stringify({ t: 'session.config', mode: 'assist' }))));
   }
 
   let cursor = 80;
