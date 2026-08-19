@@ -642,6 +642,19 @@ describe('讲解要指着图说', () => {
     expect(h.session.tutor?.markedSinceAsk).toBe(false);
   });
 
+  it('空数组是"把高亮清掉"，不是错误', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 DF' }]), call('canvas_highlight', { ids: [] })] },
+      { calls: [ask('看这里？')] },
+      { text: '好' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    const hl = h.events('agent.tool').filter((m) => m.call.name === 'canvas_highlight').at(-1)!;
+    expect(hl.call.state).toBe('ok');
+    expect(h.events('agent.highlight').at(-1)!.shapeIds).toEqual([]);
+  });
+
   it('高亮到已经删掉的 id：报错说清该怎么办，而不是干瞪眼', async () => {
     const h = tutor([
       { calls: [PLAN([{ text: '(1) 求 DF' }]), call('canvas_highlight', { ids: ['sh_gone'], ms: 0 })] },

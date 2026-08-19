@@ -16,9 +16,12 @@ export const execTutorPlan: ToolExecutor = async (raw, ctx) => {
   const a = tutorPlan.input.parse(raw);
   const t = ctx.session.tutor;
   if (!t) {
+    // 最常见的成因不是用错工具，是用户在你这一轮跑到一半时喊了停
+    // （"直接告诉我答案""先不学了"），账本当场就销了。
     return err(
-      '当前不在辅导中，没有可记的进度',
-      '这个工具只在辅导模式下有意义。用户想被一步步教的时候，系统会自动进入辅导模式。',
+      '辅导已经结束了，没有进度可记',
+      '多半是用户刚刚自己退出了辅导。别再记进度、也别想着把它拉回来——' +
+        '按他现在的要求答就行（他要答案就给答案）。',
     );
   }
 
@@ -82,7 +85,12 @@ export const execTutorPlan: ToolExecutor = async (raw, ctx) => {
 export const execTutorJudge: ToolExecutor = async (raw, ctx) => {
   const a = tutorJudge.input.parse(raw);
   const t = ctx.session.tutor;
-  if (!t) return err('当前不在辅导中', '这个工具只在辅导模式下有意义。');
+  if (!t) {
+    return err(
+      '辅导已经结束了，不用再判了',
+      '多半是用户刚刚自己退出了辅导。直接按他现在的要求答。',
+    );
+  }
   if (!t.pending) {
     return err(
       '没有待判定的回答',

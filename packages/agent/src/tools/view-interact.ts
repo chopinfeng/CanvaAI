@@ -44,6 +44,14 @@ export const execSpotlight: ToolExecutor = async (raw, ctx) => {
 
 export const execHighlight: ToolExecutor = async (raw, ctx) => {
   const a = canvasHighlight.input.parse(raw);
+
+  // 空数组是「把高亮清掉」，工具说明里就是这么写的。
+  // 早先这里和"id 全都不存在"走同一条分支，于是每次收拾上一处标记都报一次错。
+  if (a.ids.length === 0) {
+    ctx.emit({ t: 'agent.highlight', shapeIds: [], kind: a.kind, ms: a.ms });
+    return ok({ cleared: true });
+  }
+
   const exist = a.ids.filter((id) => ctx.scene.has(id));
   if (exist.length === 0) {
     // 实测最常见的成因：拿自己上一步删掉的辅助图形的 id 再去高亮
