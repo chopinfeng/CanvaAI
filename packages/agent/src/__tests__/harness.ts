@@ -77,6 +77,9 @@ export function makeHarness(
      * 每条这样的用例白等 5 秒。给一个函数可以按问题内容答不同的话。
      */
     autoAnswer?: string | ((question: string) => string);
+    /** 模拟用户思考了多久才答。用来验证等他的时间不该算进回合时限 */
+    autoAnswerDelayMs?: number;
+    maxMs?: number;
   } = {},
 ): Harness {
   const scene = init.scene ?? new Scene();
@@ -99,12 +102,14 @@ export function makeHarness(
       emitted.push(m);
       if (m.t === 'agent.ask' && init.autoAnswer !== undefined) {
         const answer = typeof init.autoAnswer === 'function' ? init.autoAnswer(m.question) : init.autoAnswer;
+        const reply = () => loop.push({ kind: 'answer', askId: m.askId, answer, at: Date.now() });
         // 下一个微任务再答，让 ask 先把 pendingAsk 挂上
-        queueMicrotask(() => loop.push({ kind: 'answer', askId: m.askId, answer, at: Date.now() }));
+        if (init.autoAnswerDelayMs) setTimeout(reply, init.autoAnswerDelayMs);
+        else queueMicrotask(reply);
       }
     },
     maxSteps: 8,
-    maxMs: 5_000,
+    maxMs: init.maxMs ?? 5_000,
   });
 
   return {

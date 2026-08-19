@@ -115,6 +115,7 @@ describe('账没平就不许结束', () => {
 
     const modes = h.events('session.mode');
     expect(modes.at(-1)!.mode).toBe('assist');
+    expect(modes.at(-1)!.note).toContain('这次辅导到此结束');
     expect(modes.at(-1)!.note).toContain('2 个小问');
 
     expect(h.events('agent.todo').at(-1)!.items).toEqual([]);
@@ -235,17 +236,23 @@ describe('每一轮都要把球交回给用户', () => {
     expect(h.events('agent.ask')).toHaveLength(1);
   });
 
-  it('这一轮提过问就不再打扰', async () => {
+  it('问过也不算数：他答完之后又没下文，一样拦', async () => {
+    // interact_ask_user 会阻塞回合，所以走到这里时"问过"= 他早就答完了。
+    // 这正是最常见的断球方式，不能因为这一轮问过就放行。
     const h = tutor([
       { calls: [PLAN([{ text: '(1) 求 DF' }]), ask('AB 翻折过去变成哪条边？')] },
-      { text: '等你回答。' },
+      { calls: [judge('right', '对')] },
+      { text: '等你回答。' }, // 判完就没了，问题也不提
+      { calls: [ask('那 DF 呢？')] },
+      { text: '好' },
     ]);
     await speak(h, '给我讲这道题');
 
     const nudged = h.loop
       .getHistory()
       .some((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('球断在这里'));
-    expect(nudged).toBe(false);
+    expect(nudged).toBe(true);
+    expect(h.events('agent.ask')).toHaveLength(2);
   });
 
   it('提醒只发一次，不会两边空转到步数上限', async () => {
@@ -467,6 +474,118 @@ describe('用户想走的那句话打在答题框里', () => {
 
     expect(h.session.mode).toBe('assist');
     expect(h.session.tutor).toBeNull();
+  });
+});
+
+describe('停手要明说', () => {
+  /**
+   * 题没讲完就停下来是允许的（超时、报错、模型自己不问了），
+   * 不允许的是一声不吭地停：用户等在那里，不知道该答什么，也不知道是不是结束了。
+   */
+  it('模型自己不问了 → 兜底说清停在哪一问', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }])] },
+      { text: '先到这儿。' }, // 被拦一次
+      { text: '还是到这儿。' }, // 拦不动了，回合就此结束
+    ]);
+    await speak(h, '给我讲这道题');
+
+    const said = h.events('agent.say').at(-1)!;
+    expect(said.text).toContain('这次辅导先停在这里');
+    expect(said.text).toContain('(1) 求 DF');
+    expect(h.session.mode).toBe('tutor'); // 停下不等于退出，随时能接着学
+  });
+
+  it('还没拆题就停 → 也说一声', async () => {
+    const h = tutor([{ text: '嗯。' }, { text: '嗯。' }]);
+    await speak(h, '给我讲这道题');
+
+    expect(h.events('agent.say').at(-1)!.text).toContain('还没开始拆');
+  });
+
+  it('问题还挂在他屏幕上、回合被打断时不插话', async () => {
+    // 不自动作答：回合会一直阻塞在 interact_ask_user 上
+    const h = makeHarness([{ calls: [PLAN([{ text: '(1) 求 DF' }]), ask('DF 是多少？')] }, { text: '好' }], {
+      session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0 } },
+    });
+
+    const running = speak(h, '继续');
+    await new Promise((r) => setTimeout(r, 30));
+    h.loop.abort(); // 相当于用户中途做了别的
+    await running;
+
+    const paused = h.events('agent.say').filter((m) => m.text.includes('先停在这里'));
+    expect(paused).toHaveLength(0);
+  });
+
+  it('普通模式下不说这句话', async () => {
+    const h = makeHarness([{ text: '画好了。' }]);
+    await speak(h, '帮我画个方块');
+
+    expect(h.events('agent.say')).toHaveLength(0);
+  });
+});
+
+describe('等用户思考的时间不占回合额度', () => {
+  it('他想了很久再答，回合不会超时死掉', async () => {
+    const h = makeHarness(
+      [
+        { calls: [PLAN([{ text: '(1) 求 DF' }]), ask('DF 是多少？')] },
+        { calls: [judge('right', '对')] },
+        { text: '好' },
+      ],
+      {
+        session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0 } },
+        maxMs: 120,
+        // 想的时间比整个回合额度还长——挂钟计时的话这里必死
+        autoAnswerDelayMs: 260,
+        autoAnswer: '12',
+      },
+    );
+    await speak(h, '继续');
+
+    expect(h.events('agent.judge')).toHaveLength(1);
+    expect(h.events('error')).toHaveLength(0);
+  });
+});
+
+describe('一整场辅导是一个回合，别被步数上限掐断', () => {
+  it('用户每答一次，步数额度重新起算', async () => {
+    // maxSteps=8（harness 默认）。这里编排 12 步，中间穿插两次回答——
+    // 不重置的话第 9 步就被判成 max_steps，辅导正在兴头上被掐掉。
+    const steps: Array<{ text?: string; calls?: ReturnType<typeof call>[] }> = [
+      { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }])] },
+      { calls: [say('先看这个三角形')] },
+      { calls: [say('注意 AF')] },
+      { calls: [say('还有 AD')] },
+      { calls: [ask('DF 是多少？')] },       // 第 5 步，用户在这里开口
+      { calls: [judge('right', '对')] },
+      { calls: [say('那来看第二问')] },
+      { calls: [say('设 BE=x')] },
+      { calls: [say('EC 就是 5−x')] },
+      { calls: [ask('那 x 呢？')] },          // 第 10 步，用户又开口
+      { calls: [judge('right', '也对')] },
+      { text: '好' },
+    ];
+    const h = tutor(steps);
+    await speak(h, '给我讲这道题');
+
+    expect(h.events('agent.judge')).toHaveLength(2);
+    const cutoff = h.loop
+      .getHistory()
+      .some((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('已达上限'));
+    expect(cutoff).toBe(false);
+  });
+
+  it('他一句话不说的空转还是会被掐掉', async () => {
+    const spin = Array.from({ length: 12 }, () => ({ calls: [say('嗯')] }));
+    const h = tutor(spin);
+    await speak(h, '给我讲这道题');
+
+    const cutoff = h.loop
+      .getHistory()
+      .some((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('已达上限'));
+    expect(cutoff).toBe(true);
   });
 });
 

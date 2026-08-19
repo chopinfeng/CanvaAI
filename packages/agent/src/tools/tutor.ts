@@ -147,7 +147,7 @@ export const execTutorFinish: ToolExecutor = async (raw, ctx) => {
     t: 'session.mode',
     mode: 'assist',
     auto: true,
-    note: `这道题讲完了（${count} 个小问都是你自己做出来的）。要再讲一道就说一声。`,
+    note: `（这次辅导到此结束——这道题的 ${count} 个小问都是你自己做出来的。要再讲一道就说一声。）`,
   });
 
   return ok({ finished: true, solved: count });

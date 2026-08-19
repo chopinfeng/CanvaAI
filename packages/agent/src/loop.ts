@@ -62,6 +62,23 @@ export class AgentLoop {
   private lastActions: string[] = [];
   private pendingAsk: { askId: string; resolve: (answer: string) => void } | null = null;
 
+  /**
+   * 回合时限的剩余额度。
+   *
+   * 计的是 **Agent 自己干活的时间**，不含等用户回答的时间——
+   * 挂钟计时会在辅导里造成一个很蠢的后果：学生盯着几何题想两分钟，
+   * 回合就超时死了，问题还挂在屏幕上，谁也没说一句话。
+   */
+  private budgetLeft = 0;
+  private budgetTimer: ReturnType<typeof setTimeout> | null = null;
+  private budgetArmedAt = 0;
+  private timedOut = false;
+  /** 回合断掉时，问题还挂在用户屏幕上——他正要答，这时候别插话 */
+  private askInterrupted = false;
+  /** 本回合已走的步数，和"上一次用户开口时走到第几步" */
+  private stepsInTurn = 0;
+  private stepFloor = 0;
+
   constructor(options: AgentLoopOptions) {
     this.opts = { maxSteps: 12, maxMs: 90_000, ...options };
     this.registry = options.registry ?? new ToolRegistry();
@@ -123,8 +140,12 @@ export class AgentLoop {
     const turnId = `t_${nanoid(8)}`;
     const controller = new AbortController();
     this.controller = controller;
-    const deadline = setTimeout(() => controller.abort(), this.opts.maxMs);
-    const startedAt = Date.now();
+    this.budgetLeft = this.opts.maxMs;
+    this.timedOut = false;
+    this.askInterrupted = false;
+    this.stepsInTurn = 0;
+    this.stepFloor = 0;
+    this.armBudget(controller);
 
     this.applyIntent(events);
     this.opts.emit({ t: 'agent.turn.start', turnId });
@@ -160,18 +181,25 @@ export class AgentLoop {
     let error: string | undefined;
     /** 同类工具连续失败计数，撞到 3 就停手，避免烧 token 空转 */
     const failStreak = new Map<string, number>();
-    /** 本轮把球交回给用户了没有（辅导模式下用） */
-    let asked = false;
     /** 交回球的提醒只发一次，免得两边互相等着变成死循环 */
     let nudged = false;
+
 
     try {
       for (;;) {
         if (controller.signal.aborted) {
-          reason = Date.now() - startedAt >= this.opts.maxMs ? 'timeout' : 'aborted';
+          reason = this.timedOut ? 'timeout' : 'aborted';
           break;
         }
-        if (steps >= this.opts.maxSteps) {
+        /**
+         * 步数上限是防死循环的，不是给辅导设的课时。
+         *
+         * interact_ask_user 会阻塞回合，所以一整场辅导是**一个回合**：
+         * 问一次、判一次、再问一次，十来步就撞上限被掐断，
+         * 学生正答得好好的，AI 忽然收摊。用户开口过就说明这不是空转，
+         * 所以每次他回答之后，额度从头再算。
+         */
+        if (this.stepsInTurn - this.stepFloor >= this.opts.maxSteps) {
           reason = 'max_steps';
           this.history.push({
             role: 'user',
@@ -185,12 +213,13 @@ export class AgentLoop {
 
         const out = await this.streamOnce(turnId, controller.signal, true, steps);
         steps++;
+        this.stepsInTurn = steps;
         fullText += out.text;
 
         if (out.calls.length === 0) {
           // 辅导里"没调工具就结束"= 球断在这儿了：用户等着被问，
           // 而模型以为自己讲完了。补一句系统提醒，再给它一次机会。
-          const nudge = nudged ? null : this.tutorHandBack(asked);
+          const nudge = nudged ? null : this.tutorHandBack();
           if (nudge) {
             nudged = true;
             this.history.push({ role: 'user', content: nudge });
@@ -199,7 +228,6 @@ export class AgentLoop {
           break;
         }
 
-        if (out.calls.some((c) => c.function.name === 'interact_ask_user')) asked = true;
         toolCalls += out.calls.length;
         await this.executeCalls(out.calls, ctx, turnId, failStreak);
 
@@ -221,7 +249,7 @@ export class AgentLoop {
         this.opts.emit({ t: 'error', message: '模型调用失败', detail: error });
       }
     } finally {
-      clearTimeout(deadline);
+      this.disarmBudget();
       this.running = false;
       this.controller = null;
       this.pendingAsk = null;
@@ -235,6 +263,8 @@ export class AgentLoop {
       if (desc) this.lastActions.push(desc);
       if (this.lastActions.length > 5) this.lastActions = this.lastActions.slice(-5);
     }
+
+    this.announceTutorPause();
 
     this.opts.emit({ t: 'agent.turn.end', turnId, reason });
     return { turnId, steps, reason, text: fullText, toolCalls, ...(error ? { error } : {}) };
@@ -288,6 +318,53 @@ export class AgentLoop {
   }
 
   /**
+   * 辅导停在半路时，明说一声停在哪儿。
+   *
+   * 题没讲完就停下来，本身是允许的（超时、报错、撞步数上限、模型自己不问了），
+   * 不允许的是**一声不吭地停**——用户等在那里，不知道是该答什么，
+   * 还是这次已经结束了。所以由主循环兜底说这句话，不依赖模型配合。
+   *
+   * 三种情况不说：不在辅导里、问题还挂在他屏幕上（他正要答）、
+   * 队列里还有事件（下一个回合马上就起来）。
+   */
+  private announceTutorPause(): void {
+    const t = this.opts.session.tutor;
+    if (this.opts.session.mode !== 'tutor' || !t) return;
+    if (this.askInterrupted || this.queue.length > 0) return;
+
+    const left = t.outline.filter((i) => !i.done);
+    if (t.outline.length > 0 && left.length === 0) return; // 都做完了，收尾的话 tutor_finish 会说
+
+    const where =
+      left.length > 0
+        ? `还剩 ${left.length} 个没做完，卡在「${left[0]!.text}」`
+        : '这道题还没开始拆';
+    this.opts.emit({
+      t: 'agent.say',
+      text: `（这次辅导先停在这里——${where}。想接着学，说一声就行。）`,
+      interruptible: true,
+    });
+  }
+
+  /* ---- 回合时限：只在 Agent 自己干活时走表 ---- */
+
+  private armBudget(controller: AbortController): void {
+    if (this.budgetTimer) return;
+    this.budgetArmedAt = Date.now();
+    this.budgetTimer = setTimeout(() => {
+      this.timedOut = true;
+      controller.abort();
+    }, Math.max(1, this.budgetLeft));
+  }
+
+  private disarmBudget(): void {
+    if (!this.budgetTimer) return;
+    clearTimeout(this.budgetTimer);
+    this.budgetTimer = null;
+    this.budgetLeft -= Date.now() - this.budgetArmedAt;
+  }
+
+  /**
    * 辅导这一轮该不该被放走？不该的话，返回要塞给模型的那句提醒。
    *
    * 用户的诉求很简单：他问的题没讲完，这次辅导就不能算结束。
@@ -295,13 +372,14 @@ export class AgentLoop {
    * 所以在回合出口这里拦一道：辅导中、账上还有没解决的小问、这一轮又没向他提问，
    * 就不放行，把还剩什么摆回它面前。
    */
-  private tutorHandBack(asked: boolean): string | null {
+  private tutorHandBack(): string | null {
     const session = this.opts.session;
     if (session.mode !== 'tutor' || !session.tutor) return null;
     const t = session.tutor;
 
-    // 这一条要在 asked 之前判：问了、他也答了、然后一声不吭就收工，
-    // 恰恰是最常见的那种"只被追问、从不被告知对错"。
+    // 「这一轮问过了就放行」是错的：interact_ask_user 会阻塞回合，
+    // 所以回合走到这里时，问过 = 他早就答完了。问了、他答了、然后一声不吭收工，
+    // 恰恰是最常见的断球方式。
     if (t.pending) {
       return (
         `[系统] 用户回答了「${t.pending.answer}」，你到现在也没说这答案对不对，就把这一轮结束了。` +
@@ -309,8 +387,6 @@ export class AgentLoop {
         `先用 tutor_judge 给个判定（right / partly / wrong 加一句为什么），再提下一个问题。`
       );
     }
-
-    if (asked) return null;
 
     if (t.outline.length === 0) {
       return (
@@ -537,9 +613,13 @@ export class AgentLoop {
     const askId = `ask_${nanoid(6)}`;
     this.opts.emit({ t: 'agent.ask', askId, question, ...(options ? { options } : {}) });
 
+    // 他想多久是他的事，不占回合额度
+    this.disarmBudget();
+
     return new Promise<string>((resolve) => {
       const onAbort = () => {
         this.pendingAsk = null;
+        this.askInterrupted = true;
         // 中断不算"答过"：没答的东西没什么可判定的
         resolve('[用户没有回答，操作被中断]');
       };
@@ -548,6 +628,9 @@ export class AgentLoop {
         askId,
         resolve: (answer) => {
           signal.removeEventListener('abort', onAbort);
+          if (this.controller) this.armBudget(this.controller);
+          // 他开口了，这一轮不是空转——步数额度重新起算
+          this.stepFloor = this.stepsInTurn;
           // 挂上"待判定"。清它的只有 tutor_judge——在那之前不许问下一个问题。
           if (this.opts.session.mode === 'tutor' && this.opts.session.tutor) {
             this.opts.session.tutor.pending = { question, answer };
