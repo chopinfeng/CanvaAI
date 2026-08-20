@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { layout, type Sim } from './layout';
+import { layout } from './layout';
 
 /**
  * 知识图谱页。
@@ -62,7 +62,6 @@ export function KgPage() {
   const [ranking, setRanking] = useState<Array<{ id: string; name: string; level: number; band: Band; attempts: number }>>([]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const simRef = useRef<Sim | null>(null);
 
   /* ---- 概况 + 这个学生的掌握度榜 ---- */
   useEffect(() => {
@@ -109,7 +108,6 @@ export function KgPage() {
     if (!canvas || !sub || sub.nodes.length === 0) return;
 
     const sim = layout(sub.nodes.map((n) => n.id), sub.edges, root!);
-    simRef.current = sim;
 
     const dpr = window.devicePixelRatio || 1;
     const resize = () => {

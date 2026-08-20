@@ -69,6 +69,18 @@ export function setGraph(g: KnowledgeGraph | null): void {
   graph = g;
 }
 
+/**
+ * 重新读盘装图。
+ *
+ * 图是进程内缓存的（1 万节点，每次请求重读不划算），代价是拉了新教材之后
+ * 服务端还在发旧的那张——我自己就先栽在这儿：跑完 fetch-kg --full，
+ * /kg/stats 还是 157 个节点，愣是没反应过来是缓存。所以给它一个明确的出口。
+ */
+export async function reloadGraph(): Promise<KnowledgeGraph> {
+  graph = null;
+  return loadGraph();
+}
+
 /* ------------------------------------------------------------------ *
  * 学习记录：落盘
  * ------------------------------------------------------------------ */

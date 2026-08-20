@@ -74,6 +74,20 @@ async function main(): Promise<void> {
   }
 
   console.log(`\n落在 ${dir}/（${ok} 个文件）。`);
+
+  // 服务端把图缓存在进程里。它要是正跑着，顺手让它重读一遍——
+  // 否则拉完新教材还得纳闷为什么 /kg/stats 没变（我就先栽了一次）。
+  if (ok > 0) {
+    try {
+      const r = await fetch(`http://localhost:${process.env.PORT ?? '3001'}/kg/reload`, { method: 'POST' });
+      if (r.ok) {
+        const s = (await r.json()) as { nodes: number; edges: number };
+        console.log(`服务端已重新装载：${s.nodes} 节点 / ${s.edges} 边。`);
+      }
+    } catch {
+      // 没跑就算了，下次启动自然会读到
+    }
+  }
   console.log(
     full
       ? '注意授权：数据 CC BY-NC-SA 4.0（非商业 + 相同方式共享）。别把它打包进商用分发。'

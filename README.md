@@ -49,7 +49,7 @@ pnpm dev
 | M3 Agentic Context 铺开（VLM 兜底 / sandbox / 几何构造 / 提案交互） | 部分 |
 | M4 语音全双工 | 未开始 |
 
-163 个测试覆盖几何运算、CRDT 并发、工具权限、坐标约定、错误恢复、打断、上下文布局、快照持久化（含损坏快照不被覆盖）、原生渲染崩溃隔离、停手判定、模型参数怪癖、辅导模式约束、图片资源、矢量图形几何验算、撤销语义。
+303 个测试覆盖几何运算、CRDT 并发、工具权限、坐标约定、错误恢复、打断、上下文布局、快照持久化（含损坏快照不被覆盖）、原生渲染崩溃隔离、停手判定、模型参数怪癖、辅导模式约束（拆题/判定/收尾三道闸）、学生 Agent、知识图谱装载与掌握度、图片资源、矢量图形几何验算、撤销语义。
 
 ```bash
 pnpm test
@@ -63,17 +63,38 @@ pnpm test
 apps/
   web/          React + Vite + Konva，画布与对话 UI
   server/       Node + ws，会话管理 / Yjs 权威副本 / Agent 宿主
+  mcp/          知识图谱的 MCP 服务（stdio），给别的 Agent 用
 packages/
   protocol/     zod schema：图元、事件、工具 IO —— 前后端与模型侧的唯一真相
   canvas-core/  场景模型、几何运算、SVG 序列化（同构，无 DOM 依赖）
   agent/        DeepSeek Harness：模型客户端 / Agent Loop / Context Engine / 工具实现
+  knowledge/    K12 学科知识图谱 + 掌握度模型
 docs/
-  ARCHITECTURE.md   架构设计
-  TOOLS.md          工具注册表规格
-  ROADMAP.md        实施路线
-  OPERATIONS.md     日志与排查
-  PROBLEM-SETS.md   题目导入与转换核对
+  ARCHITECTURE.md      架构设计
+  TOOLS.md             工具注册表规格
+  ROADMAP.md           实施路线
+  OPERATIONS.md        日志与排查
+  PROBLEM-SETS.md      题目导入与转换核对
+  KNOWLEDGE-GRAPH.md   知识图谱：选型、掌握度、三个入口
 ```
+
+## 讲完一道题，图谱上就长出他会什么
+
+接了 [K12-KGraph](https://github.com/haolpku/K12-KGraph)（人教版教材抽取，10685 节点 /
+22684 边，数理化生 K1–K12）。挑它的理由只有一条：**每条边都带 evidence 回指教材原文**——
+讲题时说"这一步依赖前面哪个知识点"，得说得出依据。
+
+```bash
+npx tsx apps/server/scripts/fetch-kg.ts --full   # 数据是 CC BY-NC-SA，不入库，现拉
+open 'http://localhost:5173/?view=kg&learner=exam-set'
+```
+
+掌握度里最要紧的一条：**被引导着做对 ≠ 会了**。辅导模式下学生是被一路问出来的，
+所以 guided 的涨幅有天花板（0.55），刚好够不着"已掌握"的 0.6——跨过那条线
+必须由他独立做对来完成。实跑验证：学生 Agent 走完整道勾股定理 5 问全对，
+最后停在「学着呢」而不是「已掌握」。
+
+详见 [docs/KNOWLEDGE-GRAPH.md](docs/KNOWLEDGE-GRAPH.md)。
 
 ## 把真题灌进画布
 

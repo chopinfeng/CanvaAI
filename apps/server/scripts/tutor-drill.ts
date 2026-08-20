@@ -181,7 +181,7 @@ async function nudgeStudent(): Promise<void> {
   if (thinking || finished) return;
   if (turns >= maxTurns) {
     log('演练', `到了 ${maxTurns} 轮上限，停。`);
-    return finish();
+    return void finish();
   }
   thinking = true;
   turns++;
@@ -213,7 +213,7 @@ function armQuiet(ms = 45_000): void {
   quietTimer = setTimeout(() => {
     if (finished) return;
     log('演练', '两边都没动静了，收工。');
-    finish();
+    void finish();
   }, ms);
 }
 
@@ -280,7 +280,7 @@ function handleServer(msg: ServerMessage): void {
       tape.modes.push({ mode: msg.mode, ...(msg.note ? { note: msg.note } : {}) });
       log('演练', `模式 → ${msg.mode}${msg.note ? ` ${msg.note}` : ''}`);
       // 辅导结束（讲完了或者学生自己要走）就收工
-      if (msg.mode === 'assist' && started) setTimeout(finish, 2500);
+      if (msg.mode === 'assist' && started) setTimeout(() => void finish(), 2500);
       break;
     case 'agent.tool':
       if (msg.call.state === 'error') {
@@ -324,10 +324,19 @@ async function openSession(): Promise<void> {
  * 判分
  * ------------------------------------------------------------------ */
 
-function finish(): void {
+async function finish(): Promise<void> {
   if (finished) return;
   finished = true;
   if (idleTimer) clearTimeout(idleTimer);
+
+  /**
+   * 讲完了，图谱上到底长出东西没有？
+   *
+   * 这一条本来是手工 curl 看一眼的，挪进来当成判分项——
+   * "学生学完之后掌握度要更新"是这套东西的目的本身，
+   * 留在手工验证里，下次改坏了没人会发现。
+   */
+  const kg = await fetchMastery();
 
   /**
    * soft 的那几项是"讲得好不好"，不是"跑没跑通"。
@@ -398,6 +407,36 @@ function finish(): void {
       : tape.toolErrors.map((e) => `${e.name}: ${e.error}`).join('；'),
   );
 
+  /**
+   * 只在"真讲完了"的局面下要求图谱更新。
+   *
+   * 学生半路要答案走人时没长东西是对的——他并没有学完，
+   * 那时候还往图谱上记，记的就是假账。
+   */
+  const finishedProperly = tape.modes.at(-1)?.note?.includes('到此结束') ?? false;
+  if (finishedProperly) {
+    add(
+      kg !== null && kg.count > 0,
+      '图谱长出东西了',
+      kg === null
+        ? '问不到 /kg/mastery，服务端起了吗？'
+        : kg.count > 0
+          ? `${kg.count} 个知识点：${kg.summary}`
+          : '一个知识点都没记上——多半是 tutor_judge 没带 conceptIds，或者图谱里没有这道题的知识点',
+    );
+    if (kg && kg.count > 0) {
+      // 全程被引导着做对的，不该显示成"已掌握"——那是这套掌握度的立身之本
+      const overclaimed = kg.rows.filter((r) => r.band === 'mastered');
+      add(
+        overclaimed.length === 0,
+        '没把"被教会"记成"已掌握"',
+        overclaimed.length === 0
+          ? '全程引导，掌握度停在"学着呢"，符合预期'
+          : `这几个被记成已掌握了：${overclaimed.map((r) => r.name).join('、')}`,
+      );
+    }
+  }
+
   if (tape.guardHits.length > 0) {
     console.log(
       `\n（辅导机制拦下 ${tape.guardHits.length} 次，都是该拦的：` +
@@ -411,6 +450,29 @@ function finish(): void {
 /** 主循环兜底那句"这次辅导先停在这里…"也算说清楚了 */
 function tapeSaidPause(): boolean {
   return tape.teacherSays.some((t) => t.includes('先停在这里'));
+}
+
+interface KgSnap {
+  count: number;
+  summary: string;
+  rows: Array<{ name: string; level: number; band: string }>;
+}
+
+/** 问一次服务端：这个学生现在图谱上是什么样 */
+async function fetchMastery(): Promise<KgSnap | null> {
+  try {
+    const r = await fetch(`${'http://localhost:'}${PORT}/kg/mastery/${encodeURIComponent(roomId)}`);
+    if (!r.ok) return null;
+    const d = (await r.json()) as { mastery?: Array<{ name: string; level: number; band: string }> };
+    const rows = d.mastery ?? [];
+    return {
+      count: rows.length,
+      summary: rows.map((m) => `${m.name} ${m.level.toFixed(2)}(${m.band})`).join('、'),
+      rows,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function report(checks: Array<{ ok: boolean; name: string; detail: string; soft?: boolean }>): void {
@@ -443,5 +505,5 @@ ws.on('error', (e) => {
 // 整体兜底：别让一次跑飞的演练挂在那儿
 setTimeout(() => {
   log('演练', '超时（10 分钟），强制收尾。');
-  finish();
+  void finish();
 }, 10 * 60_000);

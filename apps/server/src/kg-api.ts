@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AttemptSchema, bandOf, recommend, recordAttempts, snapshot } from '@canvai/knowledge';
 import type { KgNodeLabel } from '@canvai/knowledge';
-import { learnerStore, loadGraph } from './knowledge.ts';
+import { learnerStore, loadGraph, reloadGraph } from './knowledge.ts';
 import { log } from './log.ts';
 
 /**
@@ -50,6 +50,15 @@ async function route(req: IncomingMessage, res: ServerResponse, url: URL): Promi
         license: { data: 'CC BY-NC-SA 4.0', code: 'MIT' },
       },
     });
+    return true;
+  }
+
+  /* ---- 拉了新教材之后让它重读一遍，不用重启服务 ---- */
+  if (p === '/kg/reload' && req.method === 'POST') {
+    const g = await reloadGraph();
+    const s = g.stats();
+    log.info('kg.reloaded', { nodes: s.nodes, edges: s.edges });
+    json(res, 200, { reloaded: true, nodes: s.nodes, edges: s.edges, subjects: s.subjects });
     return true;
   }
 
