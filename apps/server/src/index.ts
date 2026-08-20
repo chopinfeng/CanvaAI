@@ -7,13 +7,39 @@ import { config, envFiles, hasAgent, hasVision } from './config.ts';
 import { installCrashHandlers, log } from './log.ts';
 import { closeIdleRooms, getRoom, saveAllRooms } from './room.ts';
 import { initRasterizer } from './rasterizer.ts';
+import { hasWeb, serveWeb } from './static.ts';
 
 // 第一件事就是装崩溃处理：之后任何环节出问题都能留下现场
 installCrashHandlers({ onFatal: saveAllRooms });
 
+/**
+ * 剥掉挂载前缀。
+ *
+ * 线上挂在 `/apps` 下，进来的是 `/apps/kg/stats`；剥成 `/kg/stats` 之后，
+ * 下面所有路由不用知道自己被挂在哪儿。前缀只有一个来源（BASE_PATH），
+ * 不会出现"前端按 /apps 拼、后端按根路径认"这种对不上的情况。
+ */
+function strip(url: string | undefined): string | null {
+  const u = url ?? '/';
+  const b = config.basePath;
+  if (!b) return u;
+  if (u === b) return '/';
+  // 前缀之外的一律不认。否则 API 在 /kg 和 /apps/kg 两个地方都能打到，
+  // 前端按哪个拼都"能用"，等哪天真在前缀后面加了东西才发现两边不一致。
+  return u.startsWith(b + '/') ? u.slice(b.length) : null;
+}
+
 const server = createServer((req, res) => {
   const origin = req.headers.origin;
   if (origin === config.webOrigin) res.setHeader('access-control-allow-origin', origin);
+
+  const path = strip(req.url);
+  if (path === null) {
+    res.writeHead(404);
+    res.end('not found');
+    return;
+  }
+  req.url = path;
 
   /* ---- 知识图谱：查图、看掌握度、记练习结果 ---- */
 
@@ -79,6 +105,8 @@ const server = createServer((req, res) => {
     return;
   }
 
+  /* ---- 前端页面。放在最后：先让 API 路由挑走自己的，剩下的都当页面 ---- */
+
   if (req.url === '/health') {
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(
@@ -93,11 +121,28 @@ const server = createServer((req, res) => {
     return;
   }
 
-  res.writeHead(404);
-  res.end('not found');
+  /**
+   * 剩下的都交给前端页面。
+   *
+   * 放在最后而不是最前：API 路由先把自己的挑走，别让一个叫 /kg 的静态目录
+   * 把接口盖掉。找不到文件时 serveWeb 会回落到 index.html——
+   * 用户直接打开 ?view=kg 或者刷新，走的就是这条路。
+   */
+  void serveWeb(req, res, req.url ?? '/').then((served) => {
+    if (served) return;
+    res.writeHead(404);
+    res.end('not found');
+  });
 });
 
-const wss = new WebSocketServer({ server, path: '/ws' });
+/**
+ * WebSocket 的路径也要带上挂载前缀。
+ *
+ * ws 库是拿原始 URL 匹配的，不经过上面那次 strip——
+ * 挂在 /apps 下时客户端连的是 /apps/ws，这里不跟着改就永远握不上手，
+ * 而且报错长得像"服务器没开"，很难往前缀上想。
+ */
+const wss = new WebSocketServer({ server, path: `${config.basePath}/ws` });
 
 wss.on('connection', (socket: WebSocket, req) => {
   // 这个回调不能是 async：里面抛出的异常会变成没人接的 Promise rejection

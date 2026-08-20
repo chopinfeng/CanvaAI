@@ -1,3 +1,4 @@
+import { wsUrl } from './base.js';
 import * as Y from 'yjs';
 import * as awarenessProtocol from 'y-protocols/awareness';
 import * as syncProtocol from 'y-protocols/sync';
@@ -72,14 +73,14 @@ export class Connection {
     this.teardown();
     this.opts.onStatusChange?.('connecting');
 
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+
     const q = new URLSearchParams({
       room: this.opts.roomId,
       uid: this.opts.user.id,
       name: this.opts.user.name,
       color: this.opts.user.color,
     });
-    const ws = new WebSocket(`${proto}//${location.host}/ws?${q}`);
+    const ws = new WebSocket(wsUrl(q.toString()));
     ws.binaryType = 'arraybuffer';
     this.ws = ws;
 

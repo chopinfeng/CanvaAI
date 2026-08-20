@@ -58,6 +58,17 @@ const pathFromRoot = (key: string, fallback: string): string => {
 export const config = {
   port: Number(env('PORT', '3001')),
   webOrigin: env('WEB_ORIGIN', 'http://localhost:5173'),
+  /**
+   * 挂载前缀。线上要放在 https://xiaopingfeng.com/apps/ 下面就填 `/apps`。
+   * 服务端在路由前先把它从 URL 上剥掉，下面所有路由照旧按根路径写。
+   */
+  basePath: ('/' + env('BASE_PATH', '').replace(/^\/+|\/+$/g, '')).replace(/\/$/, ''),
+  /**
+   * 前端构建产物目录。填了就由这个进程直接把页面发出去——
+   * 一个进程搞定静态页 + API + WebSocket，省掉一层 nginx 转发，
+   * 也就省掉"前缀在两个地方各配一遍、对不上时表现成白屏"的那类问题。
+   */
+  webDist: env('WEB_DIST', ''),
   dataDir: pathFromRoot('DATA_DIR', 'data'),
   logDir: pathFromRoot('LOG_DIR', 'logs'),
   logLevel: env('LOG_LEVEL', 'info'),

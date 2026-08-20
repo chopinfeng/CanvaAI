@@ -3,6 +3,7 @@ import { Arrow, Ellipse, Image as KonvaImage, Line, Rect, Text } from 'react-kon
 import { getStroke } from 'perfect-freehand';
 import type { Shape } from '@canvai/protocol';
 import { usePulse } from './pulse.js';
+import { api } from '../net/base.js';
 
 interface Props {
   shape: Shape;
@@ -90,7 +91,7 @@ function useAssetImage(assetId: string | undefined): {
     img.onerror = () => {
       if (alive) setFailed(true);
     };
-    img.src = `/assets/${encodeURIComponent(assetId)}`;
+    img.src = api(`assets/${encodeURIComponent(assetId)}`);
 
     return () => {
       alive = false;

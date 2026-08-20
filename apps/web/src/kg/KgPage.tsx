@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { layout } from './layout';
+import { api } from '../net/base';
 
 /**
  * 知识图谱页。
@@ -65,7 +66,7 @@ export function KgPage() {
 
   /* ---- 概况 + 这个学生的掌握度榜 ---- */
   useEffect(() => {
-    void fetch('/kg/stats')
+    void fetch(api('kg/stats'))
       .then((r) => r.json())
       .then((s) => {
         setStats(s);
@@ -77,7 +78,7 @@ export function KgPage() {
   }, []);
 
   const loadRanking = useCallback(async () => {
-    const r = await fetch(`/kg/mastery/${encodeURIComponent(learner)}`).then((x) => x.json());
+    const r = await fetch(api(`kg/mastery/${encodeURIComponent(learner)}`)).then((x) => x.json());
     setRanking(r.mastery ?? []);
     return r.mastery as Array<{ id: string }> | undefined;
   }, [learner]);
@@ -86,7 +87,7 @@ export function KgPage() {
     const m = await loadRanking();
     if (m && m.length > 0) setRoot(m[0]!.id);
     else {
-      const s = await fetch('/kg/search?q=数&limit=1').then((r) => r.json());
+      const s = await fetch(api('kg/search?q=数&limit=1')).then((r) => r.json());
       if (s.hits?.[0]) setRoot(s.hits[0].id);
     }
   }
@@ -94,7 +95,7 @@ export function KgPage() {
   /* ---- 换焦点就重新取一片子图 ---- */
   useEffect(() => {
     if (!root) return;
-    void fetch(`/kg/around/${encodeURIComponent(root)}?depth=2&cap=90&learner=${encodeURIComponent(learner)}`)
+    void fetch(api(`kg/around/${encodeURIComponent(root)}?depth=2&cap=90&learner=${encodeURIComponent(learner)}`))
       .then((r) => r.json())
       .then((d) => {
         setSub(d);
@@ -204,7 +205,7 @@ export function KgPage() {
   const search = async (q: string) => {
     setQuery(q);
     if (q.trim().length === 0) return setHits([]);
-    const r = await fetch(`/kg/search?q=${encodeURIComponent(q)}&limit=8`).then((x) => x.json());
+    const r = await fetch(api(`kg/search?q=${encodeURIComponent(q)}&limit=8`)).then((x) => x.json());
     setHits(r.hits ?? []);
   };
 

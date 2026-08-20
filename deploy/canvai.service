@@ -1,0 +1,38 @@
+# systemd 单元：把 CanvaAI 跑成一个常驻服务。
+#
+# 这个应用不是静态站点——它要有一个活着的进程守着 WebSocket、Yjs 权威副本
+# 和 Agent 宿主。放上去之后别用 `nohup ... &`：那种起法在机器重启、进程 OOM、
+# 或者你关掉 ssh 之后会安静地消失，而表现是"网站好好的，就是连不上 AI"。
+#
+# 装法：
+#   sudo cp deploy/canvai.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now canvai
+
+[Unit]
+Description=CanvaAI
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/srv/canvai
+
+# 挂在 https://<域名>/apps/ 下面
+Environment=BASE_PATH=/apps
+Environment=PORT=3001
+Environment=WEB_DIST=/srv/canvai/apps/web/dist
+Environment=DATA_DIR=/srv/canvai/data
+Environment=NODE_ENV=production
+# 密钥不写在这儿——单元文件是明文而且经常被 cat 出来看。放 .env，chmod 600。
+EnvironmentFile=/srv/canvai/.env
+
+ExecStart=/usr/bin/node --import tsx apps/server/src/index.ts
+
+Restart=always
+RestartSec=3
+# 崩溃日志走 journald；应用自己的 JSONL 在 logs/ 下
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
