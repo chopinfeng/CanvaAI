@@ -17,6 +17,7 @@ import { assetStore } from './assets.ts';
 import { config, hasAgent, hasVision } from './config.ts';
 import { log } from './log.ts';
 import { makeKnowledgePort } from './knowledge.ts';
+import { blobs } from './blobs.ts';
 import { makeVisionProvider } from './vision.ts';
 import { getRasterizer } from './rasterizer.ts';
 
@@ -380,8 +381,9 @@ export class Room {
     }, 500);
   }
 
-  private get file(): string {
-    return join(config.dataDir, 'rooms', `${this.id}.ydoc`);
+  /** 在 blob 存储里的 key。本地是文件路径，R2 上是对象名 */
+  private get key(): string {
+    return `rooms/${this.id}.ydoc`;
   }
 
   /**
@@ -393,17 +395,19 @@ export class Room {
    */
   async save(): Promise<void> {
     if (this.loadFailed) {
-      // 上次没读懂磁盘上的快照，绝不能用内存里的空文档去盖掉它
+      // 上次没读懂快照，绝不能用内存里的空文档去盖掉它
       return;
     }
-    const tmp = `${this.file}.${process.pid}.tmp`;
     try {
-      await mkdir(dirname(this.file), { recursive: true });
-      await writeFile(tmp, Y.encodeStateAsUpdate(this.doc));
-      await rename(tmp, this.file);
+      await blobs().put(this.key, Y.encodeStateAsUpdate(this.doc));
     } catch (e) {
-      log.error('room.save_failed', { room: this.id, file: this.file, message: (e as Error).message, stack: (e as Error).stack });
-      await rm(tmp, { force: true }).catch(() => {});
+      log.error('room.save_failed', {
+        room: this.id,
+        key: this.key,
+        where: blobs().kind,
+        message: (e as Error).message,
+        stack: (e as Error).stack,
+      });
     }
   }
 
@@ -411,25 +415,24 @@ export class Room {
   private loadFailed = false;
 
   async load(): Promise<void> {
-    let buf: Buffer;
+    let buf: Uint8Array | null;
     try {
-      buf = await readFile(this.file);
+      buf = await blobs().get(this.key);
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
-        this.loadFailed = true;
-        log.error('room.read_failed', { room: this.id, file: this.file, message: (e as Error).message });
-      }
-      return; // 新房间没有快照，正常
+      this.loadFailed = true;
+      log.error('room.read_failed', { room: this.id, key: this.key, message: (e as Error).message });
+      return;
     }
+    if (!buf) return; // 新房间没有快照，正常
 
     try {
-      Y.applyUpdate(this.doc, new Uint8Array(buf), 'load');
+      Y.applyUpdate(this.doc, buf, 'load');
       log.info('room.loaded', { room: this.id, shapes: this.scene.size });
     } catch (e) {
       // 文件在但解析不了 —— 保留原件，不要静默丢弃用户的内容
       this.loadFailed = true;
-      const backup = `${this.file}.corrupt.${Date.now()}`;
-      await writeFile(backup, buf).catch(() => {});
+      const backup = `${this.key}.corrupt.${Date.now()}`;
+      await blobs().put(backup, buf).catch(() => {});
       log.error('room.snapshot_corrupt', {
         room: this.id,
         backup,

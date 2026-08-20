@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { KnowledgePort } from '@canvai/agent';
 import {
@@ -12,6 +12,7 @@ import {
 } from '@canvai/knowledge';
 import { config } from './config.ts';
 import { log } from './log.ts';
+import { blobs } from './blobs.ts';
 
 /**
  * 知识图谱与学习记录的服务端装配。
@@ -91,45 +92,37 @@ export async function reloadGraph(): Promise<KnowledgeGraph> {
  * 和房间快照一样走「写临时文件再 rename」：写到一半断电时，
  * 磁盘上要么是旧的完整文件，要么是新的完整文件，不会是半截。
  */
-export class FileLearnerStore implements LearnerStore {
-  constructor(private readonly dir: string) {}
-
-  private path(id: string): string {
-    // 学生 id 进文件名，别让 ../ 跑出目录
-    return join(this.dir, `${id.replace(/[^\w.-]/g, '_')}.json`);
+export class BlobLearnerStore implements LearnerStore {
+  private key(id: string): string {
+    return `learners/${id.replace(/[^\w.-]/g, '_')}.json`;
   }
 
   async get(learnerId: string): Promise<LearnerState> {
     try {
-      const raw = JSON.parse(await readFile(this.path(learnerId), 'utf8')) as unknown;
-      return parseLearner(raw, learnerId);
-    } catch {
+      const raw = await blobs().get(this.key(learnerId));
+      if (!raw) return emptyLearner(learnerId);
+      return parseLearner(JSON.parse(new TextDecoder().decode(raw)) as unknown, learnerId);
+    } catch (e) {
+      // 读不出来就当新学生，但要吼一声：静默丢掌握度是这套东西最不该出的事
+      log.error('kg.learner_read_failed', { learner: learnerId, message: (e as Error).message });
       return emptyLearner(learnerId);
     }
   }
 
   async save(state: LearnerState): Promise<void> {
-    await mkdir(this.dir, { recursive: true });
-    const p = this.path(state.learnerId);
-    const tmp = `${p}.tmp`;
-    await writeFile(tmp, JSON.stringify(state));
-    const { rename } = await import('node:fs/promises');
-    await rename(tmp, p);
+    await blobs().put(this.key(state.learnerId), new TextEncoder().encode(JSON.stringify(state)));
   }
 
   async list(): Promise<string[]> {
-    try {
-      return (await readdir(this.dir)).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5));
-    } catch {
-      return [];
-    }
+    const keys = await blobs().list('learners');
+    return keys.filter((k) => k.endsWith('.json')).map((k) => k.split('/').pop()!.slice(0, -5));
   }
 }
 
 let store: LearnerStore | null = null;
 
 export function learnerStore(): LearnerStore {
-  if (!store) store = new FileLearnerStore(join(config.dataDir, 'learners'));
+  if (!store) store = new BlobLearnerStore();
   return store;
 }
 

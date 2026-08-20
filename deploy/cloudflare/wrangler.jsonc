@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "canvai",
+  "main": "worker.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "containers": [
+    {
+      "class_name": "CanvaiContainer",
+      // 相对本文件；构建上下文是仓库根，因为要装整个 monorepo
+      "image": "../../Dockerfile",
+      // Agent 跑起来内存吃得不少（Yjs 文档 + 1 万节点的知识图谱常驻）
+      "instance_type": "standard-2",
+      "max_instances": 5
+    }
+  ],
+
+  "durable_objects": {
+    "bindings": [{ "name": "CANVAI", "class_name": "CanvaiContainer" }]
+  },
+
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CanvaiContainer"] }],
+
+  // 密钥不写在这儿（这个文件要进 git）。用 wrangler secret put：
+  //   DEEPSEEK_API_KEY / R2_ACCOUNT_ID / R2_BUCKET
+  //   R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY
+  "observability": { "enabled": true }
+}

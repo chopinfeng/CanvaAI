@@ -1,6 +1,7 @@
 # 部署
 
 目标：把应用挂到 `https://xiaopingfeng.com/apps/` 下面。
+两条路：**Cloudflare Containers**（见下）或者**自己的服务器**（往下翻）。
 
 ## 先说清楚三件事
 
@@ -15,7 +16,69 @@ AI 永远"连接中"的页面。
 **3. 知识图谱数据是 CC BY-NC-SA 4.0。** 非商业用途可以公开部署，
 署名要留（页面右下角已经带了）。要商用得换一份数据。
 
-## 步骤
+## 路线 A：Cloudflare Containers
+
+Workers 和 Pages 跑不了这个应用（没有常驻进程、没有文件系统、不支持原生模块），
+但 **Containers 可以**——它就是给"跑一个现成的 Node 服务"用的。
+
+### 一条必须知道的事：容器磁盘是临时的
+
+容器一停（`sleepAfter` 到点、部署、崩溃）本地磁盘就抹掉重来。
+照原样搬上去，表现是"隔一阵回来，画布空了、学了几个月的掌握度也没了"，
+**而且不报任何错**。
+
+所以房间快照和学习记录都改走 `BlobStore`（`apps/server/src/blobs.ts`）：
+本地跑用文件，云上用 R2。四个 R2 变量必须配齐，缺一个就退回本地磁盘
+并在日志里吼一声（`blobs.r2_incomplete`）——半配上的状态最危险：
+以为存在云上，其实写在一块随时会被抹掉的盘上。
+
+### 为什么按房间路由
+
+`deploy/cloudflare/worker.ts` 用 `getContainer(env.CANVAI, room)` 做亲和性。
+这条不能改成 `getRandom()`：权威副本是容器**内存里**那份 Yjs 文档，
+分流的话同一个房间的两个人会落在两个容器上，各自维护一份，各自都觉得自己是对的。
+表现是"我画的他看不见"，而两边日志都完全正常。
+
+### 步骤
+
+```bash
+# 1) 建一个 R2 桶存快照和学习记录
+npx wrangler r2 bucket create canvai
+
+# 2) 在 R2 控制台建一对 S3 API Token（读写这个桶），然后灌进去
+cd deploy/cloudflare
+npx wrangler secret put DEEPSEEK_API_KEY
+npx wrangler secret put R2_ACCOUNT_ID
+npx wrangler secret put R2_BUCKET            # canvai
+npx wrangler secret put R2_ACCESS_KEY_ID
+npx wrangler secret put R2_SECRET_ACCESS_KEY
+
+# 3) 构建镜像并部署（wrangler 会自己 docker build + push）
+npx wrangler deploy
+
+# 4) 把 xiaopingfeng.com/apps/* 指到这个 Worker
+#    控制台 → Workers → canvai → Routes → 加 xiaopingfeng.com/apps/*
+```
+
+需要 Workers 付费方案（Containers 不在免费额度里），本机要有 Docker。
+
+### 上线后自检
+
+```bash
+BASE=https://xiaopingfeng.com/apps
+curl -s $BASE/health                    # {"ok":true,...}
+curl -s $BASE/kg/stats | head -c 60     # 10685 节点
+```
+
+然后打开 `$BASE/?room=demo` 画一笔——这一步同时验证 WebSocket、Yjs 同步和 Agent。
+**再开一个浏览器进同一个房间**，确认两边看到的是同一张画：这是在验证房间亲和性，
+分流坏掉的话恰恰就是这里露馅。
+
+---
+
+## 路线 B：自己的服务器
+
+### 步骤
 
 ```bash
 # 1) 服务器上拉代码

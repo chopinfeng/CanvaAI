@@ -69,6 +69,16 @@ export const config = {
    * 也就省掉"前缀在两个地方各配一遍、对不上时表现成白屏"的那类问题。
    */
   webDist: env('WEB_DIST', ''),
+  /**
+   * R2。四个都配齐才会启用——容器的本地磁盘是临时的，
+   * 半配上的状态最危险：以为存在云上，其实写在一块随时会被抹掉的盘上。
+   */
+  r2: {
+    accountId: env('R2_ACCOUNT_ID', ''),
+    bucket: env('R2_BUCKET', ''),
+    accessKeyId: env('R2_ACCESS_KEY_ID', ''),
+    secretAccessKey: env('R2_SECRET_ACCESS_KEY', ''),
+  },
   dataDir: pathFromRoot('DATA_DIR', 'data'),
   logDir: pathFromRoot('LOG_DIR', 'logs'),
   logLevel: env('LOG_LEVEL', 'info'),
