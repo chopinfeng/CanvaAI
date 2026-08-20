@@ -1,6 +1,6 @@
 # 部署
 
-目标：把应用挂到 `https://xiaopingfeng.com/apps/` 下面。
+目标：把应用挂到 `https://<你的域名>/apps/` 下面。
 两条路：**Cloudflare Containers**（见下）或者**自己的服务器**（往下翻）。
 
 ## 先说清楚三件事
@@ -56,8 +56,8 @@ npx wrangler secret put R2_SECRET_ACCESS_KEY
 # 3) 构建镜像并部署（wrangler 会自己 docker build + push）
 npx wrangler deploy
 
-# 4) 把 xiaopingfeng.com/apps/* 指到这个 Worker
-#    控制台 → Workers → canvai → Routes → 加 xiaopingfeng.com/apps/*
+# 4) 把 <你的域名>/apps/* 指到这个 Worker
+#    控制台 → Workers → canvai → Routes → 加 <你的域名>/apps/*
 ```
 
 需要 Workers 付费方案（Containers 不在免费额度里），本机要有 Docker。
@@ -65,7 +65,7 @@ npx wrangler deploy
 ### 上线后自检
 
 ```bash
-BASE=https://xiaopingfeng.com/apps
+BASE=https://<你的域名>/apps
 curl -s $BASE/health                    # {"ok":true,...}
 curl -s $BASE/kg/stats | head -c 60     # 10685 节点
 ```
@@ -82,7 +82,7 @@ curl -s $BASE/kg/stats | head -c 60     # 10685 节点
 
 ```bash
 # 1) 服务器上拉代码
-git clone https://github.com/chopinfeng/CanvaAI /srv/canvai
+git clone <本仓库地址> /srv/canvai
 cd /srv/canvai && pnpm install --frozen-lockfile
 
 # 2) 构建前端。WEB_BASE 必须和 BASE_PATH 对上，否则页面加载不到自己的 js
@@ -103,7 +103,7 @@ sudo systemctl daemon-reload && sudo systemctl enable --now canvai
 curl -s localhost:3001/apps/health
 
 # 6) 挂到站点下
-#    把 deploy/nginx-apps.conf 里的 location 块并进 xiaopingfeng.com 的 server 段
+#    把 deploy/nginx-apps.conf 里的 location 块并进你站点的 server 段
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
@@ -122,7 +122,7 @@ nginx 那边**不要**再剥一次（`proxy_pass` 后面别写路径），剥两
 ## 上线后自检
 
 ```bash
-BASE=https://xiaopingfeng.com/apps
+BASE=https://<你的域名>/apps
 curl -s $BASE/health                      # {"ok":true,"agent":"deepseek-chat",...}
 curl -s $BASE/kg/stats | head -c 80       # 节点数应该是 10685
 curl -sI $BASE/ | grep -i cache-control   # index.html 必须 no-cache

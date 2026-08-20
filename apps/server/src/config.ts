@@ -59,7 +59,7 @@ export const config = {
   port: Number(env('PORT', '3001')),
   webOrigin: env('WEB_ORIGIN', 'http://localhost:5173'),
   /**
-   * 挂载前缀。线上要放在 https://xiaopingfeng.com/apps/ 下面就填 `/apps`。
+   * 挂载前缀。要把应用挂在站点的子路径下（例如 `https://<你的域名>/apps/`）就填 `/apps`。
    * 服务端在路由前先把它从 URL 上剥掉，下面所有路由照旧按根路径写。
    */
   basePath: ('/' + env('BASE_PATH', '').replace(/^\/+|\/+$/g, '')).replace(/\/$/, ''),

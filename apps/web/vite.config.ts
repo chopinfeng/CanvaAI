@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 /**
- * 线上挂在 `https://xiaopingfeng.com/apps/` 下，开发时挂在 `/`。
+ * 线上可能挂在站点子路径下（例如 `/apps/`），开发时挂在 `/`。
  * 用 WEB_BASE 切，前端所有后端调用都从 import.meta.env.BASE_URL 取前缀
  * （见 src/net/base.ts），不再各写各的绝对路径。
  */
