@@ -240,9 +240,16 @@ describe('G12 直线 y=−2x+6', () => {
 });
 
 describe('题库整体', () => {
-  it('20 道题，id 唯一', () => {
-    expect(PROBLEMS).toHaveLength(20);
-    expect(new Set(PROBLEMS.map((p) => p.id)).size).toBe(20);
+  it('id 唯一，三个学段都有题', () => {
+    // 断言不变量而不是硬编码题数——加题是常事，
+    // 每次加题都要改一个数字的测试，改着改着就没人看它到底在测什么了
+    expect(new Set(PROBLEMS.map((p) => p.id)).size).toBe(PROBLEMS.length);
+    expect(PROBLEMS.length).toBeGreaterThanOrEqual(20);
+
+    const stages = new Set(PROBLEMS.map((p) => p.stage ?? '初中'));
+    for (const st of ['初中', '高中', '本科']) {
+      expect(stages.has(st as never), `缺 ${st} 的题——读题基准要按学段对比`).toBe(true);
+    }
   });
 
   it('每道题要么有图形、要么写明了为什么没有', () => {

@@ -82,10 +82,25 @@ export function score(p: Truth, got: Extracted | null, rawLen = 0): Score {
   let hit = 0;
   for (const name of Object.keys(known)) {
     const want = String(known[name]);
-    // 模型可能填进 known 对象，也可能只写在 statement 里的 "AB=13"，两种都认
-    const inKnown = got.known !== undefined && String(got.known[name] ?? '') === want;
-    const inText = new RegExp(`${name}\\s*[=＝]\\s*${want}(?!\\d)`).test(flat);
-    if (inKnown || inText) hit++;
+
+    /**
+     * 模型**明确给了**这个量的结构化值时，就以它为准，不再退回文本匹配。
+     *
+     * 这条是负对照跑出来的：假模型把 known 写成 λ=3（错的），
+     * 但题干原文里还留着 "λ = 2"，文本兜底一匹配就判成命中了。
+     * 下游 Agent 读的是 known 这个结构化字段——那里给了错值就是错值，
+     * 题干里恰好还留着对的数不能替它开脱。
+     *
+     * 文本兜底只在模型**没填**这个键时才用：有的模型只把条件写在题干里，
+     * 不代表它读错了。
+     */
+    const declared = got.known !== undefined && got.known[name] !== undefined;
+    if (declared) {
+      if (String(got.known![name]) === want) hit++;
+      continue;
+    }
+
+    if (new RegExp(`${name}\\s*[=＝]\\s*${want}(?!\\d)`).test(flat)) hit++;
   }
 
   /* ---- 所求：答案里出现的量名，得在 asks 或题干里被提到 ---- */

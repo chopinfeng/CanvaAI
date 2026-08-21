@@ -55,6 +55,18 @@ describe('已知量保真', () => {
     expect(s.ok).toBe(false);
   });
 
+  it('known 里明确写了错值，就算题干里还留着对的数也不算命中', () => {
+    // 负对照跑出来的洞：下游读的是 known 这个结构化字段，
+    // 那里给了错值就是错值，题干里恰好还有对的数不能替它开脱
+    const s = score(G1, { known: { AB: 12, AD: 5 }, statement: '矩形 ABCD 中，AB=13，AD=5。' });
+    expect(s.knownHit).toBe(1);
+  });
+
+  it('模型没填 known 时才退回文本匹配——只写在题干里不代表读错了', () => {
+    const s = score(G1, { known: { AD: 5 }, statement: '矩形 ABCD 中，AB=13。' });
+    expect(s.knownHit).toBe(2);
+  });
+
   it('数值是对的前缀也不能算命中（13 不该被 1 匹配上）', () => {
     const s = score({ ...G1, known: { AB: 1 } }, { statement: 'AB=13' });
     expect(s.knownHit).toBe(0);

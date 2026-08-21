@@ -24,6 +24,7 @@
  *   VLM_BASE_URL=https://api.moonshot.ai/v1 VLM_API_KEY=sk-xxx VLM_MODEL=kimi-k3 \
  *     npx tsx scripts/vision-bench.ts
  *   npx tsx scripts/vision-bench.ts --limit 5        # 先跑 5 道看看
+ *   npx tsx scripts/vision-bench.ts --stage 本科     # 只跑本科题
  *   npx tsx scripts/vision-bench.ts --out bench.json # 存下来好和别的模型比
  */
 import { readFile, writeFile } from 'node:fs/promises';
@@ -42,8 +43,24 @@ const flag = (n: string): string | undefined => {
   const i = argv.indexOf(`--${n}`);
   return i >= 0 ? argv[i + 1] : undefined;
 };
-const limit = Number(flag('limit') ?? PROBLEMS.length);
+const stage = flag('stage');
 const outFile = flag('out');
+
+/**
+ * 按学段筛。
+ *
+ * 加这个是因为读题难度主要不由"题难不难"决定，而由**记号**决定：
+ * 初中题基本是纯文本，高中开始有下标和希腊字母，本科有积分号、∂ 和矩阵。
+ * 混在一起看总分会把这个差别抹平——真正要知道的是
+ * "它在哪个记号密度上开始读错"。
+ */
+const pool = stage ? PROBLEMS.filter((p) => (p.stage ?? '初中') === stage) : PROBLEMS;
+const limit = Number(flag('limit') ?? pool.length);
+
+if (pool.length === 0) {
+  console.error(`没有 stage=${stage} 的题。可选：初中 / 高中 / 本科`);
+  process.exit(1);
+}
 
 if (!hasVision()) {
   console.error(`没配视觉模型。三个变量都要给：
@@ -95,7 +112,7 @@ const toTruth = (p: Problem) => ({
 
 async function main(): Promise<void> {
   const vision = makeVisionProvider();
-  const picked = PROBLEMS.slice(0, limit);
+  const picked = pool.slice(0, limit);
 
   console.log(`\n=== 读题基准 · ${config.vlm.model} · ${picked.length} 道题 ===`);
   console.log(`只给扫描件，不给转录文本。看它能不能替掉人工转录这一步。\n`);
@@ -104,7 +121,7 @@ async function main(): Promise<void> {
   let elapsed = 0;
 
   for (const p of picked) {
-    process.stdout.write(`${p.id.padEnd(4)} ${p.topic.padEnd(22)} `);
+    process.stdout.write(`${p.id.padEnd(4)} ${(p.stage ?? '初中').padEnd(3)} ${p.topic.padEnd(20)} `);
     let png: Uint8Array;
     try {
       png = new Uint8Array(await readFile(join(CROPS, p.image)));
@@ -155,6 +172,25 @@ async function main(): Promise<void> {
   console.log(`考点识别    ${scores.filter((s) => s.topicHit).length}/${n}`);
   console.log(`**编数字**  ${withHallu}/${n} 道题出现了题目里没有的数`);
   console.log(`平均耗时    ${(elapsed / n / 1000).toFixed(1)}s/道`);
+
+  /* ---- 按学段拆开看：真正要知道的是它在哪个记号密度上开始读错 ---- */
+  const stages = [...new Set(picked.map((p) => p.stage ?? '初中'))];
+  if (stages.length > 1) {
+    console.log(`\n--- 按学段 ---`);
+    for (const st of ['初中', '高中', '本科'].filter((x) => stages.includes(x as never))) {
+      const ids = new Set(picked.filter((p) => (p.stage ?? '初中') === st).map((p) => p.id));
+      const sub = scores.filter((s) => ids.has(s.id));
+      if (sub.length === 0) continue;
+      const kt = sub.reduce((a, s) => a + s.knownTotal, 0) || 1;
+      const kh = sub.reduce((a, s) => a + s.knownHit, 0);
+      const hal = sub.filter((s) => s.hallucinated.length > 0).length;
+      console.log(
+        `${st.padEnd(3)} 全对 ${String(sub.filter((s) => s.ok).length).padStart(2)}/${sub.length}` +
+          ` · 已知量 ${((kh / kt) * 100).toFixed(0)}%` +
+          ` · 编数字 ${hal}/${sub.length}`,
+      );
+    }
+  }
 
   console.log(`\n对照：现在的结构化路径在这几项上都是 100%——它读的是人工转录好的文本。`);
   console.log(`所以这份分数要回答的是"能不能省掉那次转录"，不是"谁更准"。`);
