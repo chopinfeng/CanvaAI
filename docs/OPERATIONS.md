@@ -153,11 +153,46 @@ npx tsx apps/server/scripts/tutor-drill.ts --room drill --persona careless
 读不出内容的工具（实测连调 5 次）。位图上标注的位置仍然算得出来
 （`canvas_describe` 带 `relations` 时返回的 `onImages`），主流程不受影响。
 
+接哪个模型：**Kimi K3** 是目前最省事的一个——原生视觉、OpenAI 兼容，
+`vision.ts` 的 openai 分支正好是它要的形状，接它一行代码都不用改：
+
+```bash
+VLM_BASE_URL=https://api.moonshot.ai/v1
+VLM_API_KEY=sk-xxx
+VLM_MODEL=kimi-k3
+```
+
+（Kimi 文档里特别强调 `message.content` 必须是数组对象，
+不能把 JSON 数组序列化成字符串——序列化了不报错，模型只当成一段普通文字，
+表现是"它答得头头是道但完全没看图"。这条已经用测试钉住了。）
+
 配好没配好，跑这个：
 
 ```bash
 node scripts/check-vlm.mjs
 ```
+
+### 视觉到底值不值得接：读题基准
+
+```bash
+npx tsx apps/server/scripts/vision-bench.ts --limit 5
+```
+
+它要回答的**不是**"视觉比现在准吗"——现在这条路读的是人工转录好的结构化文本，
+按构造就是 100% 准，比不了。它问的是：
+
+> **视觉能不能替掉人工转录那一步？**
+
+能替掉，用户就可以直接拍一张作业照片扔进来。所以基准只给模型一张扫描件，
+让它提取题目，拿 `problems.ts` 里 20 道题的 ground truth 对分。
+
+四个指标里最要紧的是**数字幻觉**：提取里出现了题目根本没有的数。
+辅导场景下读错一个数（把 AB=13 读成 12），后面整场推导全建在错的前提上，
+而模型每一步都理直气壮——这比"读不出来"糟糕得多，因为读不出来至少会暴露。
+所以打分时只要编了数，这道题直接判不过，哪怕已知量全中。
+
+打分逻辑本身有测试（`src/__tests__/bench-score.test.ts`）——
+它决定"视觉行不行"这个结论，自己错了的话给出的是一个理直气壮的错误判断。
 
 它会依次查：能不能认证 → 模型开通了没 → 能不能读懂一张真实试卷扫描件，
 最后把该填进 `.env` 的三行打出来。
