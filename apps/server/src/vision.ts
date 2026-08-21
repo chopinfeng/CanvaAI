@@ -28,16 +28,51 @@ const DEFAULT_PROMPT =
   '以及手绘笔触看起来在画什么。图元旁边的红色小字是它的 id，回答时请用这些 id 指代具体图形。' +
   '只描述你确实看到的，不要推测。';
 
-export function makeVisionProvider(): VisionProvider {
-  const { baseUrl, apiKey, model, protocol, maxTokens } = config.vlm;
+/**
+ * 一次调用要用的凭据。
+ *
+ * 用户在前端填了自己的 key 就用他的，没填就退回服务端 .env 里的。
+ * **传进来的 key 用完就丢**：不写日志、不落盘、不进任何缓存——
+ * 它属于那个用户，不属于这台服务器。
+ */
+/**
+ * 按字节认图片类型。
+ *
+ * 早先 data URI 里写死 image/png——用户上传 JPG 时就在骗模型。
+ * 多数 VLM 会自己嗅探所以能蒙混过去，但不是所有都会，
+ * 而失败时的报错通常只说"无法解析图片"，看不出是类型声明错了。
+ */
+function sniffImageMime(b: Uint8Array): string {
+  if (b[0] === 0x89 && b[1] === 0x50) return 'image/png';
+  if (b[0] === 0xff && b[1] === 0xd8) return 'image/jpeg';
+  if (b[0] === 0x52 && b[1] === 0x49 && b[8] === 0x57) return 'image/webp';
+  return 'image/png';
+}
+
+export interface VisionCreds {
+  baseUrl?: string;
+  apiKey?: string;
+  model?: string;
+  protocol?: string;
+}
+
+export function makeVisionProvider(creds: VisionCreds = {}): VisionProvider {
+  const baseUrl = creds.baseUrl?.trim() || config.vlm.baseUrl;
+  const apiKey = creds.apiKey?.trim() || config.vlm.apiKey;
+  const model = creds.model?.trim() || config.vlm.model;
+  const protocol = creds.protocol || config.vlm.protocol;
+  const { maxTokens } = config.vlm;
+
   const proto = detectProtocol(baseUrl, protocol);
   const root = baseUrl.replace(/\/$/, '');
 
-  log.info('vision.ready', { protocol: proto, model, base: root });
+  // 只记 base 和 model，绝不记 key
+  log.info('vision.ready', { protocol: proto, model, base: root, byoKey: Boolean(creds.apiKey) });
 
   return {
     async describe(png: Uint8Array, question?: string): Promise<string> {
       const b64 = Buffer.from(png).toString('base64');
+      const mime = sniffImageMime(png);
       const prompt = question ?? DEFAULT_PROMPT;
 
       const { url, headers, body, pick } =
@@ -57,7 +92,7 @@ export function makeVisionProvider(): VisionProvider {
                   {
                     role: 'user',
                     content: [
-                      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: b64 } },
+                      { type: 'image', source: { type: 'base64', media_type: mime, data: b64 } },
                       { type: 'text', text: prompt },
                     ],
                   },
@@ -79,7 +114,7 @@ export function makeVisionProvider(): VisionProvider {
                     role: 'user',
                     content: [
                       { type: 'text', text: prompt },
-                      { type: 'image_url', image_url: { url: `data:image/png;base64,${b64}` } },
+                      { type: 'image_url', image_url: { url: `data:${mime};base64,${b64}` } },
                     ],
                   },
                 ],

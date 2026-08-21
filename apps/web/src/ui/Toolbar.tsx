@@ -1,4 +1,6 @@
 import type { LayerId } from '@canvai/protocol';
+import type { Connection } from '../net/connection';
+import { PaperUpload } from './PaperUpload';
 import { type Tool, useStore } from '../store';
 
 const TOOLS: Array<{ id: Tool; label: string; key: string }> = [
@@ -21,7 +23,7 @@ const LAYERS: Array<{ id: LayerId; label: string; hint: string }> = [
   { id: 'suggest', label: '提案', hint: 'AI 等你确认的改动' },
 ];
 
-export function Toolbar() {
+export function Toolbar({ conn, onNeedKey }: { conn: Connection; onNeedKey: () => void }) {
   const tool = useStore((s) => s.tool);
   const strokeColor = useStore((s) => s.strokeColor);
   const strokeWidth = useStore((s) => s.strokeWidth);
@@ -41,6 +43,9 @@ export function Toolbar() {
     <>
       <div className="toolbar">
         <div className="tool-group">
+          {/* 传试卷放在最前面：它是这条工具栏上唯一"带东西进来"的入口 */}
+          <PaperUpload conn={conn} onNeedKey={onNeedKey} />
+          <span className="tool-sep" />
           <button
             className="tool"
             onClick={() => undo?.()}

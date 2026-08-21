@@ -46,7 +46,7 @@ const VERDICT: Record<string, { icon: string; label: string }> = {
   wrong: { icon: '✗', label: '不对' },
 };
 
-export function AgentPanel({ conn }: { conn: Connection }) {
+export function AgentPanel({ conn, onOpenVision }: { conn: Connection; onOpenVision?: () => void }) {
   const [input, setInput] = useState('');
   const [collapsed, setCollapsed] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -160,6 +160,11 @@ export function AgentPanel({ conn }: { conn: Connection }) {
         >
           {confirmReset ? '确认重来？' : '重来'}
         </button>
+        {onOpenVision && (
+          <button className="link" title="配置视觉模型的 API Key（只存在你的浏览器里）" onClick={onOpenVision}>
+            视觉
+          </button>
+        )}
         <button className="link" onClick={() => setCollapsed(true)}>
           收起
         </button>

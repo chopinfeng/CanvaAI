@@ -93,6 +93,24 @@ export const ClientMessageSchema = z.discriminatedUnion('t', [
    */
   z.object({ t: z.literal('session.reset') }),
 
+  /**
+   * 把一张上传的试卷图转成画布上的题目。
+   *
+   * vision 是用户自带的凭据：key 存在他自己的浏览器里，每次请求带过来，
+   * 服务端用完即弃——不写日志、不落盘。不带的话退回服务端配置。
+   */
+  z.object({
+    t: z.literal('paper.import'),
+    assetId: z.string(),
+    vision: z
+      .object({
+        baseUrl: z.string().optional(),
+        apiKey: z.string().optional(),
+        model: z.string().optional(),
+      })
+      .optional(),
+  }),
+
   z.object({ t: z.literal('ping') }),
 ]);
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
@@ -186,6 +204,22 @@ export const ServerMessageSchema = z.discriminatedUnion('t', [
    * 用户自己要走、中途停下都不发，见者有份就不值钱了。
    */
   z.object({ t: z.literal('agent.celebrate'), solved: z.number() }),
+
+  /** 试卷转换的进度与结果 */
+  z.object({
+    t: z.literal('paper.progress'),
+    phase: z.enum(['reading', 'placing', 'done', 'failed']),
+    message: z.string(),
+    /** done 时带上：认出了什么 */
+    result: z
+      .object({
+        topic: z.string().optional(),
+        statement: z.string().optional(),
+        asks: z.array(z.string()).optional(),
+        shapeIds: z.array(z.string()).optional(),
+      })
+      .optional(),
+  }),
 
   /** 状态气泡：「正在看你的图…」 */
   z.object({ t: z.literal('agent.status'), text: z.string() }),

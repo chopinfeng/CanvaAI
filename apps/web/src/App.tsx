@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { nanoid } from 'nanoid';
 import type { Author, ServerMessage } from '@canvai/protocol';
 import { AgentPanel } from './ui/AgentPanel';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import { Toolbar } from './ui/Toolbar';
 import { Confetti } from './ui/Confetti';
+import { VisionSettings } from './ui/VisionSettings';
 import { CanvasStage } from './canvas/CanvasStage';
 import { Connection } from './net/connection';
 import { shapeBounds } from '@canvai/canvas-core';
@@ -26,6 +27,7 @@ function makeMe(): Author & { color: string } {
 }
 
 export function App() {
+  const [showVision, setShowVision] = useState(false);
   const me = useMemo(makeMe, []);
   const roomId = useMemo(() => new URLSearchParams(location.search).get('room') ?? 'default', []);
   const set = useStore((s) => s.set);
@@ -111,6 +113,13 @@ export function App() {
         // 可能是这台答的，也可能是别处答的——只要 id 对得上就收掉
         if (useStore.getState().ask?.askId === msg.askId) set({ ask: null });
         break;
+
+      case 'paper.progress': {
+        // 转换过程直接说在聊天里：用户刚扔进来一张图，得知道它到哪一步了
+        const icon = msg.phase === 'failed' ? '✗' : msg.phase === 'done' ? '✓' : '…';
+        s.pushChat({ id: `paper_${nanoid(6)}`, role: 'ai', text: `${icon} ${msg.message}` });
+        break;
+      }
 
       case 'agent.celebrate':
         set({ celebrate: (useStore.getState().celebrate ?? 0) + 1 });
@@ -277,9 +286,10 @@ export function App() {
       <ErrorBoundary label="画布">
         <CanvasStage conn={conn} me={me} />
       </ErrorBoundary>
-      <Toolbar />
-      <AgentPanel conn={conn} />
+      <Toolbar conn={conn} onNeedKey={() => setShowVision(true)} />
+      <AgentPanel conn={conn} onOpenVision={() => setShowVision(true)} />
       <Confetti />
+      {showVision && <VisionSettings onClose={() => setShowVision(false)} />}
     </div>
   );
 }

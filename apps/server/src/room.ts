@@ -18,6 +18,7 @@ import { config, hasAgent, hasVision } from './config.ts';
 import { log } from './log.ts';
 import { makeKnowledgePort } from './knowledge.ts';
 import { blobs } from './blobs.ts';
+import { importPaper } from './paper.ts';
 import { makeVisionProvider } from './vision.ts';
 import { getRasterizer } from './rasterizer.ts';
 
@@ -271,6 +272,23 @@ export class Room {
           this.session.mode = msg.mode;
           log.info('session.mode', { room: this.id, mode: msg.mode });
         }
+        break;
+
+      case 'paper.import':
+        /**
+         * 用户自带的 key 只在这一次调用里用，不存进 this、不落盘、不写日志。
+         * 它属于那个用户，不属于这台服务器。
+         */
+        void importPaper(this.scene, msg.assetId, msg.vision ?? {}, (m) => this.broadcastControl(m)).catch(
+          (e) => {
+            log.error('paper.import_failed', { room: this.id, message: (e as Error).message });
+            this.broadcastControl({
+              t: 'paper.progress',
+              phase: 'failed',
+              message: `转换出错：${(e as Error).message.slice(0, 60)}`,
+            });
+          },
+        );
         break;
 
       case 'session.reset':
