@@ -34,6 +34,14 @@ export interface Score {
   ok: boolean;
   knownHit: number;
   knownTotal: number;
+  /**
+   * 丢了哪几个数。
+   *
+   * 只记总分的话，事后完全没法判断一次失分是"模型真读错了"还是
+   * "我的指标算错了"——这两者要采取的行动完全相反。第一版基准
+   * 就是因为没记这个，我盯着 0/5 全对的分数查了半天才发现是自己的锅。
+   */
+  missed?: string[];
   asksHit: boolean;
   topicHit: boolean;
   hallucinated: string[];
@@ -87,6 +95,27 @@ function normalizeDigits(s: string): string {
   return out;
 }
 
+/**
+ * 去掉题号：`(1)` `(2)` `27.` 这些是版面编号，不是题目内容。
+ *
+ * 这条是诊断跑出来的，占了全部失分的 **89%**：模型把题干正文读得
+ * 一字不差，但按我的指令把两问放进了 `asks`，没把 `(1)(2)` 抄进 statement——
+ * 然后我拿题干里的 1 和 2 去扣它的分。**我在惩罚它听我的话。**
+ *
+ * 只匹配括号里独占的一到两位数字：`(1, 2)` 这种坐标点带逗号，不会被误伤
+ * （U5 的「在点 (1, 2) 处」就是这种）。
+ */
+export function stripNumbering(s: string): string {
+  return s
+    .replace(/[(（]\s*\d{1,2}\s*[)）]/g, ' ')
+    .replace(/^\s*\d{1,2}\s*[.．、]/gm, ' ');
+}
+
+/** 比内容不比格式：去掉空格和常见标点差异 */
+function loose(s: string): string {
+  return normalizeDigits(s).replace(/[\s，,。．;；]/g, '');
+}
+
 /** 抓出文本里所有的数（含分数和小数，上下标也算） */
 export function numbersIn(s: string): Set<string> {
   const out = new Set<string>();
@@ -95,7 +124,7 @@ export function numbersIn(s: string): Set<string> {
 }
 
 export function score(p: Truth, got: Extracted | null, rawLen = 0): Score {
-  const knownTotal = numbersIn(p.statement).size;
+  const knownTotal = numbersIn(stripNumbering(p.statement)).size;
 
   if (!got) {
     return {
@@ -122,10 +151,11 @@ export function score(p: Truth, got: Extracted | null, rawLen = 0): Score {
    * 现在只比数：题干是扫描件上真实印着的内容，里面的每个数模型都该读出来。
    * 这才是"读得准不准"。至于它把条件归到哪个键名下，是格式偏好，不是能力。
    */
-  const wantNums = [...numbersIn(p.statement)].filter((x) => x !== String(p.serial));
+  const wantNums = [...numbersIn(stripNumbering(p.statement))].filter((x) => x !== String(p.serial));
   const gotBlob = `${got.statement ?? ''} ${JSON.stringify(got.known ?? {})} ${(got.asks ?? []).join(' ')}`;
   const gotSet = numbersIn(gotBlob);
-  let hit = wantNums.filter((x) => gotSet.has(x)).length;
+  const missed = wantNums.filter((x) => !gotSet.has(x));
+  let hit = wantNums.length - missed.length;
   const knownTotal2 = wantNums.length;
 
   /**
@@ -134,13 +164,31 @@ export function score(p: Truth, got: Extracted | null, rawLen = 0): Score {
    */
   for (const [name, want] of Object.entries(p.known ?? {})) {
     const declared = got.known !== undefined && got.known[name] !== undefined;
-    if (declared && String(got.known![name]) !== String(want)) hit = Math.max(0, hit - 1);
+    if (!declared) continue;
+    // 只为"值真的不一样"扣分，不为空格和写法差异扣。
+    // 模型写 [[2, 1], [1, 2]]、我写 [[2,1],[1,2]]，内容完全相同——
+    // 这是我在主指标上已经修过一次的错（比格式不比内容），扣分这条路上还留着。
+    if (loose(String(got.known![name])) !== loose(String(want))) hit = Math.max(0, hit - 1);
   }
 
-  /* ---- 所求：答案里出现的量名，得在 asks 或题干里被提到 ---- */
-  const askedFor = (p.answer ?? '').match(/[A-Z]{2,}/g) ?? [];
-  const asksText = `${(got.asks ?? []).join(' ')} ${got.statement ?? ''}`;
-  const asksHit = askedFor.length === 0 || askedFor.some((a) => asksText.includes(a));
+  /**
+   * 所求：模型有没有把"问什么"抓出来。
+   *
+   * 早先是从**参考答案**里抽大写字母串，要求模型复现——错在答案里会出现
+   * 解题过程用的辅助量。G8 的答案提到 ∠AOD（辅助角），题目根本没问它，
+   * 于是模型把两问都答对了还被判"没识别出所求"。
+   *
+   * 现在改成看它抄回来的问句和原题的问句对不对得上：把题干里 (1) 之后
+   * 的部分当作"问什么"，模型的 asks 只要有一条能对上就算。
+   */
+  const qPart = loose((p.statement.match(/[(（]\s*1\s*[)）][\s\S]*/) ?? [''])[0]);
+  const asksHit =
+    qPart.length === 0 ||
+    (got.asks ?? []).some((a) => {
+      const key = loose(a);
+      return key.length >= 4 && qPart.includes(key.slice(0, Math.min(8, key.length)));
+    }) ||
+    loose(got.statement ?? '').includes(qPart.slice(0, 10));
 
   /* ---- 考点：软匹配，说法可以不同 ---- */
   const topicWords = p.topic.split(/[\s/·、]+/).filter((w) => w.length >= 2);
@@ -164,6 +212,7 @@ export function score(p: Truth, got: Extracted | null, rawLen = 0): Score {
     ok: hit === knownTotal2 && asksHit && hallucinated.length === 0,
     knownHit: hit,
     knownTotal: knownTotal2,
+    ...(missed.length > 0 ? { missed } : {}),
     asksHit,
     topicHit,
     hallucinated,

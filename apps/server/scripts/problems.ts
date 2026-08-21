@@ -358,7 +358,7 @@ export const PROBLEMS: Problem[] = [
     level: '基础',
     image: 'H3.png',
     statement:
-      '等差数列 {aₙ} 中，a₁ = 3，公差 d = 4。\n' +
+      '等差数列 {a_n} 中，a₁ = 3，公差 d = 4。\n' +
       '(1) 求 a₁₀；\n' +
       '(2) 求前 10 项和 S₁₀。',
     known: { a1: 3, d: 4, n: 10 },

@@ -19,6 +19,19 @@ import type { ShapeInput } from '@canvai/protocol';
 import { initRasterizer } from '../src/rasterizer.ts';
 import { PROBLEMS } from './problems.ts';
 
+/**
+ * 衬线字体里没有的字形。
+ *
+ * 踩过一次：H3 用了 `{aₙ}`，U+2099（下标 n）不在 Songti/SimSun 里，
+ * 渲染出来整行都是 `?` 豆腐块。基准跑到那道题，模型如实读出 `?`——
+ * 完全正确——却被记成"模型读不出题"。一张静默损坏的图，
+ * 会让整个测量指向错误的结论。
+ *
+ * 下标字母（U+2090–U+209C）是重灾区：下标**数字** ₀₁₂ 大多有，
+ * 下标**字母** ₙ ₐ ₓ 基本都没有。
+ */
+const MISSING_GLYPHS = /[\u2090-\u209c]/;
+
 const here = dirname(fileURLToPath(import.meta.url));
 const OUT = join(here, '../../../.work/crops');
 
@@ -56,6 +69,18 @@ if (!raster) {
 }
 
 await mkdir(OUT, { recursive: true });
+
+/** 先整体体检：有一处渲染不出来就别生成，免得基准跑在坏图上 */
+const broken = PROBLEMS.filter((p) => MISSING_GLYPHS.test(p.statement));
+if (broken.length > 0) {
+  console.error('这些题里有衬线字体渲染不出来的字形，会变成 ? 豆腐块：\n');
+  for (const p of broken) {
+    const bad = [...new Set([...p.statement].filter((c) => MISSING_GLYPHS.test(c)))];
+    console.error(`  ${p.id}  用到了 ${bad.map((c) => `${c} (U+${c.codePointAt(0)!.toString(16).toUpperCase()})`).join('、')}`);
+  }
+  console.error('\n换个写法（比如 {aₙ} → {a_n}）再生成。');
+  process.exit(1);
+}
 
 for (const [i, p] of PROBLEMS.entries()) {
   const scene = new Scene();

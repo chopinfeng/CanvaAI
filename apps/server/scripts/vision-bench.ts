@@ -33,7 +33,7 @@ import { fileURLToPath } from 'node:url';
 import { config, hasVision } from '../src/config.ts';
 import { makeVisionProvider } from '../src/vision.ts';
 import { PROBLEMS, type Problem } from './problems.ts';
-import { parseJson, score, type Score } from '../src/bench-score.ts';
+import { numbersIn, parseJson, score, type Score } from '../src/bench-score.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const CROPS = join(here, '../../../.work/crops');
@@ -124,6 +124,8 @@ async function main(): Promise<void> {
   console.log(`只给扫描件，不给转录文本。看它能不能替掉人工转录这一步。\n`);
 
   const scores: Score[] = [];
+  /** 模型原文。--out 时一起写出来，好事后判断失分是谁的问题 */
+  const raws = new Map<string, string>();
   let elapsed = 0;
 
   for (const p of picked) {
@@ -136,23 +138,43 @@ async function main(): Promise<void> {
       continue;
     }
 
+    /**
+     * 偶发失败重试两次。
+     *
+     * 这个基准要测的是"模型能不能读懂这张图"，不是"OpenRouter 今天稳不稳"。
+     * 实测推理模型每三十来次会返回一次空内容（finish_reason 还是 stop），
+     * 不重试的话那道题记 0 分，把基础设施抖动算进了模型能力。
+     * 重试仍失败才算它读不出来——那时候就是真的了。
+     */
     const t0 = Date.now();
     let raw = '';
-    try {
-      raw = await vision.describe(png, PROMPT);
-    } catch (e) {
-      console.log(`调用失败：${(e as Error).message.slice(0, 60)}`);
-      scores.push({
-        id: p.id, ok: false, knownHit: 0, knownTotal: 0,
-        asksHit: false, topicHit: false, hallucinated: [],
-        note: (e as Error).message.slice(0, 80),
-      });
-      continue;
+    let lastErr = '';
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        raw = await vision.describe(png, PROMPT);
+        if (parseJson(raw)) break;
+        lastErr = '返回的不是可解析的 JSON';
+      } catch (e) {
+        lastErr = (e as Error).message;
+      }
+      if (attempt < 2) process.stdout.write('↻');
     }
     elapsed += Date.now() - t0;
 
+    if (!raw || !parseJson(raw)) {
+      console.log(`重试 3 次仍失败：${lastErr.slice(0, 50)}`);
+      scores.push({
+        id: p.id, ok: false, knownHit: 0, knownTotal: 0,
+        asksHit: false, topicHit: false, hallucinated: [],
+        note: `重试 3 次仍失败：${lastErr.slice(0, 60)}`,
+      });
+      raws.set(p.id, raw);
+      continue;
+    }
+
     const s = score(toTruth(p), parseJson(raw), raw.length);
     scores.push(s);
+    raws.set(p.id, raw);
 
     const mark = s.ok ? '✓' : '✗';
     const bits = [
@@ -206,7 +228,21 @@ async function main(): Promise<void> {
   }
 
   if (outFile) {
-    await writeFile(outFile, JSON.stringify({ model: config.vlm.model, scores }, null, 2));
+    await writeFile(
+      outFile,
+      JSON.stringify(
+        {
+          model: config.vlm.model,
+          scores: scores.map((s) => ({
+            ...s,
+            truthNumbers: [...new Set(picked.filter((p) => p.id === s.id).flatMap((p) => [...numbersIn(p.statement)]))],
+            raw: raws.get(s.id) ?? '',
+          })),
+        },
+        null,
+        2,
+      ),
+    );
     console.log(`\n明细写到 ${outFile}，可以和别的模型比。`);
   }
 }

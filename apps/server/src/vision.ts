@@ -97,8 +97,19 @@ export function makeVisionProvider(): VisionProvider {
         throw new Error(`视觉模型返回 ${res.status}: ${detail.slice(0, 200)}`);
       }
 
-      const text = pick(await res.json());
-      return text.trim() || '(视觉模型没有返回内容)';
+      const text = pick(await res.json()).trim();
+      if (!text) {
+        /**
+         * 空内容要抛，不能伪装成一段描述返回。
+         *
+         * 早先返回 '(视觉模型没有返回内容)' 这个字符串，调用方分不清它是
+         * 模型真的这么说还是接口抽风——在基准里就变成了"模型读不出这道题"，
+         * 把偶发的基础设施抖动记成了模型能力缺陷。实测这在推理模型上
+         * 每三十次会遇到一两次，finish_reason 还是正常的 stop。
+         */
+        throw new Error('视觉模型返回了空内容（偶发，可重试）');
+      }
+      return text;
     },
   };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { numbersIn, parseJson, score, type Truth } from '../bench-score.ts';
+import { numbersIn, parseJson, score, stripNumbering, type Truth } from '../bench-score.ts';
 
 /**
  * 打分器自己得先靠得住。
@@ -50,6 +50,37 @@ describe('抓数字', () => {
     expect(got.has('1')).toBe(true);
     expect(got.has('10')).toBe(true);
     expect(got.has('3')).toBe(true);
+  });
+});
+
+describe('题号不是内容', () => {
+  it('(1) (2) 这类小问编号要去掉', () => {
+    expect(numbersIn(stripNumbering('(1) 求 DF；(2) 求 BE。AB=13')).has('1')).toBe(false);
+    expect(numbersIn(stripNumbering('(1) 求 DF；(2) 求 BE。AB=13')).has('13')).toBe(true);
+  });
+
+  it('行首的 "27." 题号也去掉', () => {
+    expect(numbersIn(stripNumbering('27. 计算 AB=13')).has('27')).toBe(false);
+  });
+
+  it('坐标点 (1, 2) 不能被误伤——那是题目内容', () => {
+    // U5 的「在点 (1, 2) 处」，带逗号所以不匹配"括号里独占一个数字"
+    const got = numbersIn(stripNumbering('求 ∂f/∂x 在点 (1, 2) 处的值'));
+    expect(got.has('1')).toBe(true);
+    expect(got.has('2')).toBe(true);
+  });
+
+  it('题号占了实测失分的 89%——模型按指令把两问放进 asks 就被扣分', () => {
+    const truth: Truth = {
+      id: 'X', topic: 't', serial: 7,
+      statement: '7. 正方形 ABCD 的边长为 4。(1) 求 AE；(2) 求 tan∠AED。',
+    };
+    // 模型正文一字不差，两问放进 asks（这正是 prompt 要求的）
+    const s = score(truth, {
+      statement: '正方形 ABCD 的边长为 4。',
+      asks: ['求 AE', '求 tan∠AED'],
+    });
+    expect(s.knownHit).toBe(s.knownTotal);
   });
 });
 
@@ -117,12 +148,23 @@ describe('数字幻觉——这条最要紧', () => {
 });
 
 describe('所求与考点', () => {
-  it('提到答案里的量名就算识别出所求', () => {
-    expect(score(G1, { asks: ['求 DF 和 FC', '求 BE'] }).asksHit).toBe(true);
+  it('抄回来的问句能和原题对上就算识别出所求', () => {
+    expect(score(G1, { asks: ['求 DF 与 FC 的长', '求线段 BE 的长'] }).asksHit).toBe(true);
   });
 
-  it('完全没提到所求的量名 → 未识别', () => {
+  it('答错方向 → 未识别', () => {
     expect(score(G1, { asks: ['求这个图形的面积'] }).asksHit).toBe(false);
+  });
+
+  it('不拿参考答案里的辅助量当"所求"——那是解题用的，题目没问', () => {
+    // G8 的答案提到 ∠AOD（辅助角），题目只问 ∠C。
+    // 早先从答案里抽大写字母串要求模型复现，于是它两问全答对还被判没识别。
+    const g8: Truth = {
+      id: 'G8', topic: '角的关系', serial: 8,
+      statement: '线段AB与CD相交于点O。(1) 说明∠A+∠D=∠B+∠C；(2) 若∠A=50°，求∠C的度数。',
+      answer: '两边都等于 180°−∠AOD；∠C=75°',
+    };
+    expect(score(g8, { asks: ['说明∠A+∠D=∠B+∠C', '求∠C的度数'] }).asksHit).toBe(true);
   });
 
   it('考点说法不同但抓到关键词就算', () => {
