@@ -119,10 +119,38 @@ let done = false;
 let gotServerState = false;
 let settle: NodeJS.Timeout | null = null;
 
-ws.on('open', () => {
+function askForState(): void {
   const enc = encoding.createEncoder();
   syncProtocol.writeSyncStep1(enc, doc);
   send(FrameTag.Sync, encoding.toUint8Array(enc));
+}
+
+ws.on('open', () => {
+  askForState();
+
+  /**
+   * 握手要会重发，等不到还要报错退出——两件事都不能省。
+   *
+   * 服务端刚启动时会把第一次的 step1 丢掉：日志里 room.loaded 和 ws.join
+   * 是同一秒，房间还在从磁盘加载，而它之后**不会补发**。实测撞到过。
+   *
+   * 「等到服务端状态再动手」修掉了在空文档上清理导致灌两份的问题，
+   * 但也带来一个新的失败模式：状态不来就永远等下去，屏幕上什么都不打印。
+   * 挂住比写错更难查——至少写错还留下痕迹。
+   */
+  let tries = 0;
+  const retry = setInterval(() => {
+    if (done || gotServerState) return clearInterval(retry);
+    if (++tries > 7) {
+      clearInterval(retry);
+      console.error(
+        `重发了 ${tries - 1} 次握手也没收到房间「${roomId}」的状态。\n` +
+          `服务端在跑吗？ curl http://localhost:${PORT}/health`,
+      );
+      process.exit(1);
+    }
+    askForState();
+  }, 2000);
 });
 
 ws.on('message', (data: ArrayBuffer | Buffer) => {

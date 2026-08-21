@@ -202,6 +202,8 @@ export class AgentLoop {
     const failStreak = new Map<string, number>();
     /** 交回球的提醒只发一次，免得两边互相等着变成死循环 */
     let nudged = false;
+    /** 这一回合空转过几次（模型只想不做） */
+    let emptySteps = 0;
 
 
     try {
@@ -236,9 +238,37 @@ export class AgentLoop {
         fullText += out.text;
 
         if (out.calls.length === 0) {
-          // 辅导里"没调工具就结束"= 球断在这儿了：用户等着被问，
-          // 而模型以为自己讲完了。补一句系统提醒，再给它一次机会。
+          /**
+           * 辅导里"没调工具就结束"= 球断在这儿了：用户等着被问，
+           * 而模型以为自己讲完了。补一句系统提醒，再给它一次机会。
+           *
+           * 这一条要排在"空转"前面：两种情况都是没调工具，但辅导有更具体的
+           * 话要说（清单还剩什么、卡在哪一问）。反过来的话，辅导中的模型
+           * 会收到一句泛泛的"你什么都没做"，而不是"你还有 4 个小问没讲"。
+           */
           const nudge = nudged ? null : this.tutorHandBack();
+
+          /**
+           * 空转：既没说话，也没调工具，辅导那边也没话要说。
+           *
+           * 推理模型会把一整轮的 token 全花在思维链上然后什么都不产出——
+           * 实测 stealth/ox-alpha 偶发如此（一次 1554 个 completion token，
+           * 正文和 tool_calls 都是空的）。对用户来说这和卡死没有任何区别：
+           * 屏幕上什么都不会发生，日志里也不会有错误。
+           *
+           * 所以提醒它一句再给一次机会。限两次——真是模型坏了的话，
+           * 无限重试只是把静默的卡死换成昂贵的静默卡死。
+           */
+          if (!nudge && out.text.trim() === '' && emptySteps < 2) {
+            emptySteps++;
+            this.history.push({
+              role: 'user',
+              content:
+                '[系统] 你刚才既没有输出任何内容，也没有调用任何工具。请直接调用一个工具，或者用 interact_say 对用户说话——不要只在心里想。',
+            });
+            continue;
+          }
+
           if (nudge) {
             nudged = true;
             this.history.push({ role: 'user', content: nudge });
@@ -285,6 +315,22 @@ export class AgentLoop {
 
     this.announceTutorPause();
 
+    /**
+     * 整轮下来用户什么都没看见，就得明说。
+     *
+     * 不说的话，界面上的表现是"AI 没反应"——而这和网络断了、和模型
+     * 挂住了、和它认真想完决定不说话，全都长得一模一样。我为此查过两轮，
+     * 第一轮是 tool_call 分片拼串了，第二轮是模型把 token 全花在思维链上。
+     * 两次都是从"一千多个 token，然后什么都没发生"开始查的。
+     */
+    if (toolCalls === 0 && fullText.trim() === '' && reason !== 'aborted' && !error) {
+      this.opts.emit({
+        t: 'error',
+        message: '这一轮模型没给出任何动作',
+        detail: '它只输出了思维链，没有说话也没有调用工具。再说一遍试试。',
+      });
+    }
+
     this.opts.emit({ t: 'agent.turn.end', turnId, reason });
     return { turnId, steps, reason, text: fullText, toolCalls, ...(error ? { error } : {}) };
   }
@@ -311,7 +357,8 @@ export class AgentLoop {
         // 而它在辅导中途是再正常不过的一句，拿它重置进度会把讲过的全丢掉。
         if (session.mode === 'tutor') continue;
         session.mode = 'tutor';
-        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [] };
+        session.tutorJustExited = false;
+        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [], concepts: [] };
         this.opts.emit({ t: 'session.mode', mode: 'tutor', auto: true });
         continue;
       }
@@ -321,6 +368,7 @@ export class AgentLoop {
       const left = session.tutor?.outline.filter((i) => !i.done) ?? [];
       session.mode = 'assist';
       session.tutor = null;
+      session.tutorJustExited = true;
       this.opts.emit({ t: 'agent.todo', items: [] });
       this.opts.emit({
         t: 'session.mode',

@@ -646,3 +646,67 @@ describe('持续高亮', () => {
     expect(String(payload.error ?? '') + String(payload.hint ?? '')).not.toContain('at least 1');
   });
 });
+
+/**
+ * 空转的回合必须让人看见。
+ *
+ * 推理模型会把一整轮的 token 全花在思维链上、正文和 tool_calls 都是空的
+ * （实测 stealth/ox-alpha 一次烧掉 1554 个 completion token 什么都没产出）。
+ * 屏幕上的表现是"AI 没反应"，而这和网络断了、模型挂住了、它想完决定不说话
+ * 长得一模一样——我为此查过两轮，两次都是从"一千多个 token，然后什么都没发生"
+ * 开始查的。这几条守的就是"别再静默一次"。
+ */
+describe('空转的回合', () => {
+  /**
+   * 用「帮我画个方块」而不是「讲讲这道题」：后者会被识别成求辅导，
+   * 于是走的是辅导专用的催促（"你还没拆题"），压根到不了空转这条路。
+   * 这里要验的是普通协作下的空转。
+   */
+  const ASK = '帮我画个方块';
+
+  it('先提醒一次，模型接上了就当没事发生', async () => {
+    // 第一步什么都不产出，第二步正常说话
+    const h = makeHarness([{}, { text: '好，我来讲' }]);
+    h.loop.push({ kind: 'text', text: ASK, at: Date.now() });
+    await h.loop.drain();
+
+    const nudge = h.loop.getHistory().find(
+      (m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('不要只在心里想'),
+    );
+    expect(nudge).toBeDefined();
+    expect(h.emitted.some((m) => m.t === 'error')).toBe(false);
+  });
+
+  it('一直空转就报出来，不能静默收场', async () => {
+    const h = makeHarness([{}, {}, {}, {}]);
+    h.loop.push({ kind: 'text', text: ASK, at: Date.now() });
+    await h.loop.drain();
+
+    const err = h.emitted.find((m) => m.t === 'error');
+    expect(err).toBeDefined();
+    expect((err as { message: string }).message).toContain('没给出任何动作');
+  });
+
+  it('提醒最多两次——模型真坏了的话，无限重试只是更贵的静默卡死', async () => {
+    const h = makeHarness([{}, {}, {}, {}, {}, {}]);
+    h.loop.push({ kind: 'text', text: ASK, at: Date.now() });
+    await h.loop.drain();
+
+    const nudges = h.loop
+      .getHistory()
+      .filter((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('不要只在心里想'));
+    expect(nudges).toHaveLength(2);
+  });
+
+  it('说了话只是没调工具的，不算空转——那是正常的聊天回答', async () => {
+    const h = makeHarness([{ text: '这道题的关键是勾股定理' }]);
+    h.loop.push({ kind: 'text', text: ASK, at: Date.now() });
+    await h.loop.drain();
+
+    expect(h.emitted.some((m) => m.t === 'error')).toBe(false);
+    const nudge = h.loop
+      .getHistory()
+      .find((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('不要只在心里想'));
+    expect(nudge).toBeUndefined();
+  });
+});

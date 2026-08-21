@@ -104,7 +104,17 @@ export class Room {
       registry,
       scene: this.scene,
       session: this.session,
-      emit: (msg) => this.broadcastControl(msg),
+      emit: (msg) => {
+        /**
+         * Agent 报的错也要落日志。
+         *
+         * 早先它只广播给客户端——于是"模型调用失败"这种事在服务端日志里
+         * 完全不存在，事后翻日志只能看到 agent.usage 停了，然后没了。
+         * 我为此把一次模型报错误判成"辅导自己不想讲了"。
+         */
+        if (msg.t === 'error') log.error('agent.error', { room: this.id, message: msg.message, detail: msg.detail });
+        this.broadcastControl(msg);
+      },
       ...(hasVision() ? { vision: makeVisionProvider() } : {}),
       ...((): { rasterizer?: ReturnType<typeof getRasterizer> } => {
         const r = getRasterizer();

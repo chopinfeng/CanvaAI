@@ -9,6 +9,7 @@ import { closeIdleRooms, getRoom, saveAllRooms } from './room.ts';
 import { initRasterizer } from './rasterizer.ts';
 import { hasWeb, serveWeb } from './static.ts';
 import { listRooms } from './rooms-index.ts';
+import { loadGraph } from './knowledge.ts';
 
 // 第一件事就是装崩溃处理：之后任何环节出问题都能留下现场
 installCrashHandlers({ onFatal: saveAllRooms });
@@ -220,6 +221,20 @@ setInterval(() => {
 }, 60_000).unref();
 
 await initRasterizer();
+
+/**
+ * 开机就把知识图谱装起来，不等第一个请求。
+ *
+ * 之前只有 HTTP 的 /kg 接口会触发装载，Agent 那条路从来不装——而
+ * KnowledgePort.search 在没装好时是**静默返回空数组**的。合起来的效果是：
+ * 只要没人先打开过图谱页面，"辅导时记掌握度"这条产品主线在每一场里都是死的，
+ * 并且不报任何错。实测一整场七次判定一个知识点都没记上，判分表上只写着
+ * "多半是模型没带 conceptIds"——把一个装载问题指成了模型问题。
+ *
+ * 不 await：装载要一两秒，没必要让端口晚一两秒才开；辅导真正用到它
+ * 至少是几十秒之后的事。
+ */
+void loadGraph().catch((e) => log.error('kg.preload_failed', { message: (e as Error).message }));
 
 server.listen(config.port, () => {
   log.info('server.listening', {

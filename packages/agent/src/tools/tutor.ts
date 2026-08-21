@@ -14,15 +14,42 @@ import type { ToolExecutor } from './context.js';
 
 export const execTutorPlan: ToolExecutor = async (raw, ctx) => {
   const a = tutorPlan.input.parse(raw);
-  const t = ctx.session.tutor;
-  if (!t) {
-    // 最常见的成因不是用错工具，是用户在你这一轮跑到一半时喊了停
-    // （"直接告诉我答案""先不学了"），账本当场就销了。
+  let t = ctx.session.tutor;
+
+  if (!t && ctx.session.tutorJustExited) {
+    // 用户刚喊过停（"直接告诉我答案""先不学了"），别把他拖回去
     return err(
       '辅导已经结束了，没有进度可记',
-      '多半是用户刚刚自己退出了辅导。别再记进度、也别想着把它拉回来——' +
+      '用户刚刚自己退出了辅导。别再记进度、也别想着把它拉回来——' +
         '按他现在的要求答就行（他要答案就给答案）。',
     );
+  }
+
+  if (!t) {
+    /**
+     * 没在辅导模式却来拆题 —— 那就开始辅导。
+     *
+     * 早先这里一律报错，理由写的是"多半是用户刚退出了"。但实测下来更常见的
+     * 是另一种：用户确实在求辅导，只是那句话没被意图正则认出来
+     * （"老师你一步步问我吧"——`一步步` 后面的动词表里没有 `问`）。
+     * 于是模型判断对了、动手了，被一个正则否决，整场辅导照讲，
+     * 但账本全空：不拆题、不判定、不记掌握度，而且不报错。三次演练里栽了三次。
+     *
+     * 模型决定开始拆题，这件事本身就是最强的意图信号。正则该是捷径，不是门闸。
+     */
+    t = {
+      goal: a.items[0]?.text.slice(0, 120) ?? '这道题',
+      outline: [],
+      startedTurn: 0,
+      pending: null,
+      rightSince: 0,
+      markedSinceAsk: false,
+      attempts: [],
+      concepts: [],
+    };
+    ctx.session.tutor = t;
+    ctx.session.mode = 'tutor';
+    ctx.emit({ t: 'session.mode', mode: 'tutor', auto: true });
   }
 
   /**
@@ -46,6 +73,31 @@ export const execTutorPlan: ToolExecutor = async (raw, ctx) => {
    */
   const newlyDone = a.items.filter((i) => i.done && !wasDone.has(i.text.trim()));
   const unearned = (first || t.rightSince === 0) && newlyDone.length > 0;
+
+  /**
+   * 顺手把这道题落在图谱上的知识点查出来存着。
+   *
+   * 用 mentions 不用 search：小问是一整句话，而 search 是拿查询串去匹配
+   * 节点名——实测「在两个直角三角形里分别用勾股定理写出 AD²」返回空，
+   * 而「勾股定理」返回六条。方向必须反过来扫。
+   *
+   * 用小问的文字不用 goal：goal 常常是题目标题（这次是英文的
+   * "Geometry — Triangle with an Altitude"），而图谱是中文 K12 课标，
+   * 对不上。小问是老师自己写的中文，"勾股定理""直角三角形"就在里面。
+   *
+   * 查不到也没关系：那只是说明这道题不在图谱覆盖范围内，
+   * 判定照常进行，只是不留掌握度记录。
+   */
+  if (ctx.knowledge && t.concepts.length === 0) {
+    const seen = new Set<string>();
+    for (const item of a.items) {
+      for (const hit of ctx.knowledge.mentions(item.text, 2)) {
+        if (seen.size >= 6) break;
+        seen.add(hit.id);
+      }
+    }
+    t.concepts = [...seen];
+  }
 
   t.outline = a.items.map((i) => ({
     text: i.text,
@@ -111,7 +163,16 @@ export const execTutorJudge: ToolExecutor = async (raw, ctx) => {
    * guided 恒为 true：辅导模式下他是被一路问出来的，
    * 和自己独立做对不能记一样的分（见 knowledge/mastery.ts）。
    */
-  for (const id of a.conceptIds ?? []) {
+  /**
+   * 模型给了 conceptIds 就用它的（它最清楚这一步考的是什么）；
+   * 没给就用拆题时反查出来的那批。
+   *
+   * 兜底不是可有可无：实测 stealth/ox-alpha 整场一次都没调 kg_lookup，
+   * 七次判定一个知识点都没记上，而且全程不报错——
+   * "学生学到了什么"这条主线就那么静静地空了一整场。
+   */
+  const ids = a.conceptIds?.length ? a.conceptIds : t.concepts;
+  for (const id of ids) {
     t.attempts.push({ conceptId: id, ok: a.verdict === 'right', guided: true });
   }
 

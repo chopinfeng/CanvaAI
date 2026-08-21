@@ -565,7 +565,7 @@ describe('停手要明说', () => {
   it('问题还挂在他屏幕上、回合被打断时不插话', async () => {
     // 不自动作答：回合会一直阻塞在 interact_ask_user 上
     const h = makeHarness([{ calls: [PLAN([{ text: '(1) 求 DF' }]), ask('DF 是多少？')] }, { text: '好' }], {
-      session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [] } },
+      session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [], concepts: [] } },
     });
 
     const running = speak(h, '继续');
@@ -594,7 +594,7 @@ describe('等用户思考的时间不占回合额度', () => {
         { text: '好' },
       ],
       {
-        session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [] } },
+        session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [], concepts: [] } },
         maxMs: 120,
         // 想的时间比整个回合额度还长——挂钟计时的话这里必死
         autoAnswerDelayMs: 260,
@@ -658,7 +658,7 @@ describe('讲解要指着图说', () => {
         zoom: 1,
         editMode: 'suggest',
         mode: 'tutor',
-        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [] },
+        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [], concepts: [] },
       },
       events: [],
       turnNo: 3,
@@ -676,7 +676,7 @@ describe('讲解要指着图说', () => {
         zoom: 1,
         editMode: 'suggest',
         mode: 'tutor',
-        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: true, attempts: [] },
+        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: true, attempts: [], concepts: [] },
       },
       events: [],
       turnNo: 3,
@@ -751,7 +751,7 @@ describe('账本每一轮都摆在模型眼前', () => {
           ],
           startedTurn: 1,
           pending: null,
-          rightSince: 0, markedSinceAsk: false, attempts: []
+          rightSince: 0, markedSinceAsk: false, attempts: [], concepts: []
         },
       },
       events: [],
@@ -768,7 +768,7 @@ describe('账本每一轮都摆在模型眼前', () => {
   it('还没拆题时催拆题', () => {
     const header = buildContextHeader({
       scene: new Scene(),
-      session: { ...base, tutor: { goal: '讲讲这题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [] } },
+      session: { ...base, tutor: { goal: '讲讲这题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [], concepts: [] } },
       events: [],
       turnNo: 1,
     });
@@ -783,5 +783,122 @@ describe('账本每一轮都摆在模型眼前', () => {
       turnNo: 1,
     });
     expect(header).not.toContain('辅导');
+  });
+});
+
+/**
+ * 掌握度记录不能靠模型的自觉性。
+ *
+ * 实测 stealth/ox-alpha 整场辅导一次都没调 kg_lookup，于是七次判定
+ * 一个知识点都没记上——"学生学到了什么"这条产品主线在那一整场里
+ * 等于不存在，而且全程不报错。交给模型自觉去做的事，迟早有一天它不做。
+ */
+describe('知识点在拆题时就落地', () => {
+  /**
+   * mentions 是"哪些知识点的名字出现在这段话里"，方向和 search 相反。
+   * 桩子按这个语义写：整句话里含「勾股」就算命中——真实实现扫的是
+   * 一万多个节点名，这里只是把语义固定下来。
+   */
+  const kg = {
+    search: (q: string) => (q === '勾股定理' ? [{ id: 'c_pyth', name: '勾股定理', label: '数学' }] : []),
+    mentions: (text: string) =>
+      text.includes('勾股') ? [{ id: 'c_pyth', name: '勾股定理', label: 'Concept' }] : [],
+    prerequisites: () => [],
+    record: async () => {},
+  };
+
+  it('拆题时用小问的文字反查，存进账本', async () => {
+    const h = makeHarness([{ calls: [call('tutor_plan', { items: [{ text: '用勾股定理列方程', done: false }, { text: '解出 BD', done: false }] })] }], {
+      session: { mode: 'tutor', tutor: { goal: 'Geometry — Triangle with an Altitude', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [], concepts: [] } },
+      knowledge: kg,
+    });
+    h.loop.push({ kind: 'text', text: '继续', at: Date.now() });
+    await h.loop.drain();
+
+    expect(h.session.tutor!.concepts).toContain('c_pyth');
+  });
+
+  it('模型没带 conceptIds 时，判定用账本里那批兜底', async () => {
+    const h = makeHarness(
+      [
+        { calls: [call('tutor_judge', { verdict: 'right', comment: '对' })] },
+      ],
+      {
+        session: {
+          mode: 'tutor',
+          tutor: {
+            goal: '讲这题',
+            outline: [{ text: 'a', done: false }],
+            startedTurn: 0,
+            pending: { question: 'AD² 等于什么？', answer: '169 − x²' },
+            rightSince: 0,
+            markedSinceAsk: false,
+            attempts: [],
+            concepts: ['c_pyth'],
+          },
+        },
+        knowledge: kg,
+      },
+    );
+    h.loop.push({ kind: 'text', text: '继续', at: Date.now() });
+    await h.loop.drain();
+
+    expect(h.session.tutor!.attempts).toEqual([{ conceptId: 'c_pyth', ok: true, guided: true }]);
+  });
+
+  it('模型给了 conceptIds 就听它的——它最清楚这一步考的是什么', async () => {
+    const h = makeHarness(
+      [{ calls: [call('tutor_judge', { verdict: 'right', comment: '对', conceptIds: ['c_specific'] })] }],
+      {
+        session: {
+          mode: 'tutor',
+          tutor: {
+            goal: '讲这题',
+            outline: [{ text: 'a', done: false }],
+            startedTurn: 0,
+            pending: { question: 'q', answer: 'a' },
+            rightSince: 0,
+            markedSinceAsk: false,
+            attempts: [],
+            concepts: ['c_fallback'],
+          },
+        },
+        knowledge: kg,
+      },
+    );
+    h.loop.push({ kind: 'text', text: '继续', at: Date.now() });
+    await h.loop.drain();
+
+    expect(h.session.tutor!.attempts.map((a) => a.conceptId)).toEqual(['c_specific']);
+  });
+});
+
+/**
+ * 意图正则该是捷径，不是门闸。
+ *
+ * 三次演练栽在同一处：学生确实在求辅导，但那句话没被正则认出来
+ * （"老师你一步步问我吧"——动词表里没有「问」）。模型判断对了、
+ * 调了 tutor_plan，被闸拦下，于是整场辅导照讲，账本全空：
+ * 不拆题、不判定、不记掌握度，而且不报错。
+ */
+describe('模型自己决定开始辅导', () => {
+  it('没进辅导模式时调 tutor_plan，就地开始辅导', async () => {
+    const h = makeHarness([{ calls: [call('tutor_plan', { items: [{ text: '第一问：求 BD', done: false }] })] }]);
+    h.loop.push({ kind: 'text', text: '老师你一步步问我吧', at: Date.now() });
+    await h.loop.drain();
+
+    expect(h.session.mode).toBe('tutor');
+    expect(h.session.tutor!.outline.map((i) => i.text)).toEqual(['第一问：求 BD']);
+  });
+
+  it('用户刚喊停就不能被拖回去——那是他明确说过不想要的', async () => {
+    const h = makeHarness([{ calls: [call('tutor_plan', { items: [{ text: '第一问', done: false }] })] }], {
+      session: { mode: 'assist', tutor: null, tutorJustExited: true },
+    });
+    h.loop.push({ kind: 'text', text: '继续', at: Date.now() });
+    await h.loop.drain();
+
+    expect(h.session.mode).toBe('assist');
+    expect(h.session.tutor).toBeNull();
   });
 });

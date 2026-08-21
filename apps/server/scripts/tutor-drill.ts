@@ -89,6 +89,14 @@ interface Transcript {
   everPlanned: boolean;
   modes: Array<{ mode: string; note?: string }>;
   toolErrors: Array<{ name: string; error: string }>;
+  /**
+   * 服务端喊出来的错（模型调用失败、空转回合……）。
+   *
+   * 早先这里压根没有分支：服务端 emit 了 {t:'error'}，演练脚本一声不吭地丢掉，
+   * 然后判分表上写着"工具没真出错 ✓"。老师中途因为模型报错停了，
+   * 而这份表看起来像是产品自己不想讲了。
+   */
+  serverErrors: Array<{ message: string; detail?: string }>;
   /** 被辅导机制主动拦下的调用——是好事，单独计 */
   guardHits: Array<{ name: string; error: string }>;
   drew: number;
@@ -106,6 +114,7 @@ const tape: Transcript = {
   everPlanned: false,
   modes: [],
   toolErrors: [],
+  serverErrors: [],
   guardHits: [],
   drew: 0,
   pointedBeforeAsk: [],
@@ -315,6 +324,10 @@ function handleServer(msg: ServerMessage): void {
       }
       if (msg.call.state === 'ok' && POINTING.has(msg.call.name)) pointedSinceAsk = true;
       break;
+    case 'error':
+      tape.serverErrors.push({ message: msg.message, ...(msg.detail ? { detail: msg.detail } : {}) });
+      log('服务端 ✗', `${msg.message}${msg.detail ? `：${msg.detail}` : ''}`);
+      break;
     case 'agent.turn.end':
       // 老师这一轮说完了，轮到学生
       scheduleNudge();
@@ -381,6 +394,13 @@ async function finish(): Promise<void> {
     add(tape.says.length > 0, '学生开了口', `说了 ${tape.says.length} 句`);
     add(tape.asks.length === 0, '没有强行反问', tape.asks.length === 0 ? '照他要求直接答了' : `还是问了 ${tape.asks.length} 次`);
     add(tape.toolErrors.length === 0, '工具没真出错', tape.toolErrors.length === 0 ? '一次都没有' : tape.toolErrors.map((e) => `${e.name}: ${e.error}`).join('；'));
+    add(
+      tape.serverErrors.length === 0,
+      '服务端没报错',
+      tape.serverErrors.length === 0
+        ? '一次都没有'
+        : tape.serverErrors.map((e) => `${e.message}${e.detail ? `（${e.detail}）` : ''}`).join('；'),
+    );
     return report(checks);
   }
 
@@ -420,7 +440,7 @@ async function finish(): Promise<void> {
   );
 
   add(
-    tape.toolErrors.length === 0,
+    tape.toolErrors.length === 0 && tape.serverErrors.length === 0,
     '工具没真出错',
     tape.toolErrors.length === 0
       ? '一次都没有'

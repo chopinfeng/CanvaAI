@@ -24,6 +24,16 @@ import { blobs } from './blobs.ts';
 
 let graph: KnowledgeGraph | null = null;
 
+/** 只喊一次，别把日志刷爆——它在一场辅导里会被调很多次 */
+let warnedNotReady = false;
+function warnNotReady(): void {
+  if (warnedNotReady) return;
+  warnedNotReady = true;
+  log.warn('kg.not_ready', {
+    note: '图谱还没装好，这次查询按"查不到"处理。这一场的掌握度不会被记录。',
+  });
+}
+
 /** 图谱在磁盘上的位置。data/kg/*.json，一册教材一个文件 */
 export const kgDir = (): string => join(config.dataDir, 'kg');
 
@@ -148,7 +158,17 @@ export function makeKnowledgePort(learnerId: string): KnowledgePort {
   return {
     search(query, limit = 5) {
       const g = graph;
-      if (!g) return []; // 还没装完就当没有，别把辅导卡住
+      if (!g) {
+        /**
+         * 还没装完就当没有，别把辅导卡住——但**必须留下痕迹**。
+         *
+         * 静默返回空数组曾经让整条掌握度主线死了都没人知道：辅导正常进行、
+         * 判定正常给出，只是一个知识点都没记上，而且不报错。
+         * 排查时看到的是"模型大概没带 conceptIds"，方向从一开始就是错的。
+         */
+        warnNotReady();
+        return [];
+      }
       return g.search(query, { limit }).map((n) => ({
         id: n.id,
         name: n.name,
@@ -157,6 +177,15 @@ export function makeKnowledgePort(learnerId: string): KnowledgePort {
           ? { definition: n.properties.definition }
           : {}),
       }));
+    },
+
+    mentions(text, limit = 5) {
+      const g = graph;
+      if (!g) {
+        warnNotReady();
+        return [];
+      }
+      return g.mentions(text, { limit }).map((n) => ({ id: n.id, name: n.name, label: n.label }));
     },
 
     prerequisites(id) {

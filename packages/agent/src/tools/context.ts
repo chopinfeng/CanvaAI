@@ -22,6 +22,15 @@ export interface TutorSession {
    */
   attempts: Array<{ conceptId: string; ok: boolean; guided: boolean }>;
   /**
+   * 这道题落在图谱上的哪些知识点。
+   *
+   * 拆题时就由服务端反查好，不等模型自觉去调 kg_lookup——实测
+   * stealth/ox-alpha 整场辅导一次都没查，于是七次判定一个知识点都没记上，
+   * "学生学到了什么"这条产品主线在那一整场里等于不存在，而且不报错。
+   * 交给模型的自觉性的东西，迟早有一天它不做。
+   */
+  concepts: string[];
+  /**
    * 他答了但还没给判定的那一次。
    * 有值的时候不许再提下一个问题——否则他一路答下来，
    * 不知道自己刚才那步是对是错，等于白答。
@@ -60,6 +69,14 @@ export interface SessionState {
   mode: 'assist' | 'tutor';
   /** 辅导进行中的账本；不在辅导里就是 null */
   tutor: TutorSession | null;
+  /**
+   * 用户在这一轮里主动喊过停（"直接给答案""先不学了"）。
+   *
+   * tutor_plan 会在没进辅导模式时**自动进入**——模型决定开始拆题，
+   * 这件事本身就是最强的意图信号。但用户刚说完不想学，
+   * 就不能让模型一调 tutor_plan 又把他拖回去。这个标记就是为了区分这两种。
+   */
+  tutorJustExited?: boolean;
 }
 
 /** 视觉模型兜底：只在结构化查询不够用时才走 */
@@ -92,6 +109,13 @@ export interface AssetStore {
 export interface KnowledgePort {
   /** 按名字找知识点，讲题前用它把"勾股定理"落到一个真实的 id 上 */
   search(query: string, limit?: number): Array<{ id: string; name: string; label: string; definition?: string }>;
+  /**
+   * 哪些知识点的名字出现在这段话里。
+   *
+   * 和 search 方向相反：search 适合"用户输入一个词"，mentions 适合
+   * "手里有一整句话"。辅导拆出来的小问是整句话，拿它去 search 一定查不到。
+   */
+  mentions(text: string, limit?: number): Array<{ id: string; name: string; label: string }>;
   /** 学这个之前得先会哪些——学生卡住时顺着它往回退一步 */
   prerequisites(id: string): Array<{ id: string; name: string }>;
   /** 记一批练习结果，落到这个学生的掌握度上 */

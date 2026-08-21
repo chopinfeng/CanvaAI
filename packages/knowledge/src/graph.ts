@@ -25,6 +25,25 @@ export interface Neighbor {
   edge: KgEdge;
 }
 
+/**
+ * 这个名字算不算真的出现在这段话里。
+ *
+ * 中文名两个字起：一个字的（「角」「圆」）几乎在任何几何题里都出现，记了等于没记。
+ *
+ * 英文别名四个字母起，而且要卡词边界。这条是实测逼出来的：
+ * 「解方程求出 BD 和 DC」命中了**直流电流**——因为 DC 是它的别名，
+ * 而在这道几何题里 DC 是一条线段。照这么记下去，学生会因为做了一道
+ * 三角形的题而被判定"掌握了直流电"。字母缩写在数学题里全是点和线段的名字，
+ * 不能当证据。
+ */
+function mentionedIn(hay: string, name: string): boolean {
+  const ascii = /^[\x20-\x7e]+$/.test(name);
+  if (!ascii) return name.length >= 2 && hay.includes(name);
+  if (name.length < 4) return false;
+  const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^A-Za-z])${esc}([^A-Za-z]|$)`, 'i').test(hay);
+}
+
 export class KnowledgeGraph {
   private readonly nodes = new Map<string, KgNode>();
   private readonly edges: KgEdge[] = [];
@@ -142,6 +161,45 @@ export class KnowledgeGraph {
     const hit = [...exact, ...loose];
     const filtered = opts.label ? hit.filter((n) => n.label === opts.label) : hit;
     return filtered.slice(0, limit);
+  }
+
+  /**
+   * 反过来问：**哪些知识点的名字出现在这段话里**。
+   *
+   * search() 是"拿查询串去匹配节点名"，只适合用户主动输入一个词。
+   * 拿一整句话去 search 一定查不到——实测「在两个直角三角形里分别用
+   * 勾股定理写出 AD²」返回空，而「勾股定理」返回六条。
+   *
+   * 但辅导拆出来的小问就是整句话。所以这里换个方向扫：拿节点名去这段话里找。
+   * 长名字优先——「勾股定理的逆定理」比「勾股定理」更具体，两个都命中时
+   * 该记的是前者；而且短名字往往是长名字的一部分，不排掉会重复记。
+   *
+   * 只认 Concept 和 Skill：Chapter/Section 是课本的版面结构，
+   * 记「第十七章」的掌握度没有意义。
+   */
+  mentions(text: string, opts: { limit?: number } = {}): KgNode[] {
+    const hay = text.trim();
+    if (hay.length === 0) return [];
+    const limit = opts.limit ?? 5;
+
+    const hits: KgNode[] = [];
+    for (const n of this.all()) {
+      if (n.label !== 'Concept' && n.label !== 'Skill') continue;
+      const names = [n.name, ...aliasesOf(n)];
+      if (names.some((x) => mentionedIn(hay, x))) hits.push(n);
+    }
+
+    hits.sort((a, b) => b.name.length - a.name.length);
+
+    // 名字被更长的命中包住的就不要了：「勾股定理」和「勾股定理的逆定理」
+    // 同时命中时，只留后者
+    const kept: KgNode[] = [];
+    for (const n of hits) {
+      if (kept.some((k) => k.name.includes(n.name))) continue;
+      kept.push(n);
+      if (kept.length >= limit) break;
+    }
+    return kept;
   }
 
   neighbors(id: string, opts: { types?: KgEdgeType[]; dir?: 'out' | 'in' | 'both' } = {}): Neighbor[] {
