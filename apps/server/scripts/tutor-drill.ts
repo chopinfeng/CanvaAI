@@ -462,7 +462,7 @@ async function finish(): Promise<void> {
         ? '问不到 /kg/mastery，服务端起了吗？'
         : kg.count > 0
           ? `${kg.count} 个知识点：${kg.summary}`
-          : '一个知识点都没记上——多半是 tutor_judge 没带 conceptIds，或者图谱里没有这道题的知识点',
+          : '一个知识点都没记上。先看服务端日志里有没有 kg.learned；没有的话查 tutor_judge 有没有跑过，以及这道题的小问文字能不能在图谱里认出知识点',
     );
     if (kg && kg.count > 0) {
       // 全程被引导着做对的，不该显示成"已掌握"——那是这套掌握度的立身之本
@@ -498,10 +498,17 @@ interface KgSnap {
   rows: Array<{ name: string; level: number; band: string }>;
 }
 
-/** 问一次服务端：这个学生现在图谱上是什么样 */
+/**
+ * 问一次服务端：这个学生现在图谱上是什么样。
+ *
+ * 查的是 **uid**，不是房间名。掌握度跟着人走，跨画布累计——
+ * 按房间名查的话，无论学生学到了什么都是 0，判分表会理直气壮地写着
+ * "一个知识点都没记上，多半是模型没带 conceptIds"。
+ * 那句话我信过一次，往错的方向查了一整轮。
+ */
 async function fetchMastery(): Promise<KgSnap | null> {
   try {
-    const r = await fetch(`${'http://localhost:'}${PORT}/kg/mastery/${encodeURIComponent(roomId)}`);
+    const r = await fetch(`${'http://localhost:'}${PORT}/kg/mastery/${encodeURIComponent(uid)}`);
     if (!r.ok) return null;
     const d = (await r.json()) as { mastery?: Array<{ name: string; level: number; band: string }> };
     const rows = d.mastery ?? [];
