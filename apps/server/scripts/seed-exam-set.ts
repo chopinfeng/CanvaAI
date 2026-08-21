@@ -9,6 +9,7 @@
  *   npx tsx scripts/seed-exam-set.ts exam-set          # 全部 20 题
  *   npx tsx scripts/seed-exam-set.ts drill S3 T8       # 只灌指定题
  *   npx tsx scripts/seed-exam-set.ts exam-set --clean  # 恢复出厂：连试用痕迹一起清掉
+ *   npx tsx scripts/seed-exam-set.ts scan U1 --scan-only  # 只放原图，逼 Agent 真去看图
  *
  * 默认只清自己上次注入的图元，用户自己画的和 AI 的批注都留着——重跑不该毁掉别人的东西。
  * `--clean` 是演示前的"恢复出厂"：房间里的一切都清空，再灌一遍，
@@ -34,7 +35,16 @@ const BASE = `http://localhost:${PORT}`;
 
 const argv = process.argv.slice(2);
 const clean = argv.includes('--clean');
-const [roomArg, ...only] = argv.filter((a) => a !== '--clean');
+/**
+ * 只放扫描件，不放转录文本。
+ *
+ * 平时两份并排是为了肉眼核对转换对不对。但要验"视觉这条路通不通"，
+ * 并排反而没法验：文本就在旁边，Agent 会直接读文本，
+ * 压根不会去调 canvas_snapshot——我第一次冒烟测试就栽在这儿，
+ * 它答对了矩阵，但全程没发生一次光栅化。
+ */
+const scanOnly = argv.includes('--scan-only');
+const [roomArg, ...only] = argv.filter((a) => !a.startsWith('--'));
 const roomId = roomArg ?? 'exam-set';
 const picked = only.length > 0 ? PROBLEMS.filter((p) => only.includes(p.id)) : PROBLEMS;
 
@@ -141,7 +151,20 @@ async function buildCard(p: Problem, top: number, index: number): Promise<{ shap
   });
   const leftBottom = bodyTop + 24 + Math.round((img.h * IMG_W) / img.w);
 
-  /* ---- 右：转换结果 ---- */
+  /* ---- 右：转换结果。--scan-only 时整块跳过，只留原图 ---- */
+  if (scanOnly) {
+    shapes.push({
+      type: 'line',
+      points: [
+        [LEFT_X, leftBottom + CARD_GAP / 2],
+        [LEFT_X + IMG_W, leftBottom + CARD_GAP / 2],
+      ],
+      style: { stroke: '#e7e5e4', strokeWidth: 1 },
+      meta: { role: 'divider' },
+    });
+    return { shapes, height: leftBottom + CARD_GAP - top };
+  }
+
   shapes.push(text(RIGHT_X, bodyTop, '转换结果（画板内容）', 14, MUTED, 'section-label'));
 
   const wrapped = wrap(p.statement, RIGHT_W, 15);
