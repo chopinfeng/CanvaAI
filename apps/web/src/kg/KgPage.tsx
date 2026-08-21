@@ -50,9 +50,26 @@ const EDGE_STYLE: Record<string, { color: string; width: number; dash?: number[]
 };
 const EDGE_DEFAULT: { color: string; width: number; dash?: number[] } = { color: '#d6d3d1', width: 0.8 };
 
+/** 浏览器里那个跨房间、跨刷新都不变的身份，和画布上的作者是同一个 */
+function myLearnerId(): string {
+  try {
+    const me = JSON.parse(localStorage.getItem('canvai.me') ?? '{}') as { id?: string };
+    return me.id ?? 'anonymous';
+  } catch {
+    return 'anonymous';
+  }
+}
+
 export function KgPage() {
   const params = new URLSearchParams(location.search);
-  const learner = params.get('learner') ?? params.get('room') ?? 'exam-set';
+  /**
+   * 看谁的图谱。
+   *
+   * 默认是**我自己**——掌握度跟着人走，不跟着题走。早先默认取 ?room=，
+   * 于是每张画布一份互不相干的学习记录，图谱只能回答"这张画布上发生过什么"。
+   * ?learner= 仍然保留，方便老师看别的学生。
+   */
+  const learner = params.get('learner') ?? myLearnerId();
 
   const [root, setRoot] = useState<string | null>(null);
   const [query, setQuery] = useState('');

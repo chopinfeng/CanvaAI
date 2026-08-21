@@ -90,7 +90,13 @@ export class Room {
     });
 
     // 没配视觉模型就把 canvas_snapshot 摘掉——留着只会让模型反复去调一个读不出内容的工具
-    const knowledge = makeKnowledgePort(this.id);
+    /**
+     * 学的是谁——最近一次通过这个房间说话的用户。
+     *
+     * 退回房间名只在"一个客户端都没发过消息"时发生，而那种情况下
+     * 根本不会有辅导，也就不会有掌握度要记。
+     */
+    const knowledge = makeKnowledgePort(() => this.learner ?? this.id);
 
     const registry = new ToolRegistry(undefined, undefined, {
       exclude: hasVision() ? [] : ['canvas_snapshot'],
@@ -229,7 +235,19 @@ export class Room {
     }
   }
 
+  /**
+   * 最近一次说话的用户 id。
+   *
+   * 用它当 learnerId：掌握度跟着人走，换画布不该换一个人。
+   * 这个 id 来自浏览器 localStorage 里的 canvai.me，跨房间、跨刷新都不变。
+   */
+  private learner: string | null = null;
+
   private handleControl(socket: WebSocket, payload: Uint8Array): void {
+    // 谁在说话——每条控制消息都更新，辅导落盘时按它记
+    const speaker = this.clients.get(socket)?.user.id;
+    if (speaker) this.learner = speaker;
+
     let msg: ClientMessage;
     try {
       msg = ClientMessageSchema.parse(JSON.parse(new TextDecoder().decode(payload)));

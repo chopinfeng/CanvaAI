@@ -366,6 +366,27 @@ export class AgentLoop {
       // exit / switch：都是离开辅导，但离开的理由不一样，说给用户的话也不该一样
       if (session.mode !== 'tutor') continue;
       const left = session.tutor?.outline.filter((i) => !i.done) ?? [];
+      /**
+       * 半路走人，已经答对的那几步也要落进图谱。
+       *
+       * 早先是攒到 tutor_finish 才一次写入，中途退出全部丢弃，理由写的是
+       * "他其实并没有走完"。但那句话把两件事混在一起了：走完这道题，
+       * 和会不会某个知识点。掌握度是**按知识点**记的——他在勾股定理上
+       * 连答对五步然后说"先不学了"，那五步是真的发生了。
+       *
+       * 而且过度记分这个担心本来就不成立：辅导里全是 guided，
+       * 涨到 GUIDED_CEIL(0.55) 就封顶，永远够不着 0.6「基本掌握」。
+       *
+       * 实测里这条不是理论问题：模型驱动的整场辅导常常在第 3、4 问上
+       * 断掉，于是每一次都"图谱一个点都没记上"——而学生明明答对了六次。
+       */
+      const unsaved = session.tutor?.attempts ?? [];
+      if (this.opts.knowledge && unsaved.length > 0) {
+        void this.opts.knowledge
+          .record(unsaved)
+          .catch(() => {}); // 落盘失败不该拖住"用户想退出"这件事
+      }
+
       session.mode = 'assist';
       session.tutor = null;
       session.tutorJustExited = true;

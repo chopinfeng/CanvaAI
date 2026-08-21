@@ -4,9 +4,9 @@ import { ago, fetchRooms, goto, needsVisionKey, slug, uploadPaperToNewRoom, type
 /**
  * 在多张画布之间切换。
  *
- * 每个房间是一张独立的画布，也是一份**独立的学习记录**——
- * 知识图谱里的 learnerId 就是房间名。所以"换一张试卷"和
- * "换一个学生"在数据上是同一件事，这个面板同时决定了两者。
+ * 一个房间是一张画布、一道题。**不是**一份学习记录——掌握度跟着人走，
+ * 跨所有画布累计。（早先 learnerId 就是房间名，等于换一张画布这个学生
+ * 就变成了另一个人，做过的题全部作废；那是个设计错误，已经改掉。）
  *
  * 切换用整页跳转而不是原地换连接：房间名一变，Yjs 文档、WebSocket、
  * awareness、撤销栈全都要换掉。原地换的话，任何一处没清干净都会
@@ -123,9 +123,7 @@ export function RoomSwitcher({ current, onNeedKey }: { current: string; onNeedKe
           </div>
 
           {err && <div className="rooms-err">{err}</div>}
-          <div className="rooms-note">
-            每张画布是独立的题目和独立的学习记录（知识图谱按画布名分开记）。
-          </div>
+          <div className="rooms-note">一张画布一道题。掌握度是你的，跨画布累计，不随画布切换。</div>
         </div>
       )}
     </div>

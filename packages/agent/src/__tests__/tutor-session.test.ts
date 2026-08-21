@@ -902,3 +902,49 @@ describe('模型自己决定开始辅导', () => {
     expect(h.session.tutor).toBeNull();
   });
 });
+
+/**
+ * 半路走人，答对过的也要算数。
+ *
+ * 早先攒到 tutor_finish 才一次写入，中途退出全丢——理由是"他没走完"。
+ * 但掌握度是**按知识点**记的，不是按题记的：他在勾股定理上连答对五步
+ * 然后说"先不学了"，那五步是真的发生了。而过度记分的担心本来就不成立，
+ * 辅导里全是 guided，封顶 0.55，够不着 0.6「基本掌握」。
+ */
+describe('中途退出时的落盘', () => {
+  it('用户喊停，已经答对的那几步照样进图谱', async () => {
+    const saved: Array<{ conceptId: string; ok: boolean }> = [];
+    const h = makeHarness([{ text: '好的，那我直接说答案' }], {
+      session: {
+        mode: 'tutor',
+        tutor: {
+          goal: '讲这题',
+          outline: [{ text: 'a', done: false }],
+          startedTurn: 0,
+          pending: null,
+          rightSince: 0,
+          markedSinceAsk: false,
+          attempts: [
+            { conceptId: 'c_pyth', ok: true, guided: true },
+            { conceptId: 'c_tri', ok: false, guided: true },
+          ],
+          concepts: [],
+        },
+      },
+      knowledge: {
+        search: () => [],
+        mentions: () => [],
+        prerequisites: () => [],
+        record: async (as) => {
+          saved.push(...as);
+        },
+      },
+    });
+
+    h.loop.push({ kind: 'text', text: '先不学了，直接告诉我答案', at: Date.now() });
+    await h.loop.drain();
+
+    expect(h.session.mode).toBe('assist');
+    expect(saved.map((a) => a.conceptId)).toEqual(['c_pyth', 'c_tri']);
+  });
+});

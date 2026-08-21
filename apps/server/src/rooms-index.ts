@@ -1,6 +1,7 @@
 import * as Y from 'yjs';
 import { Scene } from '@canvai/canvas-core';
 import { blobs } from './blobs.ts';
+import { currentGraph } from './knowledge.ts';
 import { liveRoom } from './room.ts';
 import { log } from './log.ts';
 
@@ -26,10 +27,21 @@ export interface RoomInfo {
   live: boolean;
   /** 这份快照解不出来。仍然列出来，但要让人看见它坏了 */
   broken?: boolean;
+  /**
+   * 这张画布上的题考察哪些知识点。
+   *
+   * 掌握度是跟着人走的全局记录，但**一道题落在图谱的哪几个点上**
+   * 是这道题自己的属性。放进列表里，是为了"我想练勾股定理"这种找法
+   * ——按题目标题找是找不到的，标题往往只是"第 27 题"。
+   */
+  concepts?: Array<{ id: string; name: string }>;
 }
 
 /** key → { mtime, 解析结果 }。mtime 变了才重新解 */
-const cache = new Map<string, { modified: number; shapes: number; title?: string }>();
+const cache = new Map<
+  string,
+  { modified: number; shapes: number; title?: string; concepts?: Array<{ id: string; name: string }> }
+>();
 
 /** 挑一句能认出这张卷子的话 */
 function titleOf(scene: Scene): string | undefined {
@@ -42,12 +54,32 @@ function titleOf(scene: Scene): string | undefined {
   return pick.text.split('\n')[0]!.slice(0, 60);
 }
 
-function parse(bytes: Uint8Array): { shapes: number; title?: string } {
+/** 画布上所有文字拼起来，用来认这道题考什么 */
+function textOf(scene: Scene): string {
+  return scene
+    .all()
+    .map((s) => (s.type === 'text' ? ((s as { text?: string }).text ?? '') : ''))
+    .filter(Boolean)
+    .join('\n');
+}
+
+function conceptsOf(scene: Scene): Array<{ id: string; name: string }> {
+  const g = currentGraph();
+  if (!g) return [];
+  return g.mentions(textOf(scene), { limit: 4 }).map((n) => ({ id: n.id, name: n.name }));
+}
+
+function parse(bytes: Uint8Array): { shapes: number; title?: string; concepts?: Array<{ id: string; name: string }> } {
   const doc = new Y.Doc();
   Y.applyUpdate(doc, bytes);
   const scene = new Scene(doc);
   const title = titleOf(scene);
-  const out = { shapes: scene.size, ...(title ? { title } : {}) };
+  const concepts = conceptsOf(scene);
+  const out = {
+    shapes: scene.size,
+    ...(title ? { title } : {}),
+    ...(concepts.length > 0 ? { concepts } : {}),
+  };
   doc.destroy();
   return out;
 }
@@ -69,13 +101,30 @@ export async function listRooms(): Promise<RoomInfo[]> {
     const live = liveRoom(id);
     if (live) {
       const title = titleOf(live.scene);
-      out.push({ id, size: b.size, modified: Date.now(), shapes: live.scene.size, ...(title ? { title } : {}), live: true });
+      const concepts = conceptsOf(live.scene);
+      out.push({
+        id,
+        size: b.size,
+        modified: Date.now(),
+        shapes: live.scene.size,
+        ...(title ? { title } : {}),
+        ...(concepts.length > 0 ? { concepts } : {}),
+        live: true,
+      });
       continue;
     }
 
     const hit = cache.get(b.key);
     if (hit && hit.modified === b.modified) {
-      out.push({ id, size: b.size, modified: b.modified, shapes: hit.shapes, ...(hit.title ? { title: hit.title } : {}), live: false });
+      out.push({
+        id,
+        size: b.size,
+        modified: b.modified,
+        shapes: hit.shapes,
+        ...(hit.title ? { title: hit.title } : {}),
+        ...(hit.concepts ? { concepts: hit.concepts } : {}),
+        live: false,
+      });
       continue;
     }
 

@@ -131,6 +131,16 @@ export class BlobLearnerStore implements LearnerStore {
 
 let store: LearnerStore | null = null;
 
+/**
+ * 已经装好的图谱，没装好就是 null——**不触发装载**。
+ *
+ * 列画布是个高频的只读操作，不该顺手把一万多个节点拉进内存；
+ * 装载由开机预热负责。没装好时列表就少显示几个知识点标签，不是错误。
+ */
+export function currentGraph(): KnowledgeGraph | null {
+  return graph;
+}
+
 export function learnerStore(): LearnerStore {
   if (!store) store = new BlobLearnerStore();
   return store;
@@ -154,7 +164,18 @@ export function setLearnerStore(s: LearnerStore | null): void {
  * search 是同步的（图在内存里，微秒级），record 是异步的（要落盘）。
  * 这个不对称是故意留在接口上的——查图随便查，写盘是有代价的。
  */
-export function makeKnowledgePort(learnerId: string): KnowledgePort {
+/**
+ * 掌握度是**跟着人**走的，不是跟着题走的。
+ *
+ * 早先这里传的是房间名——等于每换一张画布，这个学生就变成了另一个人，
+ * 之前做过的题全部作废。图谱本来要回答的是"这个学生哪块弱"，
+ * 按房间切开之后它只能回答"这张画布上发生过什么"，那没有意义。
+ *
+ * 收 getter 而不是字符串：AgentLoop 是每个房间建一次的，而说话的人
+ * 可能换（换个人接着用这张画布），学的是谁得在每次落盘时现问。
+ */
+export function makeKnowledgePort(learner: string | (() => string)): KnowledgePort {
+  const learnerId = typeof learner === 'function' ? learner : () => learner;
   return {
     search(query, limit = 5) {
       const g = graph;
@@ -200,12 +221,13 @@ export function makeKnowledgePort(learnerId: string): KnowledgePort {
       const known = attempts.filter((a) => g.has(a.conceptId));
       if (known.length === 0) return;
       const now = Date.now();
+      const who = learnerId();
       await recordAttempts(
         learnerStore(),
-        learnerId,
+        who,
         known.map((a) => ({ ...a, at: now })),
       );
-      log.info('kg.learned', { learner: learnerId, concepts: known.length });
+      log.info('kg.learned', { learner: who, concepts: known.length });
     },
   };
 }

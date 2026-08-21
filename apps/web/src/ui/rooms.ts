@@ -20,6 +20,18 @@ export interface RoomInfo {
   live?: boolean;
   /** 这份快照解不出来 */
   broken?: boolean;
+  /** 这道题考察哪些知识点。掌握度是全局的，但"这道题考什么"是题目自己的属性 */
+  concepts?: Array<{ id: string; name: string }>;
+}
+
+/** 浏览器里那个跨房间、跨刷新都不变的身份——掌握度跟着它走，不跟画布走 */
+export function myLearnerId(): string {
+  try {
+    const me = JSON.parse(localStorage.getItem('canvai.me') ?? '{}') as { id?: string };
+    return me.id ?? 'anonymous';
+  } catch {
+    return 'anonymous';
+  }
 }
 
 export async function fetchRooms(): Promise<RoomInfo[]> {

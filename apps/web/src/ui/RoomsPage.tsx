@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { VisionSettings } from './VisionSettings';
-import { ago, fetchRooms, goto, needsVisionKey, slug, uploadPaperToNewRoom, type RoomInfo } from './rooms';
+import { ago, fetchRooms, goto, myLearnerId, needsVisionKey, slug, uploadPaperToNewRoom, type RoomInfo } from './rooms';
 
 /**
  * 画布列表页——这个应用的门厅。
@@ -55,12 +55,21 @@ export function RoomsPage() {
         <div>
           <h1>画布</h1>
           <p className="rp-sub">
-            每张画布是一份独立的题目和一份独立的学习记录——知识图谱按画布名分开记掌握度。
+            一张画布放一道题。知识图谱记的是你的掌握度，跨所有画布累计——换一张画布不会换一个学生。每张卡片下面的标签是这道题考察的知识点。
           </p>
         </div>
-        <button className="rp-link" onClick={() => setShowVision(true)}>
-          视觉模型设置
-        </button>
+        <div className="rp-head-actions">
+          {/* 掌握度是**一份**全局记录，不按画布分——所以这个入口在页头，不在卡片上 */}
+          <button
+            className="rp-link"
+            onClick={() => (location.search = `view=kg&learner=${encodeURIComponent(myLearnerId())}`)}
+          >
+            我的知识图谱
+          </button>
+          <button className="rp-link" onClick={() => setShowVision(true)}>
+            视觉模型设置
+          </button>
+        </div>
       </header>
 
       <div className="rp-bar">
@@ -126,25 +135,20 @@ export function RoomsPage() {
               <span>·</span>
               <span>{ago(r.modified)}</span>
             </div>
-            <div className="rp-actions">
-              {/* 阻止冒泡：卡片整体是"打开画布"，这两个是例外 */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  goto(r.id);
-                }}
-              >
-                打开
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  location.search = `view=kg&learner=${encodeURIComponent(r.id)}`;
-                }}
-              >
-                知识图谱
-              </button>
-            </div>
+            {/*
+              这道题考什么。不是掌握度——掌握度跟着人走，一份全局记录；
+              这里是题目自己的属性，用来回答"我想练勾股定理该开哪张画布"。
+              按标题找是找不到的，标题往往只是「第 27 题」。
+            */}
+            {r.concepts && r.concepts.length > 0 && (
+              <div className="rp-tags">
+                {r.concepts.map((c) => (
+                  <span key={c.id} className="rp-tag">
+                    {c.name}
+                  </span>
+                ))}
+              </div>
+            )}
           </article>
         ))}
       </div>
