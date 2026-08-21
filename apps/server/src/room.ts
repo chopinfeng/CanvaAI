@@ -83,10 +83,10 @@ export class Room {
 
   private makeAgent(): AgentLoop {
     const model = new DeepSeekClient({
-      apiKey: config.deepseek.apiKey,
-      baseUrl: config.deepseek.baseUrl,
-      model: config.deepseek.model,
-      reasonerModel: config.deepseek.reasonerModel,
+      apiKey: config.llm.apiKey,
+      baseUrl: config.llm.baseUrl,
+      model: config.llm.model,
+      reasonerModel: config.llm.reasonerModel,
     });
 
     // 没配视觉模型就把 canvas_snapshot 摘掉——留着只会让模型反复去调一个读不出内容的工具
@@ -98,6 +98,8 @@ export class Room {
 
     return new AgentLoop({
       model,
+      maxSteps: config.turn.maxSteps,
+      maxMs: config.turn.maxMs,
       knowledge,
       registry,
       scene: this.scene,
@@ -479,6 +481,16 @@ export async function getRoom(id: string): Promise<Room> {
     rooms.set(id, room);
   }
   return room;
+}
+
+/**
+ * 已经开着的房间，没开就是 undefined。
+ *
+ * 刻意不像 getRoom 那样"没有就建一个"：列画布只是想看看，
+ * 顺手把二十几个房间全从磁盘加载进内存不是它该干的事。
+ */
+export function liveRoom(id: string): Room | undefined {
+  return rooms.get(id);
 }
 
 export async function closeIdleRooms(): Promise<void> {

@@ -5,7 +5,7 @@ import { AgentPanel } from './ui/AgentPanel';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import { Toolbar } from './ui/Toolbar';
 import { Confetti } from './ui/Confetti';
-import { VisionSettings } from './ui/VisionSettings';
+import { VisionSettings, loadVision } from './ui/VisionSettings';
 import { CanvasStage } from './canvas/CanvasStage';
 import { Connection } from './net/connection';
 import { shapeBounds } from '@canvai/canvas-core';
@@ -44,6 +44,28 @@ export function App() {
     return c;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
+
+  /**
+   * ?import=<assetId>：从"传试卷到新画布"跳过来的。
+   *
+   * 图在跳转**之前**就已经传到服务端了，所以这里只需要触发识别。
+   * 反过来做不到——File 对象过不了页面边界。
+   *
+   * 触发后立刻把参数从地址栏抹掉：留着的话，刷新一次就会把同一张卷子
+   * 再识别一遍，用户会以为自己手抖点了两次。
+   */
+  useEffect(() => {
+    const assetId = new URLSearchParams(location.search).get('import');
+    if (!assetId) return;
+    const v = loadVision();
+    const off = conn.onceOpen(() => {
+      conn.send({ t: 'paper.import', assetId, vision: { baseUrl: v.baseUrl, apiKey: v.apiKey, model: v.model } });
+    });
+    const q = new URLSearchParams(location.search);
+    q.delete('import');
+    history.replaceState(null, '', `${location.pathname}?${q.toString()}`);
+    return off;
+  }, [conn]);
 
   /* ---------------------------------------------------------------- *
    * 场景 → store
@@ -286,7 +308,7 @@ export function App() {
       <ErrorBoundary label="画布">
         <CanvasStage conn={conn} me={me} />
       </ErrorBoundary>
-      <Toolbar conn={conn} onNeedKey={() => setShowVision(true)} />
+      <Toolbar conn={conn} roomId={roomId} onNeedKey={() => setShowVision(true)} />
       <AgentPanel conn={conn} onOpenVision={() => setShowVision(true)} />
       <Confetti />
       {showVision && <VisionSettings onClose={() => setShowVision(false)} />}

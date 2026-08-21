@@ -17,6 +17,112 @@ export interface DeepSeekOptions {
  * 不依赖 openai SDK：SSE 解析本身很简单，自己实现能精确控制
  * tool_calls 分片的拼装和中断行为——这两件事是 Agent Loop 的地基。
  */
+/**
+ * 把工具的 JSON Schema 规整成各家都收的形状。
+ *
+ * 起因：元组式的 `items`（`items: [{type:'number'}, ...]`，JSON Schema
+ * draft-7 用它表达定长数组）DeepSeek 收，OpenRouter 上的 stealth/ox-alpha
+ * 直接回 400，而且只说一句 "Provider returned error"——不告诉你是哪个字段。
+ * 光是定位到 student_look.region 这一个字段就花了一轮二分。
+ *
+ * 转成单 schema 形式（2020-12 里元组该用 prefixItems，但支持面更窄）。
+ * minItems/maxItems 留着，长度约束不丢；丢掉的只是"第几个元素是什么类型"，
+ * 而这些位置本来就全是同一种类型（坐标、边界框）。
+ *
+ * 放在客户端而不是 schema 定义处：这是端点的口味问题，不是我们的 schema 有错。
+ * 写死在定义里的话，换回 DeepSeek 就白白损失了精度。
+ */
+/* ------------------------------------------------------------------ *
+ * 换端点时的取证开关
+ *
+ * 上游出问题时给的信息经常约等于没有：OpenRouter 上 stealth/ox-alpha 的
+ * 400 只回一句 "Provider returned error"，不说是哪个字段；而 tool_call 的
+ * index 冲突干脆连错误都不报，只是"产出了一千多个 token 然后什么都没发生"。
+ * 这两个开关是那两次排查里真正起作用的东西，所以留着。
+ *
+ *   LLM_DUMP=/tmp/req.json       原样请求体（key 在 header 里，不会落进来）
+ *   LLM_DUMP_RES=/tmp/res.jsonl  每个流式分片一行
+ *
+ * 默认全关。开着会把对话内容写到磁盘，别在生产上开。
+ * ------------------------------------------------------------------ */
+
+function dumpRequest(body: string): void {
+  const to = process.env.LLM_DUMP;
+  if (!to) return;
+  void import('node:fs').then((fs) => fs.writeFileSync(to, body));
+}
+
+function dumpDelta(delta: unknown): void {
+  const to = process.env.LLM_DUMP_RES;
+  if (!to) return;
+  void import('node:fs').then((fs) => fs.appendFileSync(to, JSON.stringify(delta) + '\n'));
+}
+
+/** 流式下发的 tool_call 分片 */
+export interface ToolCallDelta {
+  index?: number;
+  id?: string;
+  type?: string;
+  function?: { name?: string; arguments?: string };
+}
+
+/**
+ * 把分片拼回完整的工具调用。
+ *
+ * 不能只按 index 拼：stealth/ox-alpha 一轮里发两个工具调用时，**两个都标 index 0**。
+ * 只认 index 的话，第二个调用的 arguments 会被接到第一个后面，拼成
+ * `{"limit":30}{"detail":"full",…}`——不是合法 JSON，于是整轮工具一个都没执行。
+ * 表面症状是"模型产出了一千多个 token，然后什么都没发生"，日志里连报错都没有。
+ *
+ * 所以：带了新 id 的分片就是一个新调用，不管它的 index 是几。
+ * 按到达顺序返回，不再靠 index 排序——index 本来就不可信了。
+ */
+export function mergeToolCallDeltas(frames: Iterable<ToolCallDelta[]>): ToolCall[] {
+  const calls: ToolCall[] = [];
+  const slot = new Map<number, number>(); // index → calls 里的位置
+
+  for (const frame of frames) {
+    for (const tc of frame) {
+      const idx = tc.index ?? 0;
+      const at = slot.get(idx);
+      const cur = at === undefined ? undefined : calls[at];
+
+      // 只有"接着拼同一个"的分片才不带 id
+      if (cur === undefined || (tc.id !== undefined && tc.id !== cur.id)) {
+        calls.push({
+          id: tc.id ?? `call_${calls.length}`,
+          type: 'function' as const,
+          function: { name: '', arguments: '' },
+        });
+        slot.set(idx, calls.length - 1);
+      }
+
+      const target = calls[slot.get(idx)!]!;
+      if (tc.function?.name) target.function.name += tc.function.name;
+      if (tc.function?.arguments) target.function.arguments += tc.function.arguments;
+    }
+  }
+  return calls;
+}
+
+export function compatSchema(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(compatSchema);
+  if (!node || typeof node !== 'object') return node;
+
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+    if (k === 'items' && Array.isArray(v)) {
+      const parts = v as Array<Record<string, unknown>>;
+      const types = new Set(parts.map((p) => p?.type));
+      // 元素类型一致（坐标数组的常态）就保留类型，否则只能放宽成"任意"
+      out[k] = types.size === 1 ? compatSchema(parts[0]) : {};
+      continue;
+    }
+    out[k] = compatSchema(v);
+  }
+  return out;
+}
+
 export class DeepSeekClient implements ModelClient {
   readonly name = 'deepseek';
   private readonly apiKey: string;
@@ -60,21 +166,27 @@ export class DeepSeekClient implements ModelClient {
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
+      const body = JSON.stringify({
+          model: req.model ?? this.model,
+          messages: req.messages,
+          ...(req.tools && req.tools.length > 0
+            ? { tools: compatSchema(req.tools) as typeof req.tools, tool_choice: 'auto' }
+            : {}),
+          temperature: req.temperature ?? 0.3,
+          max_tokens: req.maxTokens ?? 4096,
+          stream: true,
+          stream_options: { include_usage: true },
+      });
+
+      dumpRequest(body);
+
       const res = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
           authorization: `Bearer ${this.apiKey}`,
         },
-        body: JSON.stringify({
-          model: req.model ?? this.model,
-          messages: req.messages,
-          ...(req.tools && req.tools.length > 0 ? { tools: req.tools, tool_choice: 'auto' } : {}),
-          temperature: req.temperature ?? 0.3,
-          max_tokens: req.maxTokens ?? 4096,
-          stream: true,
-          stream_options: { include_usage: true },
-        }),
+        body,
         signal: controller.signal,
       });
 
@@ -87,8 +199,8 @@ export class DeepSeekClient implements ModelClient {
         );
       }
 
-      /** tool_calls 是按 index 分片流式下发的，必须自己拼 */
-      const pending = new Map<number, ToolCall>();
+      /** tool_call 分片，攒齐了在 mergeToolCallDeltas 里拼 */
+      const frames: ToolCallDelta[][] = [];
       let finishReason = 'stop';
       let usage: Usage | undefined;
 
@@ -117,27 +229,19 @@ export class DeepSeekClient implements ModelClient {
         const delta = choice.delta;
         if (!delta) continue;
 
-        if (delta.reasoning_content) yield { kind: 'reasoning', delta: delta.reasoning_content };
+        dumpDelta(delta);
+
+        // reasoning_content 是 DeepSeek 的字段名，OpenRouter 上叫 reasoning。
+        // 只认一个的话，换端点之后思维链会静悄悄地不见——不报错，就是没了。
+        const cot = delta.reasoning_content ?? delta.reasoning;
+        if (cot) yield { kind: 'reasoning', delta: cot };
         if (delta.content) yield { kind: 'text', delta: delta.content };
 
-        for (const tc of delta.tool_calls ?? []) {
-          const idx = tc.index ?? 0;
-          const cur = pending.get(idx) ?? {
-            id: tc.id ?? `call_${idx}`,
-            type: 'function' as const,
-            function: { name: '', arguments: '' },
-          };
-          if (tc.id) cur.id = tc.id;
-          if (tc.function?.name) cur.function.name += tc.function.name;
-          if (tc.function?.arguments) cur.function.arguments += tc.function.arguments;
-          pending.set(idx, cur);
-        }
+        if (delta.tool_calls?.length) frames.push(delta.tool_calls);
       }
 
-      if (pending.size > 0) {
-        const calls = [...pending.entries()].sort((a, b) => a[0] - b[0]).map(([, c]) => c);
-        yield { kind: 'tool_calls', calls };
-      }
+      const calls = mergeToolCallDeltas(frames);
+      if (calls.length > 0) yield { kind: 'tool_calls', calls };
       yield { kind: 'done', finishReason, ...(usage ? { usage } : {}) };
     } catch (e) {
       if (e instanceof ModelError) throw e;
@@ -186,6 +290,7 @@ interface DeepSeekChunk {
     delta?: {
       content?: string;
       reasoning_content?: string;
+      reasoning?: string;
       tool_calls?: Array<{
         index?: number;
         id?: string;

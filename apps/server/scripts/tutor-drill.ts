@@ -150,9 +150,9 @@ const port: StudentPort = {
 
 const student = new StudentAgent({
   model: new DeepSeekClient({
-    apiKey: config.deepseek.apiKey,
-    baseUrl: config.deepseek.baseUrl,
-    model: config.deepseek.model,
+    apiKey: config.llm.apiKey,
+    baseUrl: config.llm.baseUrl,
+    model: config.llm.model,
   }),
   port,
   persona: PERSONAS[personaName],
@@ -208,7 +208,15 @@ function scheduleNudge(ms = 1200): void {
  * 会一直干等到 10 分钟的总超时——第一次跑 impatient 就是这么卡住的。
  */
 let quietTimer: NodeJS.Timeout | null = null;
-function armQuiet(ms = 45_000): void {
+/**
+ * 多久没动静算收工。
+ *
+ * 下限是"一次模型调用最慢要多久"——比它短的话，慢模型会被误判成卡死。
+ * ox-alpha 实测单次 10~20 秒，留三倍余量。
+ */
+const QUIET_MS = Number(flag('quiet-sec', '90')) * 1000;
+
+function armQuiet(ms = QUIET_MS): void {
   if (quietTimer) clearTimeout(quietTimer);
   quietTimer = setTimeout(() => {
     if (finished) return;
@@ -254,6 +262,18 @@ ws.on('message', (data: ArrayBuffer | Buffer) => {
 });
 
 function handleServer(msg: ServerMessage): void {
+  /**
+   * 老师那边**有任何动静**就重新计时。
+   *
+   * 早先这个计时器只在老师"说话"时重置，于是老师埋头调工具的那段时间被算成
+   * 闲置——换到 stealth/ox-alpha 之后一轮要三次模型调用、四十多秒，
+   * 演练脚本在它干到一半时判它没动静收工，然后给出一份"老师问了 0 次"的
+   * 判分表。那份表看起来像产品坏了，其实是尺子坏了。
+   *
+   * "两边都没动静"应该是字面意思：真的什么都没发生。
+   */
+  if (msg.t.startsWith('agent.') || msg.t === 'session.mode') armQuiet();
+
   switch (msg.t) {
     case 'agent.say':
       tape.teacherSays.push(msg.text);

@@ -8,6 +8,7 @@ import { installCrashHandlers, log } from './log.ts';
 import { closeIdleRooms, getRoom, saveAllRooms } from './room.ts';
 import { initRasterizer } from './rasterizer.ts';
 import { hasWeb, serveWeb } from './static.ts';
+import { listRooms } from './rooms-index.ts';
 
 // 第一件事就是装崩溃处理：之后任何环节出问题都能留下现场
 installCrashHandlers({ onFatal: saveAllRooms });
@@ -40,6 +41,26 @@ const server = createServer((req, res) => {
     return;
   }
   req.url = path;
+
+  /**
+   * 有哪些画布。
+   *
+   * 切换画布时得先知道有哪些——早先只能靠改 URL 里的 ?room=，
+   * 而房间名全在人脑子里记着。最近改过的排前面：按名字排的话，
+   * 刚建的房间会沉在一堆测试房间中间。
+   */
+  if (req.url === '/rooms' && (req.method === 'GET' || req.method === 'HEAD')) {
+    void listRooms()
+      .then((rooms) => {
+        res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+        res.end(JSON.stringify({ rooms }));
+      })
+      .catch((e) => {
+        log.error('rooms.list_failed', { message: (e as Error).message });
+        res.writeHead(500).end(JSON.stringify({ error: (e as Error).message }));
+      });
+    return;
+  }
 
   /* ---- 知识图谱：查图、看掌握度、记练习结果 ---- */
 
@@ -112,7 +133,7 @@ const server = createServer((req, res) => {
     res.end(
       JSON.stringify({
         ok: true,
-        agent: hasAgent() ? config.deepseek.model : null,
+        agent: hasAgent() ? config.llm.model : null,
         vision: hasVision() ? config.vlm.model : null,
         uptimeSec: Math.round(process.uptime()),
         logFile: log.file(),
@@ -205,7 +226,7 @@ server.listen(config.port, () => {
     http: `http://localhost:${config.port}`,
     ws: `ws://localhost:${config.port}/ws`,
     env: envFiles.join(', ') || '(仅环境变量)',
-    agent: hasAgent() ? config.deepseek.model : null,
+    agent: hasAgent() ? config.llm.model : null,
     vision: hasVision() ? config.vlm.model : null,
     logFile: log.file(),
   });

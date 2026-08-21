@@ -49,6 +49,9 @@ function sniffImageMime(b: Uint8Array): string {
   return 'image/png';
 }
 
+/** 视觉调用最多等多久。读一张试卷正常十几秒，超过两分钟就是上游出问题了 */
+const TIMEOUT_MS = Number(process.env.VLM_TIMEOUT_MS ?? 120_000);
+
 export interface VisionCreds {
   baseUrl?: string;
   apiKey?: string;
@@ -125,7 +128,31 @@ export function makeVisionProvider(creds: VisionCreds = {}): VisionProvider {
                 (j as { choices?: Array<{ message?: { content?: string } }> }).choices?.[0]?.message?.content ?? '',
             };
 
-      const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+      /**
+       * 必须有超时。
+       *
+       * 早先这里是一个裸 fetch——上游挂住就永远挂住，而调用方
+       * （上传试卷）已经跟用户说了"正在读这张试卷…"，于是这句话
+       * 就一直挂在屏幕上，不成功也不失败。实测在 OpenRouter 上
+       * 撞到过一次：一个请求超过五分钟没有任何响应，也没有任何报错。
+       *
+       * 宁可告诉他"超时了，重试一次"，也不能让他对着一句进度条干等。
+       */
+      const abort = new AbortController();
+      const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
+      let res: Response;
+      try {
+        res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: abort.signal });
+      } catch (e) {
+        if ((e as Error).name === 'AbortError') {
+          log.error('vision.timeout', { protocol: proto, model, afterMs: TIMEOUT_MS });
+          throw new Error(`视觉模型 ${Math.round(TIMEOUT_MS / 1000)} 秒没有响应，重试一次试试。`);
+        }
+        throw e;
+      } finally {
+        clearTimeout(timer);
+      }
+
       if (!res.ok) {
         const detail = await res.text().catch(() => '');
         log.error('vision.failed', { protocol: proto, status: res.status, detail: detail.slice(0, 300) });
