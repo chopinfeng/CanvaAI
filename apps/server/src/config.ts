@@ -94,6 +94,15 @@ export const config = {
     baseUrl: env('VLM_BASE_URL'),
     apiKey: env('VLM_API_KEY'),
     model: env('VLM_MODEL'),
+    /**
+     * 单次回复的 token 上限。
+     *
+     * 默认给得比较宽，因为**推理模型的思考 token 也算在这里面**。
+     * 早先写死 800，Kimi K3 这类常开推理的模型思考完就没预算了，
+     * 返回一截 12 个字符的碎片——在基准里表现成"模型读不出题"，
+     * 其实是我们把它的嘴捂上了。
+     */
+    maxTokens: Number(env('VLM_MAX_TOKENS', '4000')),
     /** openai | anthropic；留空按 base URL 自动判断 */
     protocol: env('VLM_PROTOCOL'),
   },

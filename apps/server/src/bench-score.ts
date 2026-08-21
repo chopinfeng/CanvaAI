@@ -16,6 +16,14 @@ export interface Truth {
   id: string;
   topic: string;
   statement: string;
+  /**
+   * 扫描件左上角印的题号。
+   *
+   * 它是图上**真有**的内容，模型把它读出来是读对了不是编的。
+   * 早先没算进 truth，于是 U2/U3/U4 全被判成"编了 28/29/30"——
+   * 三个连号，一眼就该看出是题号而不是幻觉。
+   */
+  serial?: number;
   /** 已知量。值可能是数也可能是 '60°' 这类带单位的字符串，按原样比对 */
   known?: Record<string, string | number>;
   answer?: string;
@@ -52,15 +60,42 @@ export function parseJson(text: string): Extracted | null {
   }
 }
 
-/** 抓出文本里所有的数（含分数和小数） */
+/**
+ * 上下标数字转成普通数字。
+ *
+ * ∫₀¹ 里的 ₀ ¹、aₙ 里的下标、x² 里的 ² 都是独立的 Unicode 字符，
+ * `\d` 一个都匹配不到。不转的话「计算定积分 ∫₀¹ x·eˣ dx」被算成
+ * **一个数都没有**，于是这道题 0/0 无条件满分——本科那一档的分数
+ * 就是这么虚高上去的。测出来的东西自己知道有问题，就得先修再报。
+ */
+const SUB = '₀₁₂₃₄₅₆₇₈₉';
+const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+function normalizeDigits(s: string): string {
+  let out = '';
+  let prev: 'sub' | 'sup' | null = null;
+  for (const ch of s) {
+    const i = SUB.indexOf(ch);
+    const j = SUP.indexOf(ch);
+    const cls = i >= 0 ? 'sub' : j >= 0 ? 'sup' : null;
+
+    // 下标紧接上标（∫₀¹ 的积分限）是**两个**数，中间得断开——
+    // 不断的话变成 "01"，0 和 1 都对不上了
+    if (cls && prev && cls !== prev) out += ' ';
+    out += cls ? String(i >= 0 ? i : j) : ch;
+    prev = cls;
+  }
+  return out;
+}
+
+/** 抓出文本里所有的数（含分数和小数，上下标也算） */
 export function numbersIn(s: string): Set<string> {
   const out = new Set<string>();
-  for (const m of s.matchAll(/\d+(?:\.\d+)?(?:\/\d+)?/g)) out.add(m[0]);
+  for (const m of normalizeDigits(s).matchAll(/\d+(?:\.\d+)?(?:\/\d+)?/g)) out.add(m[0]);
   return out;
 }
 
 export function score(p: Truth, got: Extracted | null, rawLen = 0): Score {
-  const knownTotal = Object.keys(p.known ?? {}).length;
+  const knownTotal = numbersIn(p.statement).size;
 
   if (!got) {
     return {
@@ -77,30 +112,29 @@ export function score(p: Truth, got: Extracted | null, rawLen = 0): Score {
 
   const flat = JSON.stringify(got);
 
-  /* ---- 已知量：名字和数值都要对上 ---- */
-  const known = p.known ?? {};
-  let hit = 0;
-  for (const name of Object.keys(known)) {
-    const want = String(known[name]);
+  /**
+   * 数值保真：题干里出现的数，模型有没有原样读出来。
+   *
+   * 早先这里比的是 `known` 字典——结果测的是"模型猜不猜得中我起的中文键名"。
+   * 实测 U5 模型把题干一字不差读了下来（∂ 符号都对），却因为它写
+   * {"x":1,"y":2} 而我写 {"f(x,y)":...,"点":...} 被判 0/2。那是我的指标坏了。
+   *
+   * 现在只比数：题干是扫描件上真实印着的内容，里面的每个数模型都该读出来。
+   * 这才是"读得准不准"。至于它把条件归到哪个键名下，是格式偏好，不是能力。
+   */
+  const wantNums = [...numbersIn(p.statement)].filter((x) => x !== String(p.serial));
+  const gotBlob = `${got.statement ?? ''} ${JSON.stringify(got.known ?? {})} ${(got.asks ?? []).join(' ')}`;
+  const gotSet = numbersIn(gotBlob);
+  let hit = wantNums.filter((x) => gotSet.has(x)).length;
+  const knownTotal2 = wantNums.length;
 
-    /**
-     * 模型**明确给了**这个量的结构化值时，就以它为准，不再退回文本匹配。
-     *
-     * 这条是负对照跑出来的：假模型把 known 写成 λ=3（错的），
-     * 但题干原文里还留着 "λ = 2"，文本兜底一匹配就判成命中了。
-     * 下游 Agent 读的是 known 这个结构化字段——那里给了错值就是错值，
-     * 题干里恰好还留着对的数不能替它开脱。
-     *
-     * 文本兜底只在模型**没填**这个键时才用：有的模型只把条件写在题干里，
-     * 不代表它读错了。
-     */
+  /**
+   * 另外：模型**明确声明**了某个已知量却写错值的，直接算一次失分。
+   * 下游 Agent 读的是这个结构化字段，那里给了错值就是错值。
+   */
+  for (const [name, want] of Object.entries(p.known ?? {})) {
     const declared = got.known !== undefined && got.known[name] !== undefined;
-    if (declared) {
-      if (String(got.known![name]) === want) hit++;
-      continue;
-    }
-
-    if (new RegExp(`${name}\\s*[=＝]\\s*${want}(?!\\d)`).test(flat)) hit++;
+    if (declared && String(got.known![name]) !== String(want)) hit = Math.max(0, hit - 1);
   }
 
   /* ---- 所求：答案里出现的量名，得在 asks 或题干里被提到 ---- */
@@ -119,15 +153,17 @@ export function score(p: Truth, got: Extracted | null, rawLen = 0): Score {
    * 这条是整个基准里最要紧的指标——辅导时读错一个数，
    * 后面整场推导都建在错的前提上，而模型每一步都理直气壮。
    */
-  const truthNums = numbersIn(`${p.statement} ${JSON.stringify(known)} ${p.answer ?? ''}`);
+  const truthNums = numbersIn(
+    `${p.statement} ${JSON.stringify(p.known ?? {})} ${p.answer ?? ''} ${p.serial ?? ''}`,
+  );
   const gotNums = [...numbersIn(`${got.statement ?? ''} ${JSON.stringify(got.known ?? {})}`)];
   const hallucinated = gotNums.filter((n) => !truthNums.has(n) && Number(n) > 2);
 
   return {
     id: p.id,
-    ok: hit === knownTotal && asksHit && hallucinated.length === 0,
+    ok: hit === knownTotal2 && asksHit && hallucinated.length === 0,
     knownHit: hit,
-    knownTotal,
+    knownTotal: knownTotal2,
     asksHit,
     topicHit,
     hallucinated,

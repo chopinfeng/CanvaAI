@@ -101,11 +101,17 @@ const PROMPT = `这是一张数学试卷的扫描件。请**只提取你在图�
  * 跑
  * ------------------------------------------------------------------ */
 
-/** problems.ts 的 Problem 里还带着画图函数，打分只要这几个字段 */
+/**
+ * problems.ts 的 Problem 里还带着画图函数，打分只要这几个字段。
+ *
+ * serial 是扫描件上印的题号——make-mock-scans 用的就是 PROBLEMS 里的
+ * 1-based 下标，所以这里必须从**完整题库**里取，不能从筛过的 pool 里取。
+ */
 const toTruth = (p: Problem) => ({
   id: p.id,
   topic: p.topic,
   statement: p.statement,
+  serial: PROBLEMS.indexOf(p) + 1,
   ...(p.known ? { known: p.known } : {}),
   ...(p.answer ? { answer: p.answer } : {}),
 });
@@ -150,7 +156,7 @@ async function main(): Promise<void> {
 
     const mark = s.ok ? '✓' : '✗';
     const bits = [
-      `已知 ${s.knownHit}/${s.knownTotal}`,
+      `数值 ${s.knownHit}/${s.knownTotal}`,
       s.asksHit ? '所求✓' : '所求✗',
       s.topicHit ? '考点✓' : '考点✗',
       s.hallucinated.length > 0 ? `编了 ${s.hallucinated.join(',')}` : '',
@@ -167,7 +173,7 @@ async function main(): Promise<void> {
 
   console.log(`\n=== 汇总 ===`);
   console.log(`整题全对    ${scores.filter((s) => s.ok).length}/${n}`);
-  console.log(`已知量保真  ${knownHit}/${knownTotal}  (${((knownHit / knownTotal) * 100).toFixed(0)}%)`);
+  console.log(`数值保真    ${knownHit}/${knownTotal}  (${((knownHit / knownTotal) * 100).toFixed(0)}%)`);
   console.log(`所求识别    ${scores.filter((s) => s.asksHit).length}/${n}`);
   console.log(`考点识别    ${scores.filter((s) => s.topicHit).length}/${n}`);
   console.log(`**编数字**  ${withHallu}/${n} 道题出现了题目里没有的数`);
@@ -186,7 +192,7 @@ async function main(): Promise<void> {
       const hal = sub.filter((s) => s.hallucinated.length > 0).length;
       console.log(
         `${st.padEnd(3)} 全对 ${String(sub.filter((s) => s.ok).length).padStart(2)}/${sub.length}` +
-          ` · 已知量 ${((kh / kt) * 100).toFixed(0)}%` +
+          ` · 数值 ${((kh / kt) * 100).toFixed(0)}%` +
           ` · 编数字 ${hal}/${sub.length}`,
       );
     }

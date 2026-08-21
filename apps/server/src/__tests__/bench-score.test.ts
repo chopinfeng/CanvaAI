@@ -36,40 +36,52 @@ describe('抓数字', () => {
   it('整数、小数、分数都抓得到', () => {
     expect([...numbersIn('AB=13，x=2.6，BE=13/5')]).toEqual(['13', '2.6', '13/5']);
   });
+
+  it('上下标也要算——否则 ∫₀¹ 会被当成"一个数都没有"', () => {
+    // 真机跑出来的：U1「计算定积分 ∫₀¹ x·eˣ dx」抓不到任何数，
+    // 于是 0/0 无条件满分，本科那一档的分就是这么虚高的
+    const got = numbersIn('计算定积分 ∫₀¹ x·eˣ dx');
+    expect(got.has('0')).toBe(true);
+    expect(got.has('1')).toBe(true);
+  });
+
+  it('下标数列记号 a₁ / S₁₀ 也抓得到', () => {
+    const got = numbersIn('a₁ = 3，求 S₁₀');
+    expect(got.has('1')).toBe(true);
+    expect(got.has('10')).toBe(true);
+    expect(got.has('3')).toBe(true);
+  });
 });
 
-describe('已知量保真', () => {
-  it('填进 known 对象算命中', () => {
-    const s = score(G1, { known: { AB: 13, AD: 5 }, asks: ['求 DF'], topic: '勾股定理' });
-    expect(s.knownHit).toBe(2);
+describe('数值保真——比的是数，不是键名', () => {
+  it('题干里的数全读对就算满分，键名叫什么无所谓', () => {
+    // 真机跑出来的案例：模型把 U5 题干一字不差读了下来（∂ 符号都对），
+    // 却因为它写 {"x":1,"y":2} 而我写 {"f(x,y)":...,"点":...} 被判 0/2。
+    // 那是指标坏了——我在考它猜不猜得中我起的中文键名。
+    const s = score(G1, {
+      statement: '矩形 ABCD 中，AB=13，AD=5。(1) 求 DF 与 FC 的长；(2) 求线段 BE 的长。',
+      known: { 边长1: 13, 边长2: 5 },
+    });
+    expect(s.knownHit).toBe(s.knownTotal);
   });
 
-  it('只写在题干里的 "AB=13" 同样算命中——模型没义务按我们的结构填', () => {
-    const s = score(G1, { statement: '矩形 ABCD 中，AB=13，AD=5。求 DF。', topic: '勾股定理' });
-    expect(s.knownHit).toBe(2);
+  it('漏读一个数就少一分', () => {
+    const s = score(G1, { statement: '矩形 ABCD 中，AB=13。(1) 求 DF；(2) 求 BE。' });
+    expect(s.knownHit).toBeLessThan(s.knownTotal);
   });
 
-  it('读错数值不算命中', () => {
-    const s = score(G1, { known: { AB: 12, AD: 5 }, asks: ['求 DF'] });
-    expect(s.knownHit).toBe(1);
-    expect(s.ok).toBe(false);
+  it('模型明确声明的已知量写错值，再扣一分——下游读的就是这个字段', () => {
+    const right = score(G1, { statement: '矩形 ABCD 中，AB=13，AD=5。(1)(2)' });
+    const wrong = score(G1, {
+      statement: '矩形 ABCD 中，AB=13，AD=5。(1)(2)',
+      known: { AB: 12 }, // 和 ground truth 的 13 冲突
+    });
+    expect(wrong.knownHit).toBeLessThan(right.knownHit);
   });
 
-  it('known 里明确写了错值，就算题干里还留着对的数也不算命中', () => {
-    // 负对照跑出来的洞：下游读的是 known 这个结构化字段，
-    // 那里给了错值就是错值，题干里恰好还有对的数不能替它开脱
-    const s = score(G1, { known: { AB: 12, AD: 5 }, statement: '矩形 ABCD 中，AB=13，AD=5。' });
-    expect(s.knownHit).toBe(1);
-  });
-
-  it('模型没填 known 时才退回文本匹配——只写在题干里不代表读错了', () => {
-    const s = score(G1, { known: { AD: 5 }, statement: '矩形 ABCD 中，AB=13。' });
-    expect(s.knownHit).toBe(2);
-  });
-
-  it('数值是对的前缀也不能算命中（13 不该被 1 匹配上）', () => {
-    const s = score({ ...G1, known: { AB: 1 } }, { statement: 'AB=13' });
-    expect(s.knownHit).toBe(0);
+  it('13 不会被 1 误判成命中——按整数切词，不做前缀匹配', () => {
+    expect([...numbersIn('AB=13')]).toEqual(['13']);
+    expect(numbersIn('AB=13').has('1')).toBe(false);
   });
 });
 
@@ -88,6 +100,13 @@ describe('数字幻觉——这条最要紧', () => {
       statement: '(1) 求 DF 与 FC 的长；(2) 求线段 BE 的长。AB=13，AD=5',
       known: { AB: 13, AD: 5 },
     });
+    expect(s.hallucinated).toEqual([]);
+  });
+
+  it('扫描件上印的题号不算幻觉——那是图上真有的内容', () => {
+    // 真机跑出来的：U2/U3/U4 被判"编了 28/29/30"，三个连号，
+    // 一眼该看出是题号。模型把它读出来是读对了。
+    const s = score({ ...G1, serial: 28 }, { statement: '28. 矩形 ABCD 中，AB=13，AD=5。' });
     expect(s.hallucinated).toEqual([]);
   });
 

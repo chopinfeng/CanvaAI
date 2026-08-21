@@ -29,7 +29,7 @@ const DEFAULT_PROMPT =
   '只描述你确实看到的，不要推测。';
 
 export function makeVisionProvider(): VisionProvider {
-  const { baseUrl, apiKey, model, protocol } = config.vlm;
+  const { baseUrl, apiKey, model, protocol, maxTokens } = config.vlm;
   const proto = detectProtocol(baseUrl, protocol);
   const root = baseUrl.replace(/\/$/, '');
 
@@ -52,7 +52,7 @@ export function makeVisionProvider(): VisionProvider {
               },
               body: {
                 model,
-                max_tokens: 800,
+                max_tokens: maxTokens,
                 messages: [
                   {
                     role: 'user',
@@ -83,7 +83,7 @@ export function makeVisionProvider(): VisionProvider {
                     ],
                   },
                 ],
-                max_tokens: 800,
+                max_tokens: maxTokens,
                 temperature: 0.2,
               },
               pick: (j: unknown) =>
