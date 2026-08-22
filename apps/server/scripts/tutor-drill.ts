@@ -234,13 +234,34 @@ function armQuiet(ms = QUIET_MS): void {
   }, ms);
 }
 
-ws.on('open', () => {
+function askForState(): void {
   const enc = encoding.createEncoder();
   syncProtocol.writeSyncStep1(enc, doc);
   sendFrame(FrameTag.Sync, encoding.toUint8Array(enc));
+}
+
+ws.on('open', () => {
+  askForState();
+
+  /**
+   * 握手要会重发。服务端刚启动或房间刚被换出内存时会丢掉第一次 step1
+   * 且不补发——实测演练开场看到"画布上有 0 个图元"，而磁盘上那间房
+   * 明明有 8 个。学生于是对着一片空白说"题目还没放上来"，整场作废。
+   */
+  let tries = 0;
+  const retry = setInterval(() => {
+    if (started || gotServerState) return clearInterval(retry);
+    if (++tries > 7) {
+      clearInterval(retry);
+      console.error(`重发 ${tries - 1} 次握手仍没收到房间「${roomId}」的状态，退出。`);
+      process.exit(1);
+    }
+    askForState();
+  }, 2000);
 });
 
 let started = false;
+let gotServerState = false;
 let settle: NodeJS.Timeout | null = null;
 
 ws.on('message', (data: ArrayBuffer | Buffer) => {
@@ -250,11 +271,19 @@ ws.on('message', (data: ArrayBuffer | Buffer) => {
   if (tag === FrameTag.Sync || tag === FrameTag.SyncAI) {
     const dec = decoding.createDecoder(payload);
     const enc = encoding.createEncoder();
-    syncProtocol.readSyncMessage(dec, enc, doc, 'remote');
+    /**
+     * 0 是 step1（服务端来要我们的状态），1/2 才是它把内容给了我们。
+     *
+     * 不区分的话，收到一条 step1 就开始计"安静 500ms"，然后在**空文档**上
+     * 开场——注释一直写着"同步完成再开口"，而实现等的是"没人说话"，
+     * 这两件事在服务端慢一点的时候完全不是一回事。
+     */
+    const kind = syncProtocol.readSyncMessage(dec, enc, doc, 'remote');
+    if (kind !== syncProtocol.messageYjsSyncStep1) gotServerState = true;
     if (encoding.length(enc) > 0) sendFrame(FrameTag.Sync, encoding.toUint8Array(enc));
 
     // 同步完成再开口：文档还空着的时候看画布只会看到一片空白
-    if (!started) {
+    if (!started && gotServerState) {
       if (settle) clearTimeout(settle);
       settle = setTimeout(() => {
         if (started) return;
