@@ -1,0 +1,4122 @@
+{
+ "nodes": [
+  {
+   "id": "hm_book",
+   "label": "Book",
+   "name": "高等数学",
+   "properties": {}
+  },
+  {
+   "id": "hm_ch1",
+   "label": "Chapter",
+   "name": "函数与极限",
+   "properties": {}
+  },
+  {
+   "id": "hm_cpt1",
+   "label": "Concept",
+   "name": "数列极限",
+   "properties": {
+    "definition": "当 n 无限增大时数列 a_n 无限接近的常数。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt2",
+   "label": "Concept",
+   "name": "函数极限",
+   "properties": {
+    "definition": "自变量趋于某点或无穷时函数值趋近的常数。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt3",
+   "label": "Concept",
+   "name": "无穷小与无穷大",
+   "properties": {
+    "definition": "极限为 0 的变量称无穷小；绝对值无限增大的称无穷大。",
+    "stage": "本科",
+    "subject": "高等数学",
+    "aliases": [
+     "无穷小",
+     "无穷大"
+    ]
+   }
+  },
+  {
+   "id": "hm_cpt4",
+   "label": "Concept",
+   "name": "极限运算法则",
+   "properties": {
+    "definition": "和、差、积、商的极限等于极限的和、差、积、商（分母极限不为 0）。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt5",
+   "label": "Concept",
+   "name": "两个重要极限",
+   "properties": {
+    "definition": "lim(sin x / x)=1 (x→0)；lim(1+1/x)^x=e (x→∞)。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt6",
+   "label": "Concept",
+   "name": "夹逼准则",
+   "properties": {
+    "definition": "被两个同极限的函数夹住的函数，极限也等于该值。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt7",
+   "label": "Concept",
+   "name": "函数的连续性",
+   "properties": {
+    "definition": "在一点处极限值等于函数值即为连续。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt8",
+   "label": "Concept",
+   "name": "间断点分类",
+   "properties": {
+    "definition": "可去、跳跃为第一类；无穷、振荡为第二类。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_ch2",
+   "label": "Chapter",
+   "name": "导数与微分",
+   "properties": {}
+  },
+  {
+   "id": "hm_cpt9",
+   "label": "Concept",
+   "name": "导数的定义",
+   "properties": {
+    "definition": "函数增量与自变量增量之比的极限，即瞬时变化率。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt10",
+   "label": "Concept",
+   "name": "求导法则",
+   "properties": {
+    "definition": "四则运算的求导公式。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt11",
+   "label": "Concept",
+   "name": "链式法则",
+   "properties": {
+    "definition": "复合函数求导：外层导数乘内层导数。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt12",
+   "label": "Concept",
+   "name": "隐函数求导",
+   "properties": {
+    "definition": "对方程两端同时求导，把 y 看作 x 的函数。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt13",
+   "label": "Concept",
+   "name": "参数方程求导",
+   "properties": {
+    "definition": "dy/dx = (dy/dt)/(dx/dt)。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt14",
+   "label": "Concept",
+   "name": "高阶导数",
+   "properties": {
+    "definition": "对导函数继续求导所得。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt15",
+   "label": "Concept",
+   "name": "微分",
+   "properties": {
+    "definition": "函数增量的线性主部 dy = f'(x)dx。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_ch3",
+   "label": "Chapter",
+   "name": "中值定理与导数应用",
+   "properties": {}
+  },
+  {
+   "id": "hm_cpt16",
+   "label": "Concept",
+   "name": "罗尔定理",
+   "properties": {
+    "definition": "端点值相等的可导函数，内部存在导数为零的点。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt17",
+   "label": "Concept",
+   "name": "拉格朗日中值定理",
+   "properties": {
+    "definition": "存在 ξ 使 f(b)−f(a)=f'(ξ)(b−a)。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt18",
+   "label": "Concept",
+   "name": "柯西中值定理",
+   "properties": {
+    "definition": "两个函数增量之比等于对应导数之比。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt19",
+   "label": "Concept",
+   "name": "洛必达法则",
+   "properties": {
+    "definition": "0/0 或 ∞/∞ 型极限可对分子分母分别求导。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt20",
+   "label": "Concept",
+   "name": "泰勒公式",
+   "properties": {
+    "definition": "用多项式在一点附近逼近函数，并给出余项。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt21",
+   "label": "Concept",
+   "name": "函数的单调性与极值",
+   "properties": {
+    "definition": "一阶导数符号判定单调，驻点结合二阶导数判定极值。",
+    "stage": "本科",
+    "subject": "高等数学",
+    "aliases": [
+     "单调性"
+    ]
+   }
+  },
+  {
+   "id": "hm_cpt22",
+   "label": "Concept",
+   "name": "凹凸性与拐点",
+   "properties": {
+    "definition": "二阶导数符号判定凹凸，变号处为拐点。",
+    "stage": "本科",
+    "subject": "高等数学",
+    "aliases": [
+     "凹凸性",
+     "拐点"
+    ]
+   }
+  },
+  {
+   "id": "hm_cpt23",
+   "label": "Concept",
+   "name": "曲线的渐近线",
+   "properties": {
+    "definition": "水平、垂直、斜渐近线的求法。",
+    "stage": "本科",
+    "subject": "高等数学",
+    "aliases": [
+     "渐近线"
+    ]
+   }
+  },
+  {
+   "id": "hm_ch4",
+   "label": "Chapter",
+   "name": "不定积分",
+   "properties": {}
+  },
+  {
+   "id": "hm_cpt24",
+   "label": "Concept",
+   "name": "原函数与不定积分",
+   "properties": {
+    "definition": "导数等于被积函数的一族函数。",
+    "stage": "本科",
+    "subject": "高等数学",
+    "aliases": [
+     "不定积分",
+     "原函数"
+    ]
+   }
+  },
+  {
+   "id": "hm_cpt25",
+   "label": "Concept",
+   "name": "基本积分表",
+   "properties": {
+    "definition": "由基本求导公式反推得到的积分公式。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt26",
+   "label": "Concept",
+   "name": "第一类换元法",
+   "properties": {
+    "definition": "凑微分，把被积式化为已知形式。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt27",
+   "label": "Concept",
+   "name": "第二类换元法",
+   "properties": {
+    "definition": "作变量代换（三角代换、根式代换等）。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt28",
+   "label": "Concept",
+   "name": "分部积分法",
+   "properties": {
+    "definition": "∫u dv = uv − ∫v du。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt29",
+   "label": "Concept",
+   "name": "有理函数积分",
+   "properties": {
+    "definition": "部分分式分解后逐项积分。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_ch5",
+   "label": "Chapter",
+   "name": "定积分及其应用",
+   "properties": {}
+  },
+  {
+   "id": "hm_cpt30",
+   "label": "Concept",
+   "name": "定积分的定义",
+   "properties": {
+    "definition": "分割、近似、求和、取极限得到的和式极限。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt31",
+   "label": "Concept",
+   "name": "牛顿-莱布尼茨公式",
+   "properties": {
+    "definition": "定积分等于原函数在两端点的差。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt32",
+   "label": "Concept",
+   "name": "定积分换元法",
+   "properties": {
+    "definition": "换元时积分限要跟着换。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt33",
+   "label": "Concept",
+   "name": "定积分分部积分",
+   "properties": {
+    "definition": "分部积分公式在定积分上的形式。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt34",
+   "label": "Concept",
+   "name": "反常积分",
+   "properties": {
+    "definition": "积分区间无限或被积函数无界时的积分。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt35",
+   "label": "Concept",
+   "name": "定积分求面积",
+   "properties": {
+    "definition": "由曲线围成的平面图形面积。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt36",
+   "label": "Concept",
+   "name": "定积分求体积",
+   "properties": {
+    "definition": "旋转体体积与截面已知的立体体积。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt37",
+   "label": "Concept",
+   "name": "定积分求弧长",
+   "properties": {
+    "definition": "平面曲线的弧长公式。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_ch6",
+   "label": "Chapter",
+   "name": "多元函数微分学",
+   "properties": {}
+  },
+  {
+   "id": "hm_cpt38",
+   "label": "Concept",
+   "name": "多元函数的极限与连续",
+   "properties": {
+    "definition": "二元及以上函数的极限与连续概念。",
+    "stage": "本科",
+    "subject": "高等数学",
+    "aliases": [
+     "多元函数极限"
+    ]
+   }
+  },
+  {
+   "id": "hm_cpt39",
+   "label": "Concept",
+   "name": "偏导数",
+   "properties": {
+    "definition": "固定其余变量，对某一个变量求导。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt40",
+   "label": "Concept",
+   "name": "全微分",
+   "properties": {
+    "definition": "多元函数增量的线性主部。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt41",
+   "label": "Concept",
+   "name": "多元复合函数求导",
+   "properties": {
+    "definition": "链式法则在多元情形的推广。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt42",
+   "label": "Concept",
+   "name": "多元隐函数求导",
+   "properties": {
+    "definition": "由方程组确定的隐函数求偏导。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt43",
+   "label": "Concept",
+   "name": "方向导数与梯度",
+   "properties": {
+    "definition": "沿指定方向的变化率；梯度指向增长最快的方向。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt44",
+   "label": "Concept",
+   "name": "多元函数极值",
+   "properties": {
+    "definition": "驻点处用二阶偏导判别式判定极值。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt45",
+   "label": "Concept",
+   "name": "条件极值与拉格朗日乘数法",
+   "properties": {
+    "definition": "在约束条件下求极值，引入乘数构造拉格朗日函数。",
+    "stage": "本科",
+    "subject": "高等数学",
+    "aliases": [
+     "拉格朗日乘数法",
+     "条件极值",
+     "拉格朗日函数"
+    ]
+   }
+  },
+  {
+   "id": "hm_ch7",
+   "label": "Chapter",
+   "name": "重积分",
+   "properties": {}
+  },
+  {
+   "id": "hm_cpt46",
+   "label": "Concept",
+   "name": "二重积分",
+   "properties": {
+    "definition": "在平面区域上对二元函数积分。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt47",
+   "label": "Concept",
+   "name": "二重积分极坐标换元",
+   "properties": {
+    "definition": "换元后面积元为 r dr dθ。",
+    "stage": "本科",
+    "subject": "高等数学",
+    "aliases": [
+     "极坐标"
+    ]
+   }
+  },
+  {
+   "id": "hm_cpt48",
+   "label": "Concept",
+   "name": "三重积分",
+   "properties": {
+    "definition": "在空间区域上对三元函数积分。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt49",
+   "label": "Concept",
+   "name": "柱面坐标与球面坐标",
+   "properties": {
+    "definition": "三重积分中常用的两种换元。",
+    "stage": "本科",
+    "subject": "高等数学",
+    "aliases": [
+     "柱面坐标",
+     "球面坐标"
+    ]
+   }
+  },
+  {
+   "id": "hm_cpt50",
+   "label": "Concept",
+   "name": "重积分的应用",
+   "properties": {
+    "definition": "求体积、质量、质心、转动惯量。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_ch8",
+   "label": "Chapter",
+   "name": "曲线曲面积分",
+   "properties": {}
+  },
+  {
+   "id": "hm_cpt51",
+   "label": "Concept",
+   "name": "第一类曲线积分",
+   "properties": {
+    "definition": "对弧长的曲线积分。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt52",
+   "label": "Concept",
+   "name": "第二类曲线积分",
+   "properties": {
+    "definition": "对坐标的曲线积分，与方向有关。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt53",
+   "label": "Concept",
+   "name": "格林公式",
+   "properties": {
+    "definition": "把平面闭曲线积分化为二重积分。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt54",
+   "label": "Concept",
+   "name": "第一类曲面积分",
+   "properties": {
+    "definition": "对面积的曲面积分。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt55",
+   "label": "Concept",
+   "name": "第二类曲面积分",
+   "properties": {
+    "definition": "对坐标的曲面积分，与侧有关。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt56",
+   "label": "Concept",
+   "name": "高斯公式",
+   "properties": {
+    "definition": "把闭曲面积分化为三重积分。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt57",
+   "label": "Concept",
+   "name": "斯托克斯公式",
+   "properties": {
+    "definition": "把空间曲线积分化为曲面积分。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_ch9",
+   "label": "Chapter",
+   "name": "无穷级数",
+   "properties": {}
+  },
+  {
+   "id": "hm_cpt58",
+   "label": "Concept",
+   "name": "数项级数的收敛",
+   "properties": {
+    "definition": "部分和数列有极限即收敛。",
+    "stage": "本科",
+    "subject": "高等数学",
+    "aliases": [
+     "数项级数"
+    ]
+   }
+  },
+  {
+   "id": "hm_cpt59",
+   "label": "Concept",
+   "name": "正项级数判别法",
+   "properties": {
+    "definition": "比较判别法、比值判别法、根值判别法。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt60",
+   "label": "Concept",
+   "name": "交错级数与莱布尼茨判别法",
+   "properties": {
+    "definition": "项单调趋于零的交错级数收敛。",
+    "stage": "本科",
+    "subject": "高等数学",
+    "aliases": [
+     "交错级数",
+     "莱布尼茨判别法"
+    ]
+   }
+  },
+  {
+   "id": "hm_cpt61",
+   "label": "Concept",
+   "name": "绝对收敛与条件收敛",
+   "properties": {
+    "definition": "取绝对值后仍收敛为绝对收敛，否则为条件收敛。",
+    "stage": "本科",
+    "subject": "高等数学",
+    "aliases": [
+     "绝对收敛",
+     "条件收敛"
+    ]
+   }
+  },
+  {
+   "id": "hm_cpt62",
+   "label": "Concept",
+   "name": "幂级数",
+   "properties": {
+    "definition": "形如 ∑ a_n (x−x0)^n 的函数项级数。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt63",
+   "label": "Concept",
+   "name": "收敛半径与收敛域",
+   "properties": {
+    "definition": "由比值法或根值法求 R，端点需单独判断。",
+    "stage": "本科",
+    "subject": "高等数学",
+    "aliases": [
+     "收敛半径",
+     "收敛域"
+    ]
+   }
+  },
+  {
+   "id": "hm_cpt64",
+   "label": "Concept",
+   "name": "幂级数的和函数",
+   "properties": {
+    "definition": "在收敛域内逐项求导或积分求出和函数。",
+    "stage": "本科",
+    "subject": "高等数学",
+    "aliases": [
+     "和函数"
+    ]
+   }
+  },
+  {
+   "id": "hm_cpt65",
+   "label": "Concept",
+   "name": "泰勒级数与麦克劳林展开",
+   "properties": {
+    "definition": "把函数展开成幂级数。",
+    "stage": "本科",
+    "subject": "高等数学",
+    "aliases": [
+     "泰勒级数",
+     "麦克劳林展开"
+    ]
+   }
+  },
+  {
+   "id": "hm_cpt66",
+   "label": "Concept",
+   "name": "傅里叶级数",
+   "properties": {
+    "definition": "把周期函数展开成三角级数。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_ch10",
+   "label": "Chapter",
+   "name": "常微分方程",
+   "properties": {}
+  },
+  {
+   "id": "hm_cpt67",
+   "label": "Concept",
+   "name": "可分离变量方程",
+   "properties": {
+    "definition": "两端分离变量后分别积分。",
+    "stage": "本科",
+    "subject": "高等数学",
+    "aliases": [
+     "分离变量"
+    ]
+   }
+  },
+  {
+   "id": "hm_cpt68",
+   "label": "Concept",
+   "name": "齐次微分方程",
+   "properties": {
+    "definition": "令 u=y/x 化为可分离变量。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt69",
+   "label": "Concept",
+   "name": "一阶线性微分方程",
+   "properties": {
+    "definition": "用积分因子或公式法求解。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt70",
+   "label": "Concept",
+   "name": "伯努利方程",
+   "properties": {
+    "definition": "作代换化为一阶线性方程。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt71",
+   "label": "Concept",
+   "name": "可降阶的高阶方程",
+   "properties": {
+    "definition": "缺 y 或缺 x 的方程可降阶。",
+    "stage": "本科",
+    "subject": "高等数学",
+    "aliases": [
+     "降阶"
+    ]
+   }
+  },
+  {
+   "id": "hm_cpt72",
+   "label": "Concept",
+   "name": "二阶常系数线性齐次方程",
+   "properties": {
+    "definition": "由特征方程的根写出通解。",
+    "stage": "本科",
+    "subject": "高等数学",
+    "aliases": [
+     "二阶齐次方程"
+    ]
+   }
+  },
+  {
+   "id": "hm_cpt73",
+   "label": "Concept",
+   "name": "特征方程",
+   "properties": {
+    "definition": "把常系数线性方程对应到代数方程。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt74",
+   "label": "Concept",
+   "name": "二阶常系数线性非齐次方程",
+   "properties": {
+    "definition": "通解 = 齐次通解 + 一个特解。",
+    "stage": "本科",
+    "subject": "高等数学",
+    "aliases": [
+     "二阶非齐次方程"
+    ]
+   }
+  },
+  {
+   "id": "hm_cpt75",
+   "label": "Concept",
+   "name": "待定系数法",
+   "properties": {
+    "definition": "按右端形式设特解；与特征根重合时须升幂。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "hm_cpt76",
+   "label": "Concept",
+   "name": "常数变易法",
+   "properties": {
+    "definition": "把齐次解中的常数换成待定函数求特解。",
+    "stage": "本科",
+    "subject": "高等数学"
+   }
+  },
+  {
+   "id": "la_book",
+   "label": "Book",
+   "name": "线性代数",
+   "properties": {}
+  },
+  {
+   "id": "la_ch1",
+   "label": "Chapter",
+   "name": "行列式",
+   "properties": {}
+  },
+  {
+   "id": "la_cpt77",
+   "label": "Concept",
+   "name": "行列式的定义",
+   "properties": {
+    "definition": "n 阶方阵按逆序数定义的一个数。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "la_cpt78",
+   "label": "Concept",
+   "name": "行列式的性质",
+   "properties": {
+    "definition": "转置不变、两行互换变号、某行倍加不变等。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "la_cpt79",
+   "label": "Concept",
+   "name": "按行按列展开",
+   "properties": {
+    "definition": "用代数余子式降阶计算。",
+    "stage": "本科",
+    "subject": "线性代数",
+    "aliases": [
+     "按行展开",
+     "代数余子式"
+    ]
+   }
+  },
+  {
+   "id": "la_cpt80",
+   "label": "Concept",
+   "name": "克拉默法则",
+   "properties": {
+    "definition": "系数行列式非零时线性方程组的唯一解公式。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "la_ch2",
+   "label": "Chapter",
+   "name": "矩阵",
+   "properties": {}
+  },
+  {
+   "id": "la_cpt81",
+   "label": "Concept",
+   "name": "矩阵的运算",
+   "properties": {
+    "definition": "加法、数乘、乘法及其运算律。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "la_cpt82",
+   "label": "Concept",
+   "name": "转置与对称矩阵",
+   "properties": {
+    "definition": "行列互换；等于自身转置的称对称矩阵。",
+    "stage": "本科",
+    "subject": "线性代数",
+    "aliases": [
+     "对称矩阵",
+     "转置"
+    ]
+   }
+  },
+  {
+   "id": "la_cpt83",
+   "label": "Concept",
+   "name": "逆矩阵",
+   "properties": {
+    "definition": "AB=BA=I 时 B 为 A 的逆。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "la_cpt84",
+   "label": "Concept",
+   "name": "初等变换与初等矩阵",
+   "properties": {
+    "definition": "三种行（列）变换及其对应矩阵。",
+    "stage": "本科",
+    "subject": "线性代数",
+    "aliases": [
+     "初等变换",
+     "初等矩阵"
+    ]
+   }
+  },
+  {
+   "id": "la_cpt85",
+   "label": "Concept",
+   "name": "矩阵的秩",
+   "properties": {
+    "definition": "非零子式的最高阶数，等于行阶梯形非零行数。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "la_cpt86",
+   "label": "Concept",
+   "name": "分块矩阵",
+   "properties": {
+    "definition": "把矩阵按块分割后运算。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "la_ch3",
+   "label": "Chapter",
+   "name": "向量组",
+   "properties": {}
+  },
+  {
+   "id": "la_cpt87",
+   "label": "Concept",
+   "name": "线性组合与线性表示",
+   "properties": {
+    "definition": "一个向量能否由一组向量表出。",
+    "stage": "本科",
+    "subject": "线性代数",
+    "aliases": [
+     "线性表示",
+     "线性组合"
+    ]
+   }
+  },
+  {
+   "id": "la_cpt88",
+   "label": "Concept",
+   "name": "线性相关与线性无关",
+   "properties": {
+    "definition": "存在非零系数使组合为零向量即相关。",
+    "stage": "本科",
+    "subject": "线性代数",
+    "aliases": [
+     "线性无关",
+     "线性相关"
+    ]
+   }
+  },
+  {
+   "id": "la_cpt89",
+   "label": "Concept",
+   "name": "极大线性无关组",
+   "properties": {
+    "definition": "向量组中个数最多的线性无关部分组。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "la_cpt90",
+   "label": "Concept",
+   "name": "向量组的秩",
+   "properties": {
+    "definition": "极大无关组所含向量的个数。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "la_cpt91",
+   "label": "Concept",
+   "name": "向量空间与基",
+   "properties": {
+    "definition": "对线性运算封闭的集合及其一组基。",
+    "stage": "本科",
+    "subject": "线性代数",
+    "aliases": [
+     "向量空间"
+    ]
+   }
+  },
+  {
+   "id": "la_cpt92",
+   "label": "Concept",
+   "name": "施密特正交化",
+   "properties": {
+    "definition": "把线性无关组化为正交（单位）组。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "la_ch4",
+   "label": "Chapter",
+   "name": "线性方程组",
+   "properties": {}
+  },
+  {
+   "id": "la_cpt93",
+   "label": "Concept",
+   "name": "齐次线性方程组",
+   "properties": {
+    "definition": "常数项全为零的方程组，恒有零解。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "la_cpt94",
+   "label": "Concept",
+   "name": "非齐次线性方程组",
+   "properties": {
+    "definition": "常数项不全为零，解的存在性由秩判定。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "la_cpt95",
+   "label": "Concept",
+   "name": "解的结构",
+   "properties": {
+    "definition": "通解 = 特解 + 齐次通解。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "la_cpt96",
+   "label": "Concept",
+   "name": "基础解系",
+   "properties": {
+    "definition": "齐次方程组解空间的一组基。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "la_cpt97",
+   "label": "Concept",
+   "name": "含参数方程组的讨论",
+   "properties": {
+    "definition": "按参数取值分唯一解、无解、无穷多解讨论。",
+    "stage": "本科",
+    "subject": "线性代数",
+    "aliases": [
+     "含参数方程组",
+     "含参数的线性方程组"
+    ]
+   }
+  },
+  {
+   "id": "la_ch5",
+   "label": "Chapter",
+   "name": "特征值与特征向量",
+   "properties": {}
+  },
+  {
+   "id": "la_cpt98",
+   "label": "Concept",
+   "name": "特征值与特征向量",
+   "properties": {
+    "definition": "满足 Av = λv 的数与非零向量。",
+    "stage": "本科",
+    "subject": "线性代数",
+    "aliases": [
+     "特征值",
+     "特征向量"
+    ]
+   }
+  },
+  {
+   "id": "la_cpt99",
+   "label": "Concept",
+   "name": "特征多项式",
+   "properties": {
+    "definition": "|A − λI| 展开所得多项式，其根为特征值。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "la_cpt100",
+   "label": "Concept",
+   "name": "相似矩阵",
+   "properties": {
+    "definition": "存在可逆 P 使 P⁻¹AP = B。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "la_cpt101",
+   "label": "Concept",
+   "name": "矩阵对角化",
+   "properties": {
+    "definition": "相似于对角阵的条件与做法。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "la_cpt102",
+   "label": "Concept",
+   "name": "实对称矩阵的对角化",
+   "properties": {
+    "definition": "必可用正交矩阵对角化，不同特征值的特征向量正交。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "la_ch6",
+   "label": "Chapter",
+   "name": "二次型",
+   "properties": {}
+  },
+  {
+   "id": "la_cpt103",
+   "label": "Concept",
+   "name": "二次型与矩阵表示",
+   "properties": {
+    "definition": "n 元二次齐次多项式及其对称矩阵。",
+    "stage": "本科",
+    "subject": "线性代数",
+    "aliases": [
+     "二次型"
+    ]
+   }
+  },
+  {
+   "id": "la_cpt104",
+   "label": "Concept",
+   "name": "配方法化标准形",
+   "properties": {
+    "definition": "用配方把二次型化为平方和。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "la_cpt105",
+   "label": "Concept",
+   "name": "正交变换化标准形",
+   "properties": {
+    "definition": "用正交矩阵把实二次型化为标准形。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "la_cpt106",
+   "label": "Concept",
+   "name": "合同变换与惯性定理",
+   "properties": {
+    "definition": "正负惯性指数在合同变换下不变。",
+    "stage": "本科",
+    "subject": "线性代数",
+    "aliases": [
+     "合同变换",
+     "惯性定理"
+    ]
+   }
+  },
+  {
+   "id": "la_cpt107",
+   "label": "Concept",
+   "name": "正定二次型",
+   "properties": {
+    "definition": "对任意非零向量取值恒正；判定用顺序主子式。",
+    "stage": "本科",
+    "subject": "线性代数"
+   }
+  },
+  {
+   "id": "pr_book",
+   "label": "Book",
+   "name": "概率论与数理统计",
+   "properties": {}
+  },
+  {
+   "id": "pr_ch1",
+   "label": "Chapter",
+   "name": "随机事件与概率",
+   "properties": {}
+  },
+  {
+   "id": "pr_cpt108",
+   "label": "Concept",
+   "name": "样本空间与随机事件",
+   "properties": {
+    "definition": "试验的所有可能结果及其子集。",
+    "stage": "本科",
+    "subject": "概率论与数理统计",
+    "aliases": [
+     "样本空间",
+     "随机事件"
+    ]
+   }
+  },
+  {
+   "id": "pr_cpt109",
+   "label": "Concept",
+   "name": "事件的关系与运算",
+   "properties": {
+    "definition": "包含、并、交、差、互斥、对立。",
+    "stage": "本科",
+    "subject": "概率论与数理统计",
+    "aliases": [
+     "事件运算"
+    ]
+   }
+  },
+  {
+   "id": "pr_cpt110",
+   "label": "Concept",
+   "name": "概率的公理化定义",
+   "properties": {
+    "definition": "非负性、规范性、可列可加性。",
+    "stage": "本科",
+    "subject": "概率论与数理统计",
+    "aliases": [
+     "概率的定义"
+    ]
+   }
+  },
+  {
+   "id": "pr_cpt111",
+   "label": "Concept",
+   "name": "古典概型",
+   "properties": {
+    "definition": "等可能有限样本空间下的概率计算。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt112",
+   "label": "Concept",
+   "name": "几何概型",
+   "properties": {
+    "definition": "以长度、面积、体积之比计算概率。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt113",
+   "label": "Concept",
+   "name": "条件概率",
+   "properties": {
+    "definition": "已知一事件发生时另一事件的概率。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt114",
+   "label": "Concept",
+   "name": "乘法公式",
+   "properties": {
+    "definition": "P(AB)=P(A)P(B|A)。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt115",
+   "label": "Concept",
+   "name": "全概率公式",
+   "properties": {
+    "definition": "按完备事件组把概率拆开求和。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt116",
+   "label": "Concept",
+   "name": "贝叶斯公式",
+   "properties": {
+    "definition": "由结果反推原因的条件概率公式。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt117",
+   "label": "Concept",
+   "name": "事件的独立性",
+   "properties": {
+    "definition": "P(AB)=P(A)P(B)。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_ch2",
+   "label": "Chapter",
+   "name": "随机变量及其分布",
+   "properties": {}
+  },
+  {
+   "id": "pr_cpt118",
+   "label": "Concept",
+   "name": "随机变量",
+   "properties": {
+    "definition": "把样本点映到实数的函数。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt119",
+   "label": "Concept",
+   "name": "分布函数",
+   "properties": {
+    "definition": "F(x)=P(X≤x)。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt120",
+   "label": "Concept",
+   "name": "离散型随机变量与分布律",
+   "properties": {
+    "definition": "取有限或可列个值及其概率。",
+    "stage": "本科",
+    "subject": "概率论与数理统计",
+    "aliases": [
+     "分布律",
+     "离散型随机变量"
+    ]
+   }
+  },
+  {
+   "id": "pr_cpt121",
+   "label": "Concept",
+   "name": "两点分布与二项分布",
+   "properties": {
+    "definition": "n 重伯努利试验中成功次数的分布。",
+    "stage": "本科",
+    "subject": "概率论与数理统计",
+    "aliases": [
+     "二项分布",
+     "两点分布",
+     "0-1分布"
+    ]
+   }
+  },
+  {
+   "id": "pr_cpt122",
+   "label": "Concept",
+   "name": "泊松分布",
+   "properties": {
+    "definition": "描述单位时间内稀有事件发生次数。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt123",
+   "label": "Concept",
+   "name": "连续型随机变量与概率密度",
+   "properties": {
+    "definition": "分布函数可表为密度的积分。",
+    "stage": "本科",
+    "subject": "概率论与数理统计",
+    "aliases": [
+     "概率密度",
+     "连续型随机变量"
+    ]
+   }
+  },
+  {
+   "id": "pr_cpt124",
+   "label": "Concept",
+   "name": "均匀分布",
+   "properties": {
+    "definition": "在区间上密度为常数。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt125",
+   "label": "Concept",
+   "name": "指数分布",
+   "properties": {
+    "definition": "描述等待时间，具有无记忆性。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt126",
+   "label": "Concept",
+   "name": "正态分布",
+   "properties": {
+    "definition": "由均值与方差决定的钟形分布。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt127",
+   "label": "Concept",
+   "name": "标准正态分布与标准化",
+   "properties": {
+    "definition": "令 Z=(X−μ)/σ 化为 N(0,1)。",
+    "stage": "本科",
+    "subject": "概率论与数理统计",
+    "aliases": [
+     "标准正态分布",
+     "标准化"
+    ]
+   }
+  },
+  {
+   "id": "pr_cpt128",
+   "label": "Concept",
+   "name": "随机变量函数的分布",
+   "properties": {
+    "definition": "已知 X 的分布求 Y=g(X) 的分布。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_ch3",
+   "label": "Chapter",
+   "name": "多维随机变量",
+   "properties": {}
+  },
+  {
+   "id": "pr_cpt129",
+   "label": "Concept",
+   "name": "二维随机变量与联合分布",
+   "properties": {
+    "definition": "两个随机变量的整体分布。",
+    "stage": "本科",
+    "subject": "概率论与数理统计",
+    "aliases": [
+     "联合分布",
+     "二维随机变量"
+    ]
+   }
+  },
+  {
+   "id": "pr_cpt130",
+   "label": "Concept",
+   "name": "边缘分布",
+   "properties": {
+    "definition": "由联合分布求单个变量的分布。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt131",
+   "label": "Concept",
+   "name": "条件分布",
+   "properties": {
+    "definition": "固定一个变量取值下另一个的分布。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt132",
+   "label": "Concept",
+   "name": "随机变量的独立性",
+   "properties": {
+    "definition": "联合分布等于边缘分布之积。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt133",
+   "label": "Concept",
+   "name": "二维正态分布",
+   "properties": {
+    "definition": "由两个均值、两个方差和相关系数确定。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_ch4",
+   "label": "Chapter",
+   "name": "数字特征",
+   "properties": {}
+  },
+  {
+   "id": "pr_cpt134",
+   "label": "Concept",
+   "name": "数学期望",
+   "properties": {
+    "definition": "随机变量取值的加权平均。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt135",
+   "label": "Concept",
+   "name": "方差与标准差",
+   "properties": {
+    "definition": "衡量取值对期望的偏离程度。",
+    "stage": "本科",
+    "subject": "概率论与数理统计",
+    "aliases": [
+     "方差",
+     "标准差"
+    ]
+   }
+  },
+  {
+   "id": "pr_cpt136",
+   "label": "Concept",
+   "name": "协方差与相关系数",
+   "properties": {
+    "definition": "刻画两个随机变量的线性相关程度。",
+    "stage": "本科",
+    "subject": "概率论与数理统计",
+    "aliases": [
+     "协方差",
+     "相关系数"
+    ]
+   }
+  },
+  {
+   "id": "pr_cpt137",
+   "label": "Concept",
+   "name": "矩与中心矩",
+   "properties": {
+    "definition": "k 阶原点矩与中心矩。",
+    "stage": "本科",
+    "subject": "概率论与数理统计",
+    "aliases": [
+     "中心矩"
+    ]
+   }
+  },
+  {
+   "id": "pr_cpt138",
+   "label": "Concept",
+   "name": "切比雪夫不等式",
+   "properties": {
+    "definition": "用方差估计偏离期望的概率上界。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_ch5",
+   "label": "Chapter",
+   "name": "大数定律与中心极限定理",
+   "properties": {}
+  },
+  {
+   "id": "pr_cpt139",
+   "label": "Concept",
+   "name": "大数定律",
+   "properties": {
+    "definition": "样本均值依概率收敛到期望。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt140",
+   "label": "Concept",
+   "name": "中心极限定理",
+   "properties": {
+    "definition": "独立同分布之和近似服从正态分布。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_ch6",
+   "label": "Chapter",
+   "name": "数理统计",
+   "properties": {}
+  },
+  {
+   "id": "pr_cpt141",
+   "label": "Concept",
+   "name": "总体与样本",
+   "properties": {
+    "definition": "研究对象的全体与从中抽取的观测。",
+    "stage": "本科",
+    "subject": "概率论与数理统计",
+    "aliases": [
+     "总体"
+    ]
+   }
+  },
+  {
+   "id": "pr_cpt142",
+   "label": "Concept",
+   "name": "统计量与抽样分布",
+   "properties": {
+    "definition": "不含未知参数的样本函数及其分布。",
+    "stage": "本科",
+    "subject": "概率论与数理统计",
+    "aliases": [
+     "统计量",
+     "抽样分布"
+    ]
+   }
+  },
+  {
+   "id": "pr_cpt143",
+   "label": "Concept",
+   "name": "卡方分布",
+   "properties": {
+    "definition": "标准正态随机变量平方和的分布。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt144",
+   "label": "Concept",
+   "name": "t 分布",
+   "properties": {
+    "definition": "小样本下均值检验用到的分布。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt145",
+   "label": "Concept",
+   "name": "F 分布",
+   "properties": {
+    "definition": "两个卡方分布之比的分布。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt146",
+   "label": "Concept",
+   "name": "矩估计",
+   "properties": {
+    "definition": "用样本矩代替总体矩解出参数。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt147",
+   "label": "Concept",
+   "name": "极大似然估计",
+   "properties": {
+    "definition": "取使样本出现概率最大的参数值。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  },
+  {
+   "id": "pr_cpt148",
+   "label": "Concept",
+   "name": "估计量的评价标准",
+   "properties": {
+    "definition": "无偏性、有效性、一致性。",
+    "stage": "本科",
+    "subject": "概率论与数理统计",
+    "aliases": [
+     "无偏性",
+     "有效性"
+    ]
+   }
+  },
+  {
+   "id": "pr_cpt149",
+   "label": "Concept",
+   "name": "区间估计与置信区间",
+   "properties": {
+    "definition": "用一个区间估计参数并给出置信水平。",
+    "stage": "本科",
+    "subject": "概率论与数理统计",
+    "aliases": [
+     "置信区间",
+     "区间估计"
+    ]
+   }
+  },
+  {
+   "id": "pr_cpt150",
+   "label": "Concept",
+   "name": "假设检验",
+   "properties": {
+    "definition": "由样本判断关于总体的假设是否成立。",
+    "stage": "本科",
+    "subject": "概率论与数理统计"
+   }
+  }
+ ],
+ "edges": [
+  {
+   "source": "hm_ch1",
+   "target": "hm_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt1",
+   "target": "hm_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt2",
+   "target": "hm_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt3",
+   "target": "hm_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt4",
+   "target": "hm_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt5",
+   "target": "hm_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt6",
+   "target": "hm_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt7",
+   "target": "hm_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt8",
+   "target": "hm_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_ch2",
+   "target": "hm_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt9",
+   "target": "hm_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt10",
+   "target": "hm_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt11",
+   "target": "hm_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt12",
+   "target": "hm_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt13",
+   "target": "hm_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt14",
+   "target": "hm_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt15",
+   "target": "hm_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_ch3",
+   "target": "hm_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt16",
+   "target": "hm_ch3",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt17",
+   "target": "hm_ch3",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt18",
+   "target": "hm_ch3",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt19",
+   "target": "hm_ch3",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt20",
+   "target": "hm_ch3",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt21",
+   "target": "hm_ch3",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt22",
+   "target": "hm_ch3",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt23",
+   "target": "hm_ch3",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_ch4",
+   "target": "hm_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt24",
+   "target": "hm_ch4",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt25",
+   "target": "hm_ch4",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt26",
+   "target": "hm_ch4",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt27",
+   "target": "hm_ch4",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt28",
+   "target": "hm_ch4",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt29",
+   "target": "hm_ch4",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_ch5",
+   "target": "hm_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt30",
+   "target": "hm_ch5",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt31",
+   "target": "hm_ch5",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt32",
+   "target": "hm_ch5",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt33",
+   "target": "hm_ch5",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt34",
+   "target": "hm_ch5",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt35",
+   "target": "hm_ch5",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt36",
+   "target": "hm_ch5",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt37",
+   "target": "hm_ch5",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_ch6",
+   "target": "hm_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt38",
+   "target": "hm_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt39",
+   "target": "hm_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt40",
+   "target": "hm_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt41",
+   "target": "hm_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt42",
+   "target": "hm_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt43",
+   "target": "hm_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt44",
+   "target": "hm_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt45",
+   "target": "hm_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_ch7",
+   "target": "hm_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt46",
+   "target": "hm_ch7",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt47",
+   "target": "hm_ch7",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt48",
+   "target": "hm_ch7",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt49",
+   "target": "hm_ch7",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt50",
+   "target": "hm_ch7",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_ch8",
+   "target": "hm_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt51",
+   "target": "hm_ch8",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt52",
+   "target": "hm_ch8",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt53",
+   "target": "hm_ch8",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt54",
+   "target": "hm_ch8",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt55",
+   "target": "hm_ch8",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt56",
+   "target": "hm_ch8",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt57",
+   "target": "hm_ch8",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_ch9",
+   "target": "hm_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt58",
+   "target": "hm_ch9",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt59",
+   "target": "hm_ch9",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt60",
+   "target": "hm_ch9",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt61",
+   "target": "hm_ch9",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt62",
+   "target": "hm_ch9",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt63",
+   "target": "hm_ch9",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt64",
+   "target": "hm_ch9",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt65",
+   "target": "hm_ch9",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt66",
+   "target": "hm_ch9",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_ch10",
+   "target": "hm_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt67",
+   "target": "hm_ch10",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt68",
+   "target": "hm_ch10",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt69",
+   "target": "hm_ch10",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt70",
+   "target": "hm_ch10",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt71",
+   "target": "hm_ch10",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt72",
+   "target": "hm_ch10",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt73",
+   "target": "hm_ch10",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt74",
+   "target": "hm_ch10",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt75",
+   "target": "hm_ch10",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt76",
+   "target": "hm_ch10",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_ch1",
+   "target": "la_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt77",
+   "target": "la_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt78",
+   "target": "la_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt79",
+   "target": "la_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt80",
+   "target": "la_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_ch2",
+   "target": "la_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt81",
+   "target": "la_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt82",
+   "target": "la_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt83",
+   "target": "la_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt84",
+   "target": "la_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt85",
+   "target": "la_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt86",
+   "target": "la_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_ch3",
+   "target": "la_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt87",
+   "target": "la_ch3",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt88",
+   "target": "la_ch3",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt89",
+   "target": "la_ch3",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt90",
+   "target": "la_ch3",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt91",
+   "target": "la_ch3",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt92",
+   "target": "la_ch3",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_ch4",
+   "target": "la_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt93",
+   "target": "la_ch4",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt94",
+   "target": "la_ch4",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt95",
+   "target": "la_ch4",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt96",
+   "target": "la_ch4",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt97",
+   "target": "la_ch4",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_ch5",
+   "target": "la_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt98",
+   "target": "la_ch5",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt99",
+   "target": "la_ch5",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt100",
+   "target": "la_ch5",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt101",
+   "target": "la_ch5",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt102",
+   "target": "la_ch5",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_ch6",
+   "target": "la_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt103",
+   "target": "la_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt104",
+   "target": "la_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt105",
+   "target": "la_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt106",
+   "target": "la_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt107",
+   "target": "la_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_ch1",
+   "target": "pr_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt108",
+   "target": "pr_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt109",
+   "target": "pr_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt110",
+   "target": "pr_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt111",
+   "target": "pr_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt112",
+   "target": "pr_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt113",
+   "target": "pr_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt114",
+   "target": "pr_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt115",
+   "target": "pr_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt116",
+   "target": "pr_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt117",
+   "target": "pr_ch1",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_ch2",
+   "target": "pr_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt118",
+   "target": "pr_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt119",
+   "target": "pr_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt120",
+   "target": "pr_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt121",
+   "target": "pr_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt122",
+   "target": "pr_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt123",
+   "target": "pr_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt124",
+   "target": "pr_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt125",
+   "target": "pr_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt126",
+   "target": "pr_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt127",
+   "target": "pr_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt128",
+   "target": "pr_ch2",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_ch3",
+   "target": "pr_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt129",
+   "target": "pr_ch3",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt130",
+   "target": "pr_ch3",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt131",
+   "target": "pr_ch3",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt132",
+   "target": "pr_ch3",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt133",
+   "target": "pr_ch3",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_ch4",
+   "target": "pr_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt134",
+   "target": "pr_ch4",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt135",
+   "target": "pr_ch4",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt136",
+   "target": "pr_ch4",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt137",
+   "target": "pr_ch4",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt138",
+   "target": "pr_ch4",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_ch5",
+   "target": "pr_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt139",
+   "target": "pr_ch5",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt140",
+   "target": "pr_ch5",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_ch6",
+   "target": "pr_book",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt141",
+   "target": "pr_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt142",
+   "target": "pr_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt143",
+   "target": "pr_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt144",
+   "target": "pr_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt145",
+   "target": "pr_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt146",
+   "target": "pr_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt147",
+   "target": "pr_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt148",
+   "target": "pr_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt149",
+   "target": "pr_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt150",
+   "target": "pr_ch6",
+   "type": "is_part_of",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt1",
+   "target": "hm_cpt2",
+   "type": "prerequisites_for",
+   "source_name": "数列极限",
+   "target_name": "函数极限",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt2",
+   "target": "hm_cpt3",
+   "type": "prerequisites_for",
+   "source_name": "函数极限",
+   "target_name": "无穷小与无穷大",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt2",
+   "target": "hm_cpt4",
+   "type": "prerequisites_for",
+   "source_name": "函数极限",
+   "target_name": "极限运算法则",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt2",
+   "target": "hm_cpt5",
+   "type": "prerequisites_for",
+   "source_name": "函数极限",
+   "target_name": "两个重要极限",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt2",
+   "target": "hm_cpt6",
+   "type": "prerequisites_for",
+   "source_name": "函数极限",
+   "target_name": "夹逼准则",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt2",
+   "target": "hm_cpt7",
+   "type": "prerequisites_for",
+   "source_name": "函数极限",
+   "target_name": "函数的连续性",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt7",
+   "target": "hm_cpt8",
+   "type": "prerequisites_for",
+   "source_name": "函数的连续性",
+   "target_name": "间断点分类",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt2",
+   "target": "hm_cpt9",
+   "type": "prerequisites_for",
+   "source_name": "函数极限",
+   "target_name": "导数的定义",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt9",
+   "target": "hm_cpt10",
+   "type": "prerequisites_for",
+   "source_name": "导数的定义",
+   "target_name": "求导法则",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt10",
+   "target": "hm_cpt11",
+   "type": "prerequisites_for",
+   "source_name": "求导法则",
+   "target_name": "链式法则",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt11",
+   "target": "hm_cpt12",
+   "type": "prerequisites_for",
+   "source_name": "链式法则",
+   "target_name": "隐函数求导",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt11",
+   "target": "hm_cpt13",
+   "type": "prerequisites_for",
+   "source_name": "链式法则",
+   "target_name": "参数方程求导",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt10",
+   "target": "hm_cpt14",
+   "type": "prerequisites_for",
+   "source_name": "求导法则",
+   "target_name": "高阶导数",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt9",
+   "target": "hm_cpt15",
+   "type": "prerequisites_for",
+   "source_name": "导数的定义",
+   "target_name": "微分",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt9",
+   "target": "hm_cpt16",
+   "type": "prerequisites_for",
+   "source_name": "导数的定义",
+   "target_name": "罗尔定理",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt16",
+   "target": "hm_cpt17",
+   "type": "prerequisites_for",
+   "source_name": "罗尔定理",
+   "target_name": "拉格朗日中值定理",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt17",
+   "target": "hm_cpt18",
+   "type": "prerequisites_for",
+   "source_name": "拉格朗日中值定理",
+   "target_name": "柯西中值定理",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt18",
+   "target": "hm_cpt19",
+   "type": "prerequisites_for",
+   "source_name": "柯西中值定理",
+   "target_name": "洛必达法则",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt14",
+   "target": "hm_cpt20",
+   "type": "prerequisites_for",
+   "source_name": "高阶导数",
+   "target_name": "泰勒公式",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt17",
+   "target": "hm_cpt21",
+   "type": "prerequisites_for",
+   "source_name": "拉格朗日中值定理",
+   "target_name": "函数的单调性与极值",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt14",
+   "target": "hm_cpt22",
+   "type": "prerequisites_for",
+   "source_name": "高阶导数",
+   "target_name": "凹凸性与拐点",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt2",
+   "target": "hm_cpt23",
+   "type": "prerequisites_for",
+   "source_name": "函数极限",
+   "target_name": "曲线的渐近线",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt9",
+   "target": "hm_cpt24",
+   "type": "prerequisites_for",
+   "source_name": "导数的定义",
+   "target_name": "原函数与不定积分",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt24",
+   "target": "hm_cpt25",
+   "type": "prerequisites_for",
+   "source_name": "原函数与不定积分",
+   "target_name": "基本积分表",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt25",
+   "target": "hm_cpt26",
+   "type": "prerequisites_for",
+   "source_name": "基本积分表",
+   "target_name": "第一类换元法",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt26",
+   "target": "hm_cpt27",
+   "type": "prerequisites_for",
+   "source_name": "第一类换元法",
+   "target_name": "第二类换元法",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt25",
+   "target": "hm_cpt28",
+   "type": "prerequisites_for",
+   "source_name": "基本积分表",
+   "target_name": "分部积分法",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt27",
+   "target": "hm_cpt29",
+   "type": "prerequisites_for",
+   "source_name": "第二类换元法",
+   "target_name": "有理函数积分",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt30",
+   "target": "hm_cpt31",
+   "type": "prerequisites_for",
+   "source_name": "定积分的定义",
+   "target_name": "牛顿-莱布尼茨公式",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt24",
+   "target": "hm_cpt31",
+   "type": "prerequisites_for",
+   "source_name": "原函数与不定积分",
+   "target_name": "牛顿-莱布尼茨公式",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt26",
+   "target": "hm_cpt32",
+   "type": "prerequisites_for",
+   "source_name": "第一类换元法",
+   "target_name": "定积分换元法",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt28",
+   "target": "hm_cpt33",
+   "type": "prerequisites_for",
+   "source_name": "分部积分法",
+   "target_name": "定积分分部积分",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt31",
+   "target": "hm_cpt34",
+   "type": "prerequisites_for",
+   "source_name": "牛顿-莱布尼茨公式",
+   "target_name": "反常积分",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt31",
+   "target": "hm_cpt35",
+   "type": "prerequisites_for",
+   "source_name": "牛顿-莱布尼茨公式",
+   "target_name": "定积分求面积",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt35",
+   "target": "hm_cpt36",
+   "type": "prerequisites_for",
+   "source_name": "定积分求面积",
+   "target_name": "定积分求体积",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt35",
+   "target": "hm_cpt37",
+   "type": "prerequisites_for",
+   "source_name": "定积分求面积",
+   "target_name": "定积分求弧长",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt2",
+   "target": "hm_cpt38",
+   "type": "prerequisites_for",
+   "source_name": "函数极限",
+   "target_name": "多元函数的极限与连续",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt9",
+   "target": "hm_cpt39",
+   "type": "prerequisites_for",
+   "source_name": "导数的定义",
+   "target_name": "偏导数",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt39",
+   "target": "hm_cpt40",
+   "type": "prerequisites_for",
+   "source_name": "偏导数",
+   "target_name": "全微分",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt39",
+   "target": "hm_cpt41",
+   "type": "prerequisites_for",
+   "source_name": "偏导数",
+   "target_name": "多元复合函数求导",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt41",
+   "target": "hm_cpt42",
+   "type": "prerequisites_for",
+   "source_name": "多元复合函数求导",
+   "target_name": "多元隐函数求导",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt39",
+   "target": "hm_cpt43",
+   "type": "prerequisites_for",
+   "source_name": "偏导数",
+   "target_name": "方向导数与梯度",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt39",
+   "target": "hm_cpt44",
+   "type": "prerequisites_for",
+   "source_name": "偏导数",
+   "target_name": "多元函数极值",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt44",
+   "target": "hm_cpt45",
+   "type": "prerequisites_for",
+   "source_name": "多元函数极值",
+   "target_name": "条件极值与拉格朗日乘数法",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt30",
+   "target": "hm_cpt46",
+   "type": "prerequisites_for",
+   "source_name": "定积分的定义",
+   "target_name": "二重积分",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt46",
+   "target": "hm_cpt47",
+   "type": "prerequisites_for",
+   "source_name": "二重积分",
+   "target_name": "二重积分极坐标换元",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt46",
+   "target": "hm_cpt48",
+   "type": "prerequisites_for",
+   "source_name": "二重积分",
+   "target_name": "三重积分",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt48",
+   "target": "hm_cpt49",
+   "type": "prerequisites_for",
+   "source_name": "三重积分",
+   "target_name": "柱面坐标与球面坐标",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt46",
+   "target": "hm_cpt50",
+   "type": "prerequisites_for",
+   "source_name": "二重积分",
+   "target_name": "重积分的应用",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt30",
+   "target": "hm_cpt51",
+   "type": "prerequisites_for",
+   "source_name": "定积分的定义",
+   "target_name": "第一类曲线积分",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt51",
+   "target": "hm_cpt52",
+   "type": "prerequisites_for",
+   "source_name": "第一类曲线积分",
+   "target_name": "第二类曲线积分",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt52",
+   "target": "hm_cpt53",
+   "type": "prerequisites_for",
+   "source_name": "第二类曲线积分",
+   "target_name": "格林公式",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt46",
+   "target": "hm_cpt53",
+   "type": "prerequisites_for",
+   "source_name": "二重积分",
+   "target_name": "格林公式",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt51",
+   "target": "hm_cpt54",
+   "type": "prerequisites_for",
+   "source_name": "第一类曲线积分",
+   "target_name": "第一类曲面积分",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt54",
+   "target": "hm_cpt55",
+   "type": "prerequisites_for",
+   "source_name": "第一类曲面积分",
+   "target_name": "第二类曲面积分",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt55",
+   "target": "hm_cpt56",
+   "type": "prerequisites_for",
+   "source_name": "第二类曲面积分",
+   "target_name": "高斯公式",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt48",
+   "target": "hm_cpt56",
+   "type": "prerequisites_for",
+   "source_name": "三重积分",
+   "target_name": "高斯公式",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt53",
+   "target": "hm_cpt57",
+   "type": "prerequisites_for",
+   "source_name": "格林公式",
+   "target_name": "斯托克斯公式",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt1",
+   "target": "hm_cpt58",
+   "type": "prerequisites_for",
+   "source_name": "数列极限",
+   "target_name": "数项级数的收敛",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt58",
+   "target": "hm_cpt59",
+   "type": "prerequisites_for",
+   "source_name": "数项级数的收敛",
+   "target_name": "正项级数判别法",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt58",
+   "target": "hm_cpt60",
+   "type": "prerequisites_for",
+   "source_name": "数项级数的收敛",
+   "target_name": "交错级数与莱布尼茨判别法",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt59",
+   "target": "hm_cpt61",
+   "type": "prerequisites_for",
+   "source_name": "正项级数判别法",
+   "target_name": "绝对收敛与条件收敛",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt60",
+   "target": "hm_cpt61",
+   "type": "prerequisites_for",
+   "source_name": "交错级数与莱布尼茨判别法",
+   "target_name": "绝对收敛与条件收敛",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt58",
+   "target": "hm_cpt62",
+   "type": "prerequisites_for",
+   "source_name": "数项级数的收敛",
+   "target_name": "幂级数",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt59",
+   "target": "hm_cpt63",
+   "type": "prerequisites_for",
+   "source_name": "正项级数判别法",
+   "target_name": "收敛半径与收敛域",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt62",
+   "target": "hm_cpt63",
+   "type": "prerequisites_for",
+   "source_name": "幂级数",
+   "target_name": "收敛半径与收敛域",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt63",
+   "target": "hm_cpt64",
+   "type": "prerequisites_for",
+   "source_name": "收敛半径与收敛域",
+   "target_name": "幂级数的和函数",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt20",
+   "target": "hm_cpt65",
+   "type": "prerequisites_for",
+   "source_name": "泰勒公式",
+   "target_name": "泰勒级数与麦克劳林展开",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt62",
+   "target": "hm_cpt65",
+   "type": "prerequisites_for",
+   "source_name": "幂级数",
+   "target_name": "泰勒级数与麦克劳林展开",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt30",
+   "target": "hm_cpt66",
+   "type": "prerequisites_for",
+   "source_name": "定积分的定义",
+   "target_name": "傅里叶级数",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt24",
+   "target": "hm_cpt67",
+   "type": "prerequisites_for",
+   "source_name": "原函数与不定积分",
+   "target_name": "可分离变量方程",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt67",
+   "target": "hm_cpt68",
+   "type": "prerequisites_for",
+   "source_name": "可分离变量方程",
+   "target_name": "齐次微分方程",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt67",
+   "target": "hm_cpt69",
+   "type": "prerequisites_for",
+   "source_name": "可分离变量方程",
+   "target_name": "一阶线性微分方程",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt69",
+   "target": "hm_cpt70",
+   "type": "prerequisites_for",
+   "source_name": "一阶线性微分方程",
+   "target_name": "伯努利方程",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt14",
+   "target": "hm_cpt71",
+   "type": "prerequisites_for",
+   "source_name": "高阶导数",
+   "target_name": "可降阶的高阶方程",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt73",
+   "target": "hm_cpt72",
+   "type": "prerequisites_for",
+   "source_name": "特征方程",
+   "target_name": "二阶常系数线性齐次方程",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt72",
+   "target": "hm_cpt74",
+   "type": "prerequisites_for",
+   "source_name": "二阶常系数线性齐次方程",
+   "target_name": "二阶常系数线性非齐次方程",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt74",
+   "target": "hm_cpt75",
+   "type": "prerequisites_for",
+   "source_name": "二阶常系数线性非齐次方程",
+   "target_name": "待定系数法",
+   "properties": {}
+  },
+  {
+   "source": "hm_cpt74",
+   "target": "hm_cpt76",
+   "type": "prerequisites_for",
+   "source_name": "二阶常系数线性非齐次方程",
+   "target_name": "常数变易法",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt77",
+   "target": "la_cpt78",
+   "type": "prerequisites_for",
+   "source_name": "行列式的定义",
+   "target_name": "行列式的性质",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt78",
+   "target": "la_cpt79",
+   "type": "prerequisites_for",
+   "source_name": "行列式的性质",
+   "target_name": "按行按列展开",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt79",
+   "target": "la_cpt80",
+   "type": "prerequisites_for",
+   "source_name": "按行按列展开",
+   "target_name": "克拉默法则",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt81",
+   "target": "la_cpt82",
+   "type": "prerequisites_for",
+   "source_name": "矩阵的运算",
+   "target_name": "转置与对称矩阵",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt81",
+   "target": "la_cpt83",
+   "type": "prerequisites_for",
+   "source_name": "矩阵的运算",
+   "target_name": "逆矩阵",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt79",
+   "target": "la_cpt83",
+   "type": "prerequisites_for",
+   "source_name": "按行按列展开",
+   "target_name": "逆矩阵",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt81",
+   "target": "la_cpt84",
+   "type": "prerequisites_for",
+   "source_name": "矩阵的运算",
+   "target_name": "初等变换与初等矩阵",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt84",
+   "target": "la_cpt85",
+   "type": "prerequisites_for",
+   "source_name": "初等变换与初等矩阵",
+   "target_name": "矩阵的秩",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt81",
+   "target": "la_cpt86",
+   "type": "prerequisites_for",
+   "source_name": "矩阵的运算",
+   "target_name": "分块矩阵",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt81",
+   "target": "la_cpt87",
+   "type": "prerequisites_for",
+   "source_name": "矩阵的运算",
+   "target_name": "线性组合与线性表示",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt87",
+   "target": "la_cpt88",
+   "type": "prerequisites_for",
+   "source_name": "线性组合与线性表示",
+   "target_name": "线性相关与线性无关",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt88",
+   "target": "la_cpt89",
+   "type": "prerequisites_for",
+   "source_name": "线性相关与线性无关",
+   "target_name": "极大线性无关组",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt89",
+   "target": "la_cpt90",
+   "type": "prerequisites_for",
+   "source_name": "极大线性无关组",
+   "target_name": "向量组的秩",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt85",
+   "target": "la_cpt90",
+   "type": "prerequisites_for",
+   "source_name": "矩阵的秩",
+   "target_name": "向量组的秩",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt90",
+   "target": "la_cpt91",
+   "type": "prerequisites_for",
+   "source_name": "向量组的秩",
+   "target_name": "向量空间与基",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt88",
+   "target": "la_cpt92",
+   "type": "prerequisites_for",
+   "source_name": "线性相关与线性无关",
+   "target_name": "施密特正交化",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt85",
+   "target": "la_cpt93",
+   "type": "prerequisites_for",
+   "source_name": "矩阵的秩",
+   "target_name": "齐次线性方程组",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt93",
+   "target": "la_cpt94",
+   "type": "prerequisites_for",
+   "source_name": "齐次线性方程组",
+   "target_name": "非齐次线性方程组",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt93",
+   "target": "la_cpt96",
+   "type": "prerequisites_for",
+   "source_name": "齐次线性方程组",
+   "target_name": "基础解系",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt96",
+   "target": "la_cpt95",
+   "type": "prerequisites_for",
+   "source_name": "基础解系",
+   "target_name": "解的结构",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt94",
+   "target": "la_cpt95",
+   "type": "prerequisites_for",
+   "source_name": "非齐次线性方程组",
+   "target_name": "解的结构",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt78",
+   "target": "la_cpt97",
+   "type": "prerequisites_for",
+   "source_name": "行列式的性质",
+   "target_name": "含参数方程组的讨论",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt95",
+   "target": "la_cpt97",
+   "type": "prerequisites_for",
+   "source_name": "解的结构",
+   "target_name": "含参数方程组的讨论",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt79",
+   "target": "la_cpt99",
+   "type": "prerequisites_for",
+   "source_name": "按行按列展开",
+   "target_name": "特征多项式",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt99",
+   "target": "la_cpt98",
+   "type": "prerequisites_for",
+   "source_name": "特征多项式",
+   "target_name": "特征值与特征向量",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt98",
+   "target": "la_cpt100",
+   "type": "prerequisites_for",
+   "source_name": "特征值与特征向量",
+   "target_name": "相似矩阵",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt100",
+   "target": "la_cpt101",
+   "type": "prerequisites_for",
+   "source_name": "相似矩阵",
+   "target_name": "矩阵对角化",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt101",
+   "target": "la_cpt102",
+   "type": "prerequisites_for",
+   "source_name": "矩阵对角化",
+   "target_name": "实对称矩阵的对角化",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt92",
+   "target": "la_cpt102",
+   "type": "prerequisites_for",
+   "source_name": "施密特正交化",
+   "target_name": "实对称矩阵的对角化",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt81",
+   "target": "la_cpt103",
+   "type": "prerequisites_for",
+   "source_name": "矩阵的运算",
+   "target_name": "二次型与矩阵表示",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt103",
+   "target": "la_cpt104",
+   "type": "prerequisites_for",
+   "source_name": "二次型与矩阵表示",
+   "target_name": "配方法化标准形",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt102",
+   "target": "la_cpt105",
+   "type": "prerequisites_for",
+   "source_name": "实对称矩阵的对角化",
+   "target_name": "正交变换化标准形",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt104",
+   "target": "la_cpt106",
+   "type": "prerequisites_for",
+   "source_name": "配方法化标准形",
+   "target_name": "合同变换与惯性定理",
+   "properties": {}
+  },
+  {
+   "source": "la_cpt106",
+   "target": "la_cpt107",
+   "type": "prerequisites_for",
+   "source_name": "合同变换与惯性定理",
+   "target_name": "正定二次型",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt108",
+   "target": "pr_cpt109",
+   "type": "prerequisites_for",
+   "source_name": "样本空间与随机事件",
+   "target_name": "事件的关系与运算",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt109",
+   "target": "pr_cpt110",
+   "type": "prerequisites_for",
+   "source_name": "事件的关系与运算",
+   "target_name": "概率的公理化定义",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt110",
+   "target": "pr_cpt111",
+   "type": "prerequisites_for",
+   "source_name": "概率的公理化定义",
+   "target_name": "古典概型",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt110",
+   "target": "pr_cpt112",
+   "type": "prerequisites_for",
+   "source_name": "概率的公理化定义",
+   "target_name": "几何概型",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt110",
+   "target": "pr_cpt113",
+   "type": "prerequisites_for",
+   "source_name": "概率的公理化定义",
+   "target_name": "条件概率",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt113",
+   "target": "pr_cpt114",
+   "type": "prerequisites_for",
+   "source_name": "条件概率",
+   "target_name": "乘法公式",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt114",
+   "target": "pr_cpt115",
+   "type": "prerequisites_for",
+   "source_name": "乘法公式",
+   "target_name": "全概率公式",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt115",
+   "target": "pr_cpt116",
+   "type": "prerequisites_for",
+   "source_name": "全概率公式",
+   "target_name": "贝叶斯公式",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt113",
+   "target": "pr_cpt117",
+   "type": "prerequisites_for",
+   "source_name": "条件概率",
+   "target_name": "事件的独立性",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt110",
+   "target": "pr_cpt118",
+   "type": "prerequisites_for",
+   "source_name": "概率的公理化定义",
+   "target_name": "随机变量",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt118",
+   "target": "pr_cpt119",
+   "type": "prerequisites_for",
+   "source_name": "随机变量",
+   "target_name": "分布函数",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt118",
+   "target": "pr_cpt120",
+   "type": "prerequisites_for",
+   "source_name": "随机变量",
+   "target_name": "离散型随机变量与分布律",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt120",
+   "target": "pr_cpt121",
+   "type": "prerequisites_for",
+   "source_name": "离散型随机变量与分布律",
+   "target_name": "两点分布与二项分布",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt117",
+   "target": "pr_cpt121",
+   "type": "prerequisites_for",
+   "source_name": "事件的独立性",
+   "target_name": "两点分布与二项分布",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt121",
+   "target": "pr_cpt122",
+   "type": "prerequisites_for",
+   "source_name": "两点分布与二项分布",
+   "target_name": "泊松分布",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt119",
+   "target": "pr_cpt123",
+   "type": "prerequisites_for",
+   "source_name": "分布函数",
+   "target_name": "连续型随机变量与概率密度",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt123",
+   "target": "pr_cpt124",
+   "type": "prerequisites_for",
+   "source_name": "连续型随机变量与概率密度",
+   "target_name": "均匀分布",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt123",
+   "target": "pr_cpt125",
+   "type": "prerequisites_for",
+   "source_name": "连续型随机变量与概率密度",
+   "target_name": "指数分布",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt123",
+   "target": "pr_cpt126",
+   "type": "prerequisites_for",
+   "source_name": "连续型随机变量与概率密度",
+   "target_name": "正态分布",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt126",
+   "target": "pr_cpt127",
+   "type": "prerequisites_for",
+   "source_name": "正态分布",
+   "target_name": "标准正态分布与标准化",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt119",
+   "target": "pr_cpt128",
+   "type": "prerequisites_for",
+   "source_name": "分布函数",
+   "target_name": "随机变量函数的分布",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt118",
+   "target": "pr_cpt129",
+   "type": "prerequisites_for",
+   "source_name": "随机变量",
+   "target_name": "二维随机变量与联合分布",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt129",
+   "target": "pr_cpt130",
+   "type": "prerequisites_for",
+   "source_name": "二维随机变量与联合分布",
+   "target_name": "边缘分布",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt129",
+   "target": "pr_cpt131",
+   "type": "prerequisites_for",
+   "source_name": "二维随机变量与联合分布",
+   "target_name": "条件分布",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt130",
+   "target": "pr_cpt132",
+   "type": "prerequisites_for",
+   "source_name": "边缘分布",
+   "target_name": "随机变量的独立性",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt126",
+   "target": "pr_cpt133",
+   "type": "prerequisites_for",
+   "source_name": "正态分布",
+   "target_name": "二维正态分布",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt120",
+   "target": "pr_cpt134",
+   "type": "prerequisites_for",
+   "source_name": "离散型随机变量与分布律",
+   "target_name": "数学期望",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt123",
+   "target": "pr_cpt134",
+   "type": "prerequisites_for",
+   "source_name": "连续型随机变量与概率密度",
+   "target_name": "数学期望",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt134",
+   "target": "pr_cpt135",
+   "type": "prerequisites_for",
+   "source_name": "数学期望",
+   "target_name": "方差与标准差",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt135",
+   "target": "pr_cpt136",
+   "type": "prerequisites_for",
+   "source_name": "方差与标准差",
+   "target_name": "协方差与相关系数",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt134",
+   "target": "pr_cpt137",
+   "type": "prerequisites_for",
+   "source_name": "数学期望",
+   "target_name": "矩与中心矩",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt135",
+   "target": "pr_cpt138",
+   "type": "prerequisites_for",
+   "source_name": "方差与标准差",
+   "target_name": "切比雪夫不等式",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt138",
+   "target": "pr_cpt139",
+   "type": "prerequisites_for",
+   "source_name": "切比雪夫不等式",
+   "target_name": "大数定律",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt139",
+   "target": "pr_cpt140",
+   "type": "prerequisites_for",
+   "source_name": "大数定律",
+   "target_name": "中心极限定理",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt126",
+   "target": "pr_cpt140",
+   "type": "prerequisites_for",
+   "source_name": "正态分布",
+   "target_name": "中心极限定理",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt118",
+   "target": "pr_cpt141",
+   "type": "prerequisites_for",
+   "source_name": "随机变量",
+   "target_name": "总体与样本",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt141",
+   "target": "pr_cpt142",
+   "type": "prerequisites_for",
+   "source_name": "总体与样本",
+   "target_name": "统计量与抽样分布",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt142",
+   "target": "pr_cpt143",
+   "type": "prerequisites_for",
+   "source_name": "统计量与抽样分布",
+   "target_name": "卡方分布",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt143",
+   "target": "pr_cpt144",
+   "type": "prerequisites_for",
+   "source_name": "卡方分布",
+   "target_name": "t 分布",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt143",
+   "target": "pr_cpt145",
+   "type": "prerequisites_for",
+   "source_name": "卡方分布",
+   "target_name": "F 分布",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt137",
+   "target": "pr_cpt146",
+   "type": "prerequisites_for",
+   "source_name": "矩与中心矩",
+   "target_name": "矩估计",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt142",
+   "target": "pr_cpt147",
+   "type": "prerequisites_for",
+   "source_name": "统计量与抽样分布",
+   "target_name": "极大似然估计",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt146",
+   "target": "pr_cpt148",
+   "type": "prerequisites_for",
+   "source_name": "矩估计",
+   "target_name": "估计量的评价标准",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt147",
+   "target": "pr_cpt148",
+   "type": "prerequisites_for",
+   "source_name": "极大似然估计",
+   "target_name": "估计量的评价标准",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt144",
+   "target": "pr_cpt149",
+   "type": "prerequisites_for",
+   "source_name": "t 分布",
+   "target_name": "区间估计与置信区间",
+   "properties": {}
+  },
+  {
+   "source": "pr_cpt149",
+   "target": "pr_cpt150",
+   "type": "prerequisites_for",
+   "source_name": "区间估计与置信区间",
+   "target_name": "假设检验",
+   "properties": {}
+  }
+ ]
+}

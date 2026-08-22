@@ -1,5 +1,6 @@
 import { readFile, readdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { KnowledgePort } from '@canvai/agent';
 import {
   KnowledgeGraph,
@@ -34,8 +35,20 @@ function warnNotReady(): void {
   });
 }
 
-/** 图谱在磁盘上的位置。data/kg/*.json，一册教材一个文件 */
+/** 外部图谱数据的位置。data/kg/*.json，一册教材一个文件（K12-KGraph 下载到这里） */
 export const kgDir = (): string => join(config.dataDir, 'kg');
+
+/**
+ * 随代码一起走的图谱。
+ *
+ * 本科数学那份是本项目自建的（MIT），所以能直接入库；而 K12-KGraph 是
+ * CC BY-NC-SA，只能让人自己下载到 data/kg。两处都读，装到同一张图里。
+ *
+ * 分两个目录不是洁癖：许可证不同的数据混在一个目录里，迟早有人把不该
+ * 提交的那份提交上去。
+ */
+const bundledKgDir = (): string =>
+  join(dirname(fileURLToPath(import.meta.url)), '../../../packages/knowledge/data');
 
 /**
  * 读盘装图。
@@ -47,30 +60,40 @@ export const kgDir = (): string => join(config.dataDir, 'kg');
 export async function loadGraph(): Promise<KnowledgeGraph> {
   if (graph) return graph;
   const g = new KnowledgeGraph();
-  const dir = kgDir();
 
-  let files: string[] = [];
-  try {
-    files = (await readdir(dir)).filter((f) => f.endsWith('.json'));
-  } catch {
-    log.warn('kg.absent', { dir, hint: '跑 npx tsx scripts/fetch-kg.ts 把图谱拉下来' });
-    graph = g;
-    return g;
+  /** 某个目录下的所有 .json，目录不存在就当没有 */
+  const jsonIn = async (dir: string): Promise<string[]> => {
+    try {
+      return (await readdir(dir)).filter((f) => f.endsWith('.json')).map((f) => join(dir, f));
+    } catch {
+      return [];
+    }
+  };
+
+  const bundled = await jsonIn(bundledKgDir());
+  const external = await jsonIn(kgDir());
+
+  if (external.length === 0) {
+    // 不是错误：没下载 K12 数据的人照样能用本科那份和整块画布
+    log.warn('kg.k12_absent', {
+      dir: kgDir(),
+      hint: '想要初中/高中的图谱就跑 npx tsx scripts/fetch-kg.ts；本科那份随代码走，不用下载',
+    });
   }
 
-  for (const f of files) {
+  for (const path of [...bundled, ...external]) {
     try {
-      const raw = JSON.parse(await readFile(join(dir, f), 'utf8')) as unknown;
+      const raw = JSON.parse(await readFile(path, 'utf8')) as unknown;
       const n = g.load(raw);
-      log.info('kg.loaded', { file: f, ...n });
+      log.info('kg.loaded', { file: path.split('/').pop(), ...n });
     } catch (e) {
       // 一册坏了不该让其他册也进不来
-      log.error('kg.load_failed', { file: f, message: (e as Error).message });
+      log.error('kg.load_failed', { file: path, message: (e as Error).message });
     }
   }
 
   const s = g.stats();
-  log.info('kg.ready', { nodes: s.nodes, edges: s.edges, files: files.length });
+  log.info('kg.ready', { nodes: s.nodes, edges: s.edges, bundled: bundled.length, external: external.length });
   graph = g;
   return g;
 }
