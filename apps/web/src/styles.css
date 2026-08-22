@@ -877,6 +877,18 @@ html, body, #root {
 /* ---- 画布列表页（门厅）----------------------------------------------
    卡片上给的是**题目标题**而不只是房间名：`ugrad` `amc3` 摆在一起谁也认不出
    哪张是哪张卷子，而"Geometry — Triangle with an Altitude"一眼就够了。 */
+/*
+  外层滚、内层居中。
+  #root 上是 overflow:hidden（画布页需要），列表页因此一格都滚不动——
+  第三行以后的画布根本够不着。滚动容器放在这一页自己身上，
+  不去动那条全局规则。滚动条贴在视口右缘，不会浮在居中列的边上。
+*/
+.rp-scroll {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .rp {
   max-width: 1100px;
   margin: 0 auto;

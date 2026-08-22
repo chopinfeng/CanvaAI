@@ -50,7 +50,14 @@ export function RoomsPage() {
   };
 
   return (
-    <div className="rp">
+    /*
+      外层滚、内层居中。
+      html/body/#root 上是 overflow:hidden——画布页需要它（画布自己处理平移缩放，
+      整页跟着滚会很怪），但列表页因此一格都滚不动，第三行以后的画布根本够不着。
+      不去动那条全局规则，只在这一页自己开一个滚动容器。
+    */
+    <div className="rp-scroll">
+      <div className="rp">
       <header className="rp-head">
         <div>
           <h1>画布</h1>
@@ -153,7 +160,8 @@ export function RoomsPage() {
         ))}
       </div>
 
-      {showVision && <VisionSettings onClose={() => setShowVision(false)} />}
+        {showVision && <VisionSettings onClose={() => setShowVision(false)} />}
+      </div>
     </div>
   );
 }
