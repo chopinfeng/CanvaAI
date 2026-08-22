@@ -161,3 +161,188 @@ describe('题库自身', () => {
     }
   });
 });
+
+/* ------------------------------------------------------------------ *
+ * 本科偏难那一批
+ *
+ * 这几道都不是"套一个公式"：条件极值要建拉格朗日函数、非齐次微分方程
+ * 撞共振要升幂、含参方程组要分三种情况讨论。答案越长越要独立算——
+ * 抄一遍验不出什么，得换一条路走到同一个数。
+ * ------------------------------------------------------------------ */
+
+describe('U8 条件极值', () => {
+  it('最小值 5 = 原点到直线 x+2y=5 的距离平方', () => {
+    // 换一条路：不解拉格朗日，直接用点到直线距离
+    const d = Math.abs(0 + 2 * 0 - 5) / Math.hypot(1, 2);
+    near(d * d, 5);
+
+    // 驻点 (1,2) 在约束上，且函数值就是 5
+    expect(1 + 2 * 2).toBe(5);
+    near(1 * 1 + 2 * 2, 5);
+
+    // 沿约束直线扫一圈，没有比它更小的
+    for (let t = -3; t <= 3; t += 0.25) {
+      const x = 1 + 2 * t; // 方向向量 (2,−1) 与 (1,2) 垂直，保证仍在直线上
+      const y = 2 - t;
+      near(x + 2 * y, 5);
+      expect(x * x + y * y).toBeGreaterThanOrEqual(5 - 1e-9);
+    }
+    expect(P('U8').answer).toContain('x=1, y=2');
+  });
+});
+
+describe('U9 实对称矩阵', () => {
+  const A = [
+    [2, 1, 1],
+    [1, 2, 1],
+    [1, 1, 2],
+  ];
+  const mul = (m: number[][], v: number[]) => m.map((r) => r.reduce((s, x, i) => s + x * v[i]!, 0));
+
+  it('特征值 4,1,1 —— 直接验 Av=λv，不解特征方程', () => {
+    expect(mul(A, [1, 1, 1])).toEqual([4, 4, 4]);
+    expect(mul(A, [1, -1, 0])).toEqual([1, -1, 0]);
+    expect(mul(A, [1, 0, -1])).toEqual([1, 0, -1]);
+  });
+
+  it('|A|=4，tr(A)=6，且与特征值一致', () => {
+    const det =
+      A[0]![0]! * (A[1]![1]! * A[2]![2]! - A[1]![2]! * A[2]![1]!) -
+      A[0]![1]! * (A[1]![0]! * A[2]![2]! - A[1]![2]! * A[2]![0]!) +
+      A[0]![2]! * (A[1]![0]! * A[2]![1]! - A[1]![1]! * A[2]![0]!);
+    expect(det).toBe(4);
+    expect(4 * 1 * 1).toBe(det); // 行列式 = 特征值之积
+
+    const tr = A[0]![0]! + A[1]![1]! + A[2]![2]!;
+    expect(tr).toBe(6);
+    expect(4 + 1 + 1).toBe(tr); // 迹 = 特征值之和
+  });
+});
+
+describe('U10 二阶非齐次（共振）', () => {
+  // y = −3eˣ + 3e²ˣ − 2xeˣ 及其两阶导数，手推后在这里数值复核
+  const y = (x: number) => -3 * Math.exp(x) + 3 * Math.exp(2 * x) - 2 * x * Math.exp(x);
+  const y1 = (x: number) => -5 * Math.exp(x) + 6 * Math.exp(2 * x) - 2 * x * Math.exp(x);
+  const y2 = (x: number) => -7 * Math.exp(x) + 12 * Math.exp(2 * x) - 2 * x * Math.exp(x);
+
+  it('导数式子本身没抄错——和数值微分对得上', () => {
+    const h = 1e-5;
+    for (const x of [-0.5, 0, 0.7, 1.3]) {
+      expect(Math.abs((y(x + h) - y(x - h)) / (2 * h) - y1(x))).toBeLessThan(1e-4);
+      expect(Math.abs((y1(x + h) - y1(x - h)) / (2 * h) - y2(x))).toBeLessThan(1e-4);
+    }
+  });
+
+  it('代回原方程恒等于 2eˣ', () => {
+    for (const x of [-1, -0.3, 0, 0.5, 1, 2]) {
+      const lhs = y2(x) - 3 * y1(x) + 2 * y(x);
+      expect(Math.abs(lhs - 2 * Math.exp(x))).toBeLessThan(1e-9);
+    }
+  });
+
+  it('满足初值 y(0)=0, y′(0)=1', () => {
+    near(y(0), 0);
+    near(y1(0), 1);
+    expect(P('U10').answer).toContain('C₁=−3, C₂=3');
+  });
+
+  it('共振是真的——r=1 确实是特征根，所以特解必须带 x', () => {
+    const charPoly = (r: number) => r * r - 3 * r + 2;
+    expect(charPoly(1)).toBe(0);
+    expect(charPoly(2)).toBe(0);
+    // 不带 x 的设法 y*=Aeˣ 代进去左端恒为 0，凑不出 2eˣ
+    const A = 1;
+    near(A * Math.exp(1) - 3 * A * Math.exp(1) + 2 * A * Math.exp(1), 0);
+  });
+});
+
+describe('U11 幂级数', () => {
+  const partial = (x: number, N: number) => {
+    let s = 0;
+    for (let n = 1; n <= N; n++) s += Math.pow(x, n) / n;
+    return s;
+  };
+
+  it('和函数 S(x) = −ln(1−x)：部分和收敛到它', () => {
+    for (const x of [0.5, -0.5, 0.9, -0.9]) {
+      expect(Math.abs(partial(x, 4000) - -Math.log(1 - x))).toBeLessThan(1e-3);
+    }
+  });
+
+  it('x=1 发散（调和级数），x=−1 收敛到 −ln2', () => {
+    // 调和级数部分和随 N 无界增长
+    expect(partial(1, 10000)).toBeGreaterThan(partial(1, 1000) + 2);
+    // 交错调和级数收敛
+    expect(Math.abs(partial(-1, 200001) - -Math.log(2))).toBeLessThan(1e-4);
+    expect(P('U11').answer).toContain('[−1, 1)');
+  });
+});
+
+describe('U12 贝叶斯', () => {
+  it('次品率 0.032，次品来自乙的概率 0.625', () => {
+    // 换一条路：拿 10000 件直接数，不套公式
+    const total = 10000;
+    const fromA = total * 0.6;
+    const fromB = total * 0.4;
+    const badA = fromA * 0.02;
+    const badB = fromB * 0.05;
+    const bad = badA + badB;
+
+    expect(badA).toBe(120);
+    expect(badB).toBe(200);
+    near(bad / total, 0.032);
+    near(badB / bad, 0.625);
+    expect(P('U12').answer).toContain('0.625');
+  });
+});
+
+describe('U13 重积分', () => {
+  it('四分之一圆盘上 ∬(x²+y²) = 2π', () => {
+    // 换一条路：直角坐标下做黎曼和，不用极坐标
+    const R = 2;
+    const N = 2000;
+    const h = R / N;
+    let sum = 0;
+    for (let i = 0; i < N; i++) {
+      const x = (i + 0.5) * h;
+      for (let j = 0; j < N; j++) {
+        const y = (j + 0.5) * h;
+        if (x * x + y * y <= R * R) sum += (x * x + y * y) * h * h;
+      }
+    }
+    expect(Math.abs(sum - 2 * Math.PI)).toBeLessThan(0.02);
+    expect(P('U13').answer).toContain('2π');
+  });
+});
+
+describe('U14 含参方程组', () => {
+  const det = (l: number) =>
+    l * (l * l - 1) - 1 * (l - 1) + 1 * (1 - l); // |[[λ,1,1],[1,λ,1],[1,1,λ]]|
+
+  it('系数行列式 = (λ+2)(λ−1)²', () => {
+    for (const l of [-3, -2, -1, 0, 0.5, 1, 2, 5]) {
+      near(det(l), (l + 2) * (l - 1) * (l - 1));
+    }
+  });
+
+  it('λ≠1 且 λ≠−2 时行列式非零 → 唯一解', () => {
+    for (const l of [-3, 0, 2, 7]) expect(Math.abs(det(l))).toBeGreaterThan(1e-9);
+  });
+
+  it('λ=1：三个方程变成同一个，无穷多解', () => {
+    // 右端依次是 1, λ, λ² = 1, 1, 1，左端也都是 x1+x2+x3
+    expect(det(1)).toBe(0);
+    const rhs = [1, 1, 1 * 1];
+    expect(new Set(rhs).size).toBe(1);
+  });
+
+  it('λ=−2：三式相加左端为 0、右端为 3，矛盾 → 无解', () => {
+    expect(det(-2)).toBe(0);
+    const l = -2;
+    // 每列系数之和都是 λ+1+1 = 0
+    expect(l + 1 + 1).toBe(0);
+    // 右端之和 1+λ+λ² = 1−2+4 = 3 ≠ 0
+    expect(1 + l + l * l).toBe(3);
+    expect(P('U14').answer).toContain('无解');
+  });
+});

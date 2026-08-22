@@ -219,6 +219,24 @@ export function makeKnowledgePort(learner: string | (() => string)): KnowledgePo
       const g = await loadGraph();
       // 图里没有的不记：宁可少记，也不要在图谱上长出一堆幽灵节点
       const known = attempts.filter((a) => g.has(a.conceptId));
+
+      /**
+       * 但被丢掉这件事要留痕。
+       *
+       * K12-KGraph 只覆盖到高中，本科题（拉格朗日乘数法、特征值、幂级数、
+       * 重积分）大半不在图里。辅导照常跑完，掌握度却一条都没长——
+       * 静默丢弃的话，这看起来和"记录功能坏了"完全一样，
+       * 而实际上是"这道题超出了图谱范围"。这两者要采取的行动完全相反。
+       */
+      const dropped = attempts.length - known.length;
+      if (dropped > 0) {
+        log.info('kg.out_of_graph', {
+          learner: learnerId(),
+          dropped,
+          note: '这些知识点不在图谱里（K12-KGraph 覆盖到高中为止），不记掌握度',
+        });
+      }
+
       if (known.length === 0) return;
       const now = Date.now();
       const who = learnerId();
