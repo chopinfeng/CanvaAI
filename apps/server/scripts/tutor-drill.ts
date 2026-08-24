@@ -462,6 +462,33 @@ async function finish(): Promise<void> {
 
   add(tape.everPlanned, '拆过题', tape.everPlanned ? `${tape.todos.length} 个小问` : '从来没拆过题');
 
+  /**
+   * 拆的条数够不够题目原文标出来的那么多。
+   *
+   * 真机复现过：一道标了 (1)~(5) 五问的题，tutor_plan 只列了 4 条像
+   * "理解题目条件""计算 AD""验证结果""总结思路"这样的过程性条目——
+   * 不是题目问的那五问本身。结果辅导围着"求 AD"打转了大半场，
+   * 内切圆半径、外接圆半径从头到尾没被问过，清单却全部打勾，
+   * tutor_finish 也顺利通过——因为清单本身就是缩水的，"账平了"这个
+   * 信号建立在一份自己造的、缩水的账本上，单看"打勾了没"看不出这个问题。
+   *
+   * 数的是题目原文里 (1)(2)(3)…… 这类小问编号出现了几个，跟清单条数比。
+   * 数字用宽松的英文/中文括号都认，因为题面既可能是中文也可能是英文原题。
+   */
+  const numberedParts = new Set(
+    [...textOnCanvas.matchAll(/[(（]\s*(\d{1,2})\s*[)）]/g)].map((m) => m[1]),
+  ).size;
+  add(
+    numberedParts === 0 || tape.todos.length >= numberedParts,
+    '拆题拆全了',
+    numberedParts === 0
+      ? '题目原文里没有找到 (1)(2)(3) 这类小问编号，这项没法判'
+      : tape.todos.length >= numberedParts
+        ? `题目标了 ${numberedParts} 问，清单拆了 ${tape.todos.length} 条，够`
+        : `题目标了 ${numberedParts} 问，清单只拆了 ${tape.todos.length} 条——` +
+          `很可能把题目自己的问题揉成了几条"流程步骤"，账本本身就是缩水的`,
+  );
+
   const undone = tape.todos.filter((i) => !i.done);
   add(
     undone.length === 0 || wantedOut,
