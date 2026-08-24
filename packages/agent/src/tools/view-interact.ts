@@ -126,6 +126,25 @@ export const execAskUser: ToolExecutor = async (raw, ctx) => {
     );
   }
 
+  /**
+   * 提问前得在图上指过东西——这条本来只是 context.ts 里每轮都摆一遍的
+   * 提示词，指望模型自己看见了照做。真机录像验证过：一场六问的辅导，
+   * 提示词原样挂在每一轮的上下文里，模型还是只在第 1 问照做了，
+   * 后面五问全程零指点——学生自己答对了每一步，但"图文并茂"从第二问起
+   * 就名存实亡。这类事关"讲得像不像那么回事"的约束，靠劝是劝不动的，
+   * 得跟 tutor_plan 的拆题条数一样改成硬闸。
+   *
+   * 只在画布上确实有东西可指时才拦——纯口头讨论、画布是空的，
+   * 拦下来也无处可指，白白把用户晾在那儿。
+   */
+  if (ctx.session.mode === 'tutor' && t && t.outline.length > 0 && !t.markedSinceAsk && ctx.scene.all().length > 0) {
+    return err(
+      '这道题画布上有内容，但这一问你还没在图上指过要问的是哪块',
+      '先用 canvas_highlight / canvas_spotlight / canvas_pointer_move 之类的工具点亮或指向你要问的那部分' +
+        '（或者补一笔辅助线、标注），再来问——让他看见你在说哪儿，别让他在文字里猜。',
+    );
+  }
+
   const answer = await ctx.ask(a.question, a.options);
   return ok({ answer });
 };

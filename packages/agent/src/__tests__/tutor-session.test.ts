@@ -832,6 +832,91 @@ describe('讲解要指着图说', () => {
     expect(hl.call.state).toBe('error');
     expect(hl.call.error).toContain('sh_gone');
   });
+
+  /**
+   * 真机录像复现过：上面这条提醒原样摆在每一轮的上下文里，一场六问的
+   * 辅导，模型只在第 1 问照做了，后面五问全程零指点——学生自己全答对，
+   * 但"图文并茂"从第二问起就名存实亡。提示词劝不动的事，改成硬闸。
+   */
+  it('画布上有内容但没指过——提问被拒，不能捂着眼讲', async () => {
+    const scene = new Scene();
+    scene.create([{ type: 'line', id: 'sh_a', points: [[0, 0], [10, 10]] }], {
+      author: { id: 'u1', kind: 'user' },
+    });
+    const h = makeHarness([{ calls: [ask('这条边多长？')] }, { text: '好' }], {
+      scene,
+      session: {
+        mode: 'tutor',
+        tutor: {
+          goal: '讲这题',
+          outline: [{ text: '(1) 求 DF', done: false }],
+          startedTurn: 0,
+          pending: null,
+          rightSince: 0,
+          markedSinceAsk: false,
+          attempts: [],
+          concepts: [],
+        },
+      },
+    });
+
+    await speak(h, '继续');
+
+    expect(h.events('agent.ask')).toEqual([]);
+    const askCall = h.events('agent.tool').filter((m) => m.call.name === 'interact_ask_user').at(-1)!;
+    expect(askCall.call.state).toBe('error');
+  });
+
+  it('指过了再问——放行', async () => {
+    const scene = new Scene();
+    scene.create([{ type: 'line', id: 'sh_a', points: [[0, 0], [10, 10]] }], {
+      author: { id: 'u1', kind: 'user' },
+    });
+    const h = makeHarness([{ calls: [ask('这条边多长？')] }, { text: '好' }], {
+      scene,
+      autoAnswer: '嗯',
+      session: {
+        mode: 'tutor',
+        tutor: {
+          goal: '讲这题',
+          outline: [{ text: '(1) 求 DF', done: false }],
+          startedTurn: 0,
+          pending: null,
+          rightSince: 0,
+          markedSinceAsk: true,
+          attempts: [],
+          concepts: [],
+        },
+      },
+    });
+
+    await speak(h, '继续');
+
+    expect(h.events('agent.ask')).toHaveLength(1);
+  });
+
+  it('画布是空的——没什么可指，不拦', async () => {
+    const h = makeHarness([{ calls: [ask('接下来怎么想？')] }, { text: '好' }], {
+      autoAnswer: '嗯',
+      session: {
+        mode: 'tutor',
+        tutor: {
+          goal: '讲这题',
+          outline: [{ text: '(1) 求极限', done: false }],
+          startedTurn: 0,
+          pending: null,
+          rightSince: 0,
+          markedSinceAsk: false,
+          attempts: [],
+          concepts: [],
+        },
+      },
+    });
+
+    await speak(h, '继续');
+
+    expect(h.events('agent.ask')).toHaveLength(1);
+  });
 });
 
 describe('账本每一轮都摆在模型眼前', () => {
