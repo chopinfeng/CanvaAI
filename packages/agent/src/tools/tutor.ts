@@ -61,6 +61,33 @@ export const execTutorPlan: ToolExecutor = async (raw, ctx) => {
    */
   const first = t.outline.length === 0;
 
+  /**
+   * 开局拆题的条数要跟题目原文里的 (1)(2)(3) 对得上——不能光靠提示词劝。
+   *
+   * 实测复现过：提示词里已经写了"小问编号要一一对应"，模型还是把一道标了
+   * (1)~(5) 五问的题拆成 3 条"理解题目条件/分析图形结构/逐步求解"这种
+   * 流程步骤，账本从一开始就是缩水的，后面判完 3 条就收尾，(4)(5) 两问
+   * 用户压根没被问起。提示词对模型的约束是概率性的，这种会直接影响
+   * "题目有没有讲完"的判断必须是硬闸，不能只靠劝。
+   *
+   * 只在第一次拆题时查——后续每一轮都重发全量清单，用同样的口径查会
+   * 把"这一轮先聚焦其中两问，其余的还没提"误判成漏题。
+   */
+  if (first) {
+    const nums = new Set<string>();
+    for (const s of ctx.scene.all()) {
+      if (!s.text) continue;
+      for (const m of s.text.matchAll(/[(（]\s*(\d{1,2})\s*[)）]/g)) nums.add(m[1]!);
+    }
+    if (nums.size > 0 && a.items.length < nums.size) {
+      return err(
+        `题目原文里标了 ${nums.size} 个小问（${[...nums].join('、')}），这次只拆了 ${a.items.length} 条`,
+        '重新读一遍题目原文（canvas_query / canvas_describe），按 (1)(2)(3)... 的编号逐条对应地拆，' +
+          '不要把它们揉成"理解条件/计算/验证"这种流程步骤——每个编号至少算一条小问。',
+      );
+    }
+  }
+
   // 换清单时把老的 done 带过来：模型每轮重发全量，偶尔会漏标已完成的那条，
   // 漏一次就等于让用户把做出来的小问再做一遍。文字相同就认为是同一条。
   const wasDone = new Set(t.outline.filter((i) => i.done).map((i) => i.text.trim()));

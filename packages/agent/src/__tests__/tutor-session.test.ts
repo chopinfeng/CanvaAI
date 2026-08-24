@@ -1054,3 +1054,65 @@ describe('中途退出时的落盘', () => {
     expect(saved.map((a) => a.conceptId)).toEqual(['c_pyth', 'c_tri']);
   });
 });
+
+/**
+ * 真机复现过：题目原文标了 (1)~(5) 五问，提示词里已经写了"编号要一一对应"，
+ * 模型还是把它揉成 3 条"理解题目条件/分析图形结构/逐步求解"这种流程步骤，
+ * 判完 3 条就收尾，(4)(5) 两问用户压根没被问起。
+ * 提示词管不住这种事，改成硬闸：开局拆题条数比原文里的编号少，直接拒绝。
+ */
+describe('开局拆题不能比原文的编号少', () => {
+  function amcScene() {
+    const scene = new Scene();
+    scene.create(
+      [
+        {
+          type: 'text',
+          x: 0,
+          y: 0,
+          text:
+            '(1) Find BD and DC. (2) Find the length of the altitude AD. ' +
+            '(3) Find the area of triangle ABC. (4) Find the radius r of the inscribed circle. ' +
+            '(5) Find the radius R of the circumscribed circle.',
+        },
+      ],
+      { author: { id: 'seed', kind: 'user' }, layer: 'user' },
+    );
+    return scene;
+  }
+
+  it('五问只拆三条——拒绝，没能开出一张缩水的账本', async () => {
+    const scene = amcScene();
+    const h = makeHarness(
+      [{ calls: [PLAN([{ text: '理解题目条件' }, { text: '计算' }, { text: '验证结果' }])] }],
+      { scene, autoAnswer: '嗯' },
+    );
+    await speak(h, '给我讲这道题');
+
+    expect(h.session.tutor?.outline ?? []).toEqual([]);
+  });
+
+  it('五问拆足五条——放行', async () => {
+    const scene = amcScene();
+    const h = makeHarness(
+      [
+        {
+          calls: [
+            PLAN([
+              { text: '(1) 求 BD 和 DC' },
+              { text: '(2) 求高 AD' },
+              { text: '(3) 求面积' },
+              { text: '(4) 求内切圆半径 r' },
+              { text: '(5) 求外接圆半径 R' },
+            ]),
+            ask('先算 BD 吧，用什么关系？'),
+          ],
+        },
+      ],
+      { scene, autoAnswer: '嗯' },
+    );
+    await speak(h, '给我讲这道题');
+
+    expect(h.session.tutor?.outline.length).toBe(5);
+  });
+});
