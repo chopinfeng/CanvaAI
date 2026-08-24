@@ -156,8 +156,14 @@ export function ShapeNode({ shape, opacity, highlight, onSelect, selected, dragg
   const pulse = usePulse(!!highlight);
 
   const stroke = highlight ? '#f59e0b' : s.stroke ?? '#111827';
-  const strokeWidth =
-    (s.strokeWidth ?? 2) * (highlight ? 1.7 + pulse * 0.5 : 1) * (selected ? 1.2 : 1);
+  /**
+   * 高亮描边要比原线粗一大截才压得住——录像里反馈过：原来的 1.7~2.2 倍
+   * 放在细线（辅助线常常就 1~2px）上，加粗后也才 3~4px，跟满屏的线混在
+   * 一起还是不跳眼。改成固定下限（至少 4px）加更大的倍数。
+   */
+  const strokeWidth = highlight
+    ? Math.max((s.strokeWidth ?? 2) * (2.4 + pulse * 0.8), 4) * (selected ? 1.2 : 1)
+    : (s.strokeWidth ?? 2) * (selected ? 1.2 : 1);
   const baseOpacity = (s.opacity ?? 1) * opacity;
 
   const common = {
@@ -179,8 +185,8 @@ export function ShapeNode({ shape, opacity, highlight, onSelect, selected, dragg
     ...(highlight === 'glow' || highlight === 'pulse'
       ? {
           shadowColor: '#f59e0b',
-          shadowBlur: (highlight === 'pulse' ? 10 : 14) + pulse * (highlight === 'pulse' ? 22 : 14),
-          shadowOpacity: 0.55 + pulse * 0.45,
+          shadowBlur: (highlight === 'pulse' ? 18 : 24) + pulse * (highlight === 'pulse' ? 26 : 20),
+          shadowOpacity: 0.75 + pulse * 0.25,
         }
       : {}),
   };
