@@ -220,6 +220,19 @@ async function nudgeStudent(): Promise<void> {
     silentRetries = 0;
   } catch (e) {
     log('演练', `学生这边出错：${(e as Error).message}`);
+    /**
+     * 真机复现过：上游模型服务限流（DeepSeek 429），学生这一步的模型调用
+     * 直接抛了异常，走的是这条 catch 分支——上面"没说话就重推"那段
+     * 完全没机会生效，因为它压根没跑到 saidNothing 那句判断。
+     * 限流多半是瞬时的，重试的价值跟"没说话"是一样的，用同一个计数器封顶。
+     */
+    if (student.waitingOnQuestion && silentRetries < MAX_SILENT_RETRIES) {
+      silentRetries++;
+      log('演练', `学生这一步调用出错，${silentRetries}/${MAX_SILENT_RETRIES} 次重推`);
+      thinking = false;
+      scheduleNudge(1500 * silentRetries);
+      return;
+    }
   } finally {
     thinking = false;
   }
