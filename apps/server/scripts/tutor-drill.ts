@@ -209,7 +209,19 @@ async function nudgeStudent(): Promise<void> {
   turns++;
   try {
     const result = await student.act();
-    const saidNothing = result.said.length === 0 && result.answered.length === 0 && !result.done;
+    /**
+     * 不能拿 result.done 当"真的说完了"的证据。
+     *
+     * 这是个真 bug：student_done 的语义是"这一轮我交球了"，不是"这轮我
+     * 答上来了"——看了眼画布、没答上来，也会调 student_done（student.ts
+     * 自己内部的静默判断就只看 said/answered，压根不管 done）。
+     * 加上 `&& !result.done` 之后，学生内部那次自救也失败、看了眼画布
+     * 就交球的情况，被这里误判成"正常结束"，外层重推整个失效——
+     * 真机复现过：老师刚问完第一句，学生一次都没真正重推就那么等到
+     * 静默超时，跟这条修复本来要堵的洞一模一样。
+     * 真正该看的只有 waitingOnQuestion：pendingAsk 还在，就是没答上。
+     */
+    const saidNothing = result.said.length === 0 && result.answered.length === 0;
     if (saidNothing && student.waitingOnQuestion && silentRetries < MAX_SILENT_RETRIES) {
       silentRetries++;
       log('演练', `学生这一步没说话，${silentRetries}/${MAX_SILENT_RETRIES} 次重推`);
