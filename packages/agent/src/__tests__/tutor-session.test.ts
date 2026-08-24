@@ -287,18 +287,22 @@ describe('每一轮都要把球交回给用户', () => {
     expect(h.events('agent.ask')).toHaveLength(2);
   });
 
-  it('提醒只发一次，不会两边空转到步数上限', async () => {
+  it('两条路各自限次，不会两边空转到步数上限', async () => {
     const h = tutor([
+      // 第一步拆完题却没问——现在这一步本身就会被拉回来一次
+      // （tutorHandBack() 不再只在"零工具调用"时才检查，见 loop.ts 的 handbackNudges）
       { calls: [PLAN([{ text: '(1) 求 DF' }])] },
       { text: '讲完了。' },
-      { text: '真的讲完了。' }, // 还是不提问
+      { text: '真的讲完了。' }, // 还是不提问——这条路自己的提醒已经用掉了，到这里放行
     ]);
     await speak(h, '给我讲这道题');
 
     const nudges = h.loop
       .getHistory()
       .filter((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('[系统] 这一轮你没有向用户提问'));
-    expect(nudges).toHaveLength(1);
+    // 两条路各碰一次：调了工具但没问（handbackNudges）+ 零工具调用（nudged），
+    // 各自限次，不会无限提醒下去——第三步照样收工，总的模型调用次数不变
+    expect(nudges).toHaveLength(2);
     expect(h.model.callCount).toBe(3);
   });
 
@@ -338,6 +342,108 @@ describe('他答完，必须先说对不对', () => {
       .filter((m) => m.call.name === 'interact_ask_user' && m.call.state === 'error');
     expect(rejected).toHaveLength(1);
     expect(rejected[0]!.call.error).toContain('你还没说这答案对不对');
+  });
+
+  /**
+   * 真实事故复现：H7 那场老师在学生答完之后没调 tutor_judge，
+   * 而是直接调了 interact_say 说"这次先停在这里"就把回合结束了——
+   * 一次判定都没给。原因是硬拦（execAskUser 那道闸）只挡了 interact_ask_user，
+   * 模型换一个工具（interact_say、canvas_highlight 都行）就绕过去了。
+   */
+  it('用别的工具（不是问下一个）绕过判定，照样要被拉回来', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }]), ask('AF 等于哪条边？')] },
+      // 他答了，模型不判定，直接调 interact_say 想蒙混过去——
+      // 这一步 out.calls.length > 0，旧逻辑的 tutorHandBack 压根不会被检查到
+      { calls: [say('好，我们先到这里。')] },
+      { calls: [judge('right', '对，AF=AB'), ask('那 DF 呢？')] },
+      { text: '好' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    const nudge = h.loop
+      .getHistory()
+      .find((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('你到现在也没说这答案对不对'));
+    expect(nudge).toBeDefined();
+
+    // 最要紧的：真的被逼着判了，不是嘴上提醒完照样漏过去
+    expect(h.events('agent.judge')).toHaveLength(1);
+  });
+
+  /**
+   * 真机复现的第二种形状（和上面那条根子相同，症状不同）：判定给了，
+   * 但没问下一步就直接 interact_say 宣布"这次先停在这里"——账上明明还有
+   * 小问没解决，模型却当场决定收摊。这条也曾经绕得过去，因为
+   * tutorHandBack() 只在零工具调用时才会被检查，而 interact_say 本身
+   * 是"调了工具"。
+   */
+  it('判完就想收摊、没问下一步，照样要被拉回来', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }]), ask('AF 等于哪条边？')] },
+      // 判定给了，但没问下一步——直接想暂停，账上还有两个小问没解决
+      { calls: [judge('right', '对，AF=AB'), say('好，我们先到这里。')] },
+      // 我的修复应该把它拉回来，逼它继续问
+      { calls: [ask('那 DF 呢？')] },
+      { text: '好' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    const nudge = h.loop
+      .getHistory()
+      .find((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('球断在这里了'));
+    expect(nudge).toBeDefined();
+
+    // 最要紧的：真的又问了下一步，不是嘴上提醒完照样撒手不管
+    expect(h.events('agent.ask')).toHaveLength(2);
+  });
+
+  /**
+   * 真机复现的第三种形状，和上面两条根子不同：这次不是模型绕开判定，
+   * 是**画画本身把等待中的提问打断了**。
+   *
+   * 老师问"你能画出这个三角形吗"，学生先画（kind:'draw' 事件），
+   * push() 早先把它当成"新输入"直接 abort 了当前 turn——onAbort 清空
+   * pendingAsk 但不设置 t.pending，随后学生补的文字答案也只是个普通
+   * text 事件，从没被记成"待判定的回答"。模型接着调 tutor_judge，
+   * 被拦下：账上查无此事。学生明明答了，系统却不知道。
+   */
+  it('学生先画图再补文字答案，画的动作不能把提问打断', async () => {
+    const h = makeHarness([
+      { calls: [PLAN([{ text: '(1) 画出三角形' }]), ask('你能画出这个直角三角形吗？')] },
+      { calls: [judge('right', '对，画得对'), ask('那斜边呢？')] },
+      { text: '好' },
+    ]);
+    h.loop.push({ kind: 'text', text: '给我讲这道题', at: Date.now() });
+    const draining = h.loop.drain();
+
+    // 等 ask 真的挂上，再让"学生"先画一笔——这是复现的关键顺序
+    for (let i = 0; i < 20 && h.events('agent.ask').length === 0; i++) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    expect(h.events('agent.ask')).toHaveLength(1);
+    const before = h.model.callCount;
+    h.loop.push({ kind: 'draw', shapeIds: ['sh_tri'], region: [0, 0, 100, 100], at: Date.now() });
+
+    // 画画不该触发新一轮模型调用——提问还在等，没被打断
+    await new Promise((r) => setTimeout(r, 0));
+    expect(h.model.callCount).toBe(before);
+
+    // 学生这才把文字答案发过来，提问正常被回答
+    h.loop.push({ kind: 'answer', askId: h.events('agent.ask')[0]!.askId, answer: '画好了，直角三角形', at: Date.now() });
+
+    // 判定紧接着问了第二问（脚本第 2 步），把它也答掉，让这一轮正常收尾
+    for (let i = 0; i < 20 && h.events('agent.ask').length < 2; i++) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    h.loop.push({ kind: 'answer', askId: h.events('agent.ask')[1]!.askId, answer: '5', at: Date.now() });
+    await draining;
+
+    // 最要紧的：判定真的发生了，没有被"没有待判定的回答"拦下
+    expect(h.events('agent.judge')).toHaveLength(1);
+    const guardRejected = h
+      .events('agent.tool')
+      .some((m) => m.call.name === 'tutor_judge' && m.call.state === 'error');
+    expect(guardRejected).toBe(false);
   });
 
   it('有人答了就通知各端把提问卡收掉——多开一个客户端不该对着旧问题发呆', async () => {

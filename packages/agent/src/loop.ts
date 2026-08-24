@@ -124,6 +124,28 @@ export class AgentLoop {
       ask.resolve(event.answer);
       return;
     }
+
+    /**
+     * 画画不算打断一个正在等待的提问。
+     *
+     * 辅导常常让学生"画出这个三角形"作为回答的一部分——画完接着说文字答案。
+     * draw 事件是 kind:'draw'，不匹配上面的 answer 分支；原来的逻辑会把它
+     * 当成"新输入"直接 abort 当前 turn。真机复现过一次：老师问"你能画出
+     * 这个三角形吗"，学生先画、再补一句文字，画的动作把等待中的
+     * interact_ask_user 打断了——onAbort 清空 pendingAsk 却不设置
+     * t.pending，随后那句迟到的文字答案也只是一个普通 text 事件，
+     * 从没被当成"待判定的回答"记下来。模型接着调 tutor_judge，被拦下：
+     * "没有待判定的回答"——学生明明答了，账上却查无此事。
+     *
+     * 画的内容不会丢：还是会进队列，只是不打断当前这个 ask——
+     * 等它真正被回答（或者当下没人在等提问），画的内容自然会随下一轮
+     * 一起进到模型的上下文里。
+     */
+    if (event.kind === 'draw' && this.pendingAsk) {
+      this.queue.push(event);
+      return;
+    }
+
     this.queue.push(event);
     if (this.running) this.abort();
   }
@@ -204,6 +226,27 @@ export class AgentLoop {
     let nudged = false;
     /** 这一回合空转过几次（模型只想不做） */
     let emptySteps = 0;
+    /**
+     * 「球没交回去却想结束」被提醒过几次。
+     *
+     * 和上面的 `nudged` 分开计数、也不共用触发条件：`nudged` 只在模型这一步
+     * **什么工具都没调**时才检查 tutorHandBack()，而实测的真实事故是模型调了
+     * 别的工具（`interact_say` 说一句"这次先停在这里"、或者干脆去调
+     * `canvas_highlight`）——`out.calls.length > 0`，`nudged` 那条分支根本不会跑到。
+     *
+     * 真机复现过两种形状：
+     *  1. 学生答完，模型不判定，直接 `interact_say` 收尾——`t.pending` 被绕过去了。
+     *  2. 判定给了，但没问下一步就直接 `interact_say` 宣布暂停——账上明明还有
+     *     3 个小问没解决，模型却当场决定"讲到这吧"。
+     * 这两种表面症状不同，根子是同一个：`tutorHandBack()` 只在零工具调用时才被
+     * 检查。所以这里不再单挑 `t.pending`，而是每一步执行完都问一遍 tutorHandBack()——
+     * 它自己知道该说哪句（判定 / 拆题 / 问下一步），三个分支都盖住。
+     *
+     * `interact_ask_user` 有硬拦（见 view-interact.ts 的 execAskUser），但那只挡了
+     * "跳过判定去问下一个"这一条路；`interact_say`、`canvas_*` 这些工具完全没挡——
+     * 守一个入口挡不住从另一扇门绕过去。
+     */
+    let handbackNudges = 0;
 
 
     try {
@@ -279,6 +322,22 @@ export class AgentLoop {
 
         toolCalls += out.calls.length;
         await this.executeCalls(out.calls, ctx, turnId, failStreak);
+
+        /**
+         * 这一步调了工具（不是零工具），球有没有真的交回去。
+         *
+         * `tutorHandBack()` 到这里如果还有话说，说明该判的没判、该问的没问、
+         * 该拆的没拆——不管模型这一步实际调了什么工具，都还没把球交回用户手里。
+         * 复现过的两种真实事故见上面 handbackNudges 声明处的注释。
+         */
+        if (this.opts.session.mode === 'tutor' && handbackNudges < 4) {
+          const handback = this.tutorHandBack();
+          if (handback) {
+            handbackNudges++;
+            this.history.push({ role: 'user', content: handback });
+            continue;
+          }
+        }
 
         if (failStreak.size > 0 && [...failStreak.values()].some((n) => n >= 3)) {
           this.history.push({
