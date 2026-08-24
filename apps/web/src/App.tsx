@@ -220,15 +220,26 @@ export function App() {
         }
 
         /**
-         * 窗口尺寸拿不到就别算了。
+         * 窗口尺寸拿不到就先等一等，别直接放弃。
          *
          * 标签页在后台、窗口最小化时 innerWidth 会是 0，硬算出来的相机
          * 参数是垃圾（实测缩放被压到 0.05，用户回到前台看见一片空白）。
-         * 这和 Konva 在 0 宽高上 drawImage 崩溃是同一个根因。
+         * 但真机测出过另一种 0：房间一进来就有内容的场景（join 时机器人
+         * 立刻推一条这消息），页面刚挂载、这一帧的布局还没跑完，
+         * innerWidth/innerHeight 也读到 0——这时候直接丢掉消息，
+         * 用户就永远等不到这次自动居中。跟"真的在后台"不是一回事，
+         * 差的只是几十毫秒，retry 几次基本都能等到布局跑完；
+         * 等到上限还是 0，才按原来的逻辑当成"真的看不见"而放弃。
          */
         const vw = window.innerWidth;
         const vh = window.innerHeight;
-        if (vw < 100 || vh < 100) break;
+        if (vw < 100 || vh < 100) {
+          const attempt = (msg as { _retry?: number })._retry ?? 0;
+          if (attempt < 10) {
+            requestAnimationFrame(() => handleControl({ ...msg, _retry: attempt + 1 } as ServerMessage));
+          }
+          break;
+        }
 
         const shapes = useStore.getState().shapes;
 
