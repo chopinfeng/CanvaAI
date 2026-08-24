@@ -7,7 +7,7 @@ import * as syncProtocol from 'y-protocols/sync';
 import * as encoding from 'lib0/encoding';
 import * as decoding from 'lib0/decoding';
 import type { WebSocket } from 'ws';
-import { ORIGIN_AI, Scene } from '@canvai/canvas-core';
+import { ORIGIN_AI, Scene, shapeBounds, unionBounds } from '@canvai/canvas-core';
 import type { AgentInputEvent, ClientMessage, ServerMessage } from '@canvai/protocol';
 import type { FrameTagValue } from '@canvai/protocol';
 import { ClientMessageSchema, FrameTag, decodeFrame, encodeFrame } from '@canvai/protocol';
@@ -167,6 +167,22 @@ export class Room {
       editMode: this.session.editMode,
       mode: this.session.mode,
     });
+
+    /**
+     * 打开一个已经有内容的房间，镜头要落在内容上，不是落在 (0,0)。
+     *
+     * 真机反馈过：题目文字从 x=80 起笔，默认相机是 (0,0,zoom:1)，
+     * 打开页面看到的是一片空白，题目在视口外面。paper.ts 导入完之后
+     * 已经会带一次镜头（agent.viewport），但那只覆盖"导入"这一条路——
+     * 手工灌好内容的房间、或者隔一阵子重新打开的房间，没人再发这条消息。
+     * 相机状态本来就是纯客户端的、每次连接都会回到默认值，所以这里
+     * 每次 join 都发不算多余——不发的话本来就是回到 (0,0)，发了才是
+     * 回到"看得见内容"的地方，只会更好不会更差。
+     */
+    if (this.scene.size > 0) {
+      const bounds = unionBounds(this.scene.all().map(shapeBounds));
+      this.sendControl(socket, { t: 'agent.viewport', rect: bounds, animate: false });
+    }
 
     return client;
   }
