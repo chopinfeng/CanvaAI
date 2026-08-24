@@ -92,6 +92,9 @@ async function main() {
       '--request', request,
       '--max-turns', '40',
       '--quiet-sec', quietSec,
+      // 演练脚本自己也有一道硬超时兜底，默认 10 分钟——录像给的时间比这个宽，
+      // 兜底不传的话，画得越全面的一场反而越容易被它自己的安全网腰斩。
+      '--max-min', String(maxMin),
     ],
     { cwd: join(here, '..'), stdio: ['ignore', 'pipe', 'pipe'] },
   );
