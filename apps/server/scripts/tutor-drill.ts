@@ -186,6 +186,19 @@ let finished = false;
 let thinking = false;
 let idleTimer: NodeJS.Timeout | null = null;
 
+/**
+ * 学生这一步一句话都没说出去，还剩几次外层重推的机会。
+ *
+ * student.act() 自己内部已经有一次"你怎么不说话"的自救（见 student.ts），
+ * 但那次也失败的话，它就安静地返回了——调用方原来根本没看返回值，
+ * 于是老师的问题就那么一直挂着，没人再推一把，直到最外层的静默兜底
+ * 把整场演练判死。真机复现过两次：一次是老师主动停下之后学生没接话，
+ * 一次是老师刚问完第一句学生就没了下文——两次都不是"学生真答不上来"，
+ * 就是没人再戳它一下。这里给它几次真正的重试机会，而不是一次就放弃。
+ */
+let silentRetries = 0;
+const MAX_SILENT_RETRIES = 3;
+
 async function nudgeStudent(): Promise<void> {
   if (thinking || finished) return;
   if (turns >= maxTurns) {
@@ -195,7 +208,16 @@ async function nudgeStudent(): Promise<void> {
   thinking = true;
   turns++;
   try {
-    await student.act();
+    const result = await student.act();
+    const saidNothing = result.said.length === 0 && result.answered.length === 0 && !result.done;
+    if (saidNothing && student.waitingOnQuestion && silentRetries < MAX_SILENT_RETRIES) {
+      silentRetries++;
+      log('演练', `学生这一步没说话，${silentRetries}/${MAX_SILENT_RETRIES} 次重推`);
+      thinking = false;
+      scheduleNudge(1500 * silentRetries);
+      return;
+    }
+    silentRetries = 0;
   } catch (e) {
     log('演练', `学生这边出错：${(e as Error).message}`);
   } finally {
