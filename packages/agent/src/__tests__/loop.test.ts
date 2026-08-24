@@ -710,3 +710,61 @@ describe('空转的回合', () => {
     expect(nudge).toBeUndefined();
   });
 });
+
+/**
+ * 一步里同一个调用（同工具、同参数）出现多次，只执行第一次。
+ *
+ * 真机复现过一次退化重复：模型陷进"退化重复"（degenerate repetition，
+ * 模型常见病），在一步里把同一句 interact_say 原样调了 13 次，
+ * 那次 completion 卡在了 max_tokens 上限——不是真想说 13 遍，是它
+ * 卡住了，一直吐同一段直到 token 预算耗光，流被截断。早先 executeCalls
+ * 对这个数组来者不拒，于是用户屏幕上连着刷出 13 条一模一样的消息，
+ * 一步就把步数额度烧掉一大截，一道五问的题因此没讲完就超时了。
+ */
+describe('一步里的重复调用', () => {
+  it('同工具同参数调了 5 次，只真的执行一次', async () => {
+    // call() 每次都发新 id——和真实场景一致：模型流里的每个 tool_call
+    // 各有自己的 id，即便 name/arguments 完全相同也不会共用一个 id。
+    const say = () => call('interact_say', { text: '我已经把顶点 A 标出来了，现在请告诉我哪个角是直角？' });
+    const h = makeHarness([
+      { calls: [say(), say(), say(), say(), say()] },
+      { text: '好' },
+    ]);
+    h.loop.push({ kind: 'text', text: '帮我画个方块', at: Date.now() });
+    await h.loop.drain();
+
+    // 用户屏幕上只该看到一条，不是五条
+    expect(h.events('agent.say').filter((m) => m.text.includes('哪个角是直角'))).toHaveLength(1);
+  });
+
+  it('被跳过的调用有一条"重复"结果回灌给模型，不是假装成功', async () => {
+    // 空 ids = 清除高亮，这个调用不依赖场景里有没有对应的图元，能稳定成功
+    const highlight = () => call('canvas_highlight', { ids: [], ms: 0 });
+    const h = makeHarness([{ calls: [highlight(), highlight()] }, { text: '好' }]);
+    h.loop.push({ kind: 'text', text: '帮我画个方块', at: Date.now() });
+    await h.loop.drain();
+
+    const toolMsgs = h.loop.getHistory().filter((m) => m.role === 'tool');
+    const payloads = toolMsgs.map((m) => JSON.parse(m.content as string));
+    const oks = payloads.filter((p) => p.ok);
+    const skipped = payloads.filter((p) => !p.ok && typeof p.error === 'string' && p.error.includes('已经调过'));
+    expect(oks).toHaveLength(1);
+    expect(skipped).toHaveLength(1);
+  });
+
+  it('不同参数的调用不算重复，两次都真的执行', async () => {
+    const h = makeHarness([
+      {
+        calls: [
+          call('interact_say', { text: '第一句' }),
+          call('interact_say', { text: '第二句' }),
+        ],
+      },
+      { text: '好' },
+    ]);
+    h.loop.push({ kind: 'text', text: '帮我画个方块', at: Date.now() });
+    await h.loop.drain();
+
+    expect(h.events('agent.say')).toHaveLength(2);
+  });
+});

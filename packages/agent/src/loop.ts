@@ -666,10 +666,47 @@ export class AgentLoop {
     turnId: string,
     failStreak: Map<string, number>,
   ): Promise<void> {
-    const readonly = calls.filter((c) => this.registry.isReadonly(c.function.name));
-    const writes = calls.filter((c) => !this.registry.isReadonly(c.function.name));
+    /**
+     * 同一步里一模一样的调用（同工具名、同参数）只认第一个。
+     *
+     * 真机撞见过一次退化重复：模型在一步里把"我已经把顶点 A 标出来了，
+     * 现在请告诉我……"这句 interact_say 原样调了 13 次，那次completion
+     * 正好卡在 4096（max_tokens 上限）——不是模型真想说 13 遍，是它陷进了
+     * 退化重复（degenerate repetition，模型常见病），一直吐同一段直到
+     * 把这一步的 token 预算耗光，流被截断。早先这里对 calls 数组来者不拒，
+     * 于是用户屏幕上连着刷出 13 条一模一样的消息，一步就把步数额度和
+     * token 都烧掉一大截，五问的题因此没讲完就超时了。
+     *
+     * 判重是"同工具名+同参数"，不看顺序、不只看相邻——一个模型在一步里
+     * 有意义地把同一个调用原样发两遍，这种场景几乎不存在。跳过的调用
+     * 仍然要给一条 tool 结果（模型能看到"这条被跳过了，别再发一遍"），
+     * 但不会真的执行第二次——不会重复画、不会重复说话、不会重复判定。
+     */
+    const seen = new Set<string>();
+    const deduped: ToolCall[] = [];
+    const skipped = new Map<string, ToolCall>();
+    for (const c of calls) {
+      const key = `${c.function.name}:${c.function.arguments}`;
+      if (seen.has(key)) {
+        skipped.set(c.id, c);
+        continue;
+      }
+      seen.add(key);
+      deduped.push(c);
+    }
+
+    const readonly = deduped.filter((c) => this.registry.isReadonly(c.function.name));
+    const writes = deduped.filter((c) => !this.registry.isReadonly(c.function.name));
 
     const results = new Map<string, ToolResult>();
+
+    for (const c of skipped.values()) {
+      results.set(c.id, {
+        ok: false,
+        error: '这一步里已经调过一模一样的工具和参数了，这次没有真的再执行一遍',
+        hint: '别在同一步里把同一个调用重复发好几遍——想接着做别的就换个不同的调用，或者直接结束这一步。',
+      });
+    }
 
     await Promise.all(
       readonly.map(async (c) => {
