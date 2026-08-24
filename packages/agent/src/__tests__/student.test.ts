@@ -196,3 +196,50 @@ describe('把画布讲给学生听', () => {
     expect(describeForStudent(new Scene())).toContain('什么都没有');
   });
 });
+
+describe('一步里的重复调用', () => {
+  /**
+   * 真机复现：辅导那道 5 问几何题时，学生 Agent 在一步里把
+   * student_answer("题目还提到了角 B 是直角。") 原样调了近 60 次，
+   * 全落在同一秒——老师那边的 AgentLoop.executeCalls 已经加了去重防护，
+   * 但这是完全独立的一份循环，没被那次修复覆盖到。真发生了的话，
+   * 老师会收到 60 条一模一样的"回答"，事件流被灌满垃圾。
+   */
+  it('同一步里同一个回答调了 5 次，只真的发送一次', async () => {
+    /**
+     * 这条测试第一版栽过一次：student_answer 自己有个"没有待答问题就
+     * 退化成 say"的分支（因为第一次答完 pendingAsk 就被清空了），
+     * 于是即使不加去重，第 2~5 次调用也不会真的再调 port.answer——
+     * 它们会滑进 say 分支，看着像是"没重复"，其实只是重复的证据
+     * 换了个地方出现。真要看的是**一共发生了几次真实的对外动作**
+     * （answer + say 加起来），不是单独盯着 answer 那一种。
+     */
+    const answer = () => call('student_answer', { text: '题目还提到了角 B 是直角。' });
+    const { student, acts } = makeStudent([
+      { calls: [answer(), answer(), answer(), answer(), answer(), call('student_done', {})] },
+    ]);
+
+    student.observe(ask('ask_1', '题目还提到了什么条件？'));
+    await student.act();
+
+    // 5 次重复调用，只该有 1 次真实的对外动作——不管它落在 answer 还是 say 里
+    expect(acts).toHaveLength(1);
+    expect(acts[0]).toBe('answer:ask_1:题目还提到了角 B 是直角。');
+  });
+
+  it('不同参数的调用不算重复，两次都真的执行', async () => {
+    const { student, acts } = makeStudent([
+      {
+        calls: [
+          call('student_say', { text: '第一句' }),
+          call('student_say', { text: '第二句' }),
+          call('student_done', {}),
+        ],
+      },
+    ]);
+    student.observe({ t: 'agent.say', text: '老师起个头', interruptible: true });
+    await student.act();
+
+    expect(acts.filter((a) => a.startsWith('say:'))).toEqual(['say:第一句', 'say:第二句']);
+  });
+});
