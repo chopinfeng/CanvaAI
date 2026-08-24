@@ -91,7 +91,8 @@ export function AgentPanel({ conn, onOpenVision }: { conn: Connection; onOpenVis
     if (!ask || !text.trim()) return;
     conn.send({ t: 'agent.answer', askId: ask.askId, answer: text });
     pushChat({ id: `u_${nanoid(6)}`, role: 'user', text });
-    set({ ask: null });
+    // 记一笔：服务端广播回来时别再渲染一遍
+    set({ ask: null, answeredLocally: [...useStore.getState().answeredLocally, ask.askId].slice(-50) });
     setInput(''); // 之前只有 send() 清了输入框，回答问题后残留在那儿
   };
 

@@ -398,6 +398,37 @@ async function finish(): Promise<void> {
    * "学生学完之后掌握度要更新"是这套东西的目的本身，
    * 留在手工验证里，下次改坏了没人会发现。
    */
+  /**
+   * 老师讲的是不是**画布上这道题**。
+   *
+   * 这道闸是被一次真实事故逼出来的：H9 的题目原文就在画布上（纯文字，
+   * 连读图都不需要），老师却讲了一道自己编的「直线 y=x+1 与圆 x²+y²=4」，
+   * 而当时的判分表打了「辅导全过程跑通」——它检查拆题、判定、收尾，
+   * 唯独不检查讲的是不是这道题。一场围绕虚构题目的辅导，所有检查都说很好。
+   *
+   * 第一版我比的是"提问里有没有题面上没有的数"，结果**抓不住这次事故**：
+   * 编出来的 y=x+1、x²+y²=4 用的 1、2、4 恰好题面里也都有。小数字必然重合，
+   * 这个信号太弱。抓不住本案的检查比没有检查更糟——它只提供虚假的安心。
+   *
+   * 现在比的是**特征片段**：题面里带数字的连续块（`x²+y²−4x+2y−4`、`3x+4y+5`、
+   * `sin2α`、`α+π/4`），去掉空格后看老师说过的话里有没有出现过。
+   * 拿两场真实记录验过：编题那场一个都没命中，讲对那场命中两个。
+   */
+  const textOnCanvas = scene
+    .all()
+    .map((sh) => ((sh as { text?: string }).text ?? ''))
+    .join(' ');
+  const marksOf = (text: string): string[] => {
+    const out = new Set<string>();
+    for (const m of text.replace(/\s+/g, '').matchAll(/[0-9a-zA-Zα-ωΑ-Ω²³√π/+\-−]{3,}/g)) {
+      if (/[0-9]/.test(m[0])) out.add(m[0]);
+    }
+    return [...out];
+  };
+  const canvasMarks = marksOf(textOnCanvas);
+  const teacherFlat = [...tape.asks, ...tape.teacherSays].join(' ').replace(/\s+/g, '');
+  const groundedMarks = canvasMarks.filter((t) => teacherFlat.includes(t));
+
   const kg = await fetchMastery();
 
   /**
@@ -423,13 +454,7 @@ async function finish(): Promise<void> {
     add(tape.says.length > 0, '学生开了口', `说了 ${tape.says.length} 句`);
     add(tape.asks.length === 0, '没有强行反问', tape.asks.length === 0 ? '照他要求直接答了' : `还是问了 ${tape.asks.length} 次`);
     add(tape.toolErrors.length === 0, '工具没真出错', tape.toolErrors.length === 0 ? '一次都没有' : tape.toolErrors.map((e) => `${e.name}: ${e.error}`).join('；'));
-    add(
-      tape.serverErrors.length === 0,
-      '服务端没报错',
-      tape.serverErrors.length === 0
-        ? '一次都没有'
-        : tape.serverErrors.map((e) => `${e.message}${e.detail ? `（${e.detail}）` : ''}`).join('；'),
-    );
+
     return report(checks);
   }
 
@@ -505,6 +530,34 @@ async function finish(): Promise<void> {
       );
     }
   }
+
+  /**
+   * 这两条曾经是死代码。
+   *
+   * 我把它们插在了 `if (!entered && wantedOut)`（学生一上来就要答案）那个
+   * 分支里——那条路几乎从不执行，而我只看过主分支打出来的判分表，
+   * 于是「服务端没报错」加进来大半天，一次都没跑过，判分表照样满屏对勾。
+   * **一道从不执行的检查，和一道永远通过的检查，长得一模一样。**
+   */
+  add(
+    canvasMarks.length === 0 || tape.asks.length === 0 || groundedMarks.length > 0,
+    '讲的是画布上这道题',
+    canvasMarks.length === 0
+      ? '题面上没有可比对的记号，这项没法判'
+      : tape.asks.length === 0
+        ? '没提过问'
+        : groundedMarks.length > 0
+          ? `引用了题面上的 ${groundedMarks.slice(0, 4).join('、')}`
+          : `整场没引用过题面上任何一处记号（题面有 ${canvasMarks.slice(0, 4).join('、')}）——很可能在讲另一道题`,
+  );
+
+  add(
+    tape.serverErrors.length === 0,
+    '服务端没报错',
+    tape.serverErrors.length === 0
+      ? '一次都没有'
+      : tape.serverErrors.map((e) => `${e.message}${e.detail ? `（${e.detail}）` : ''}`).join('；'),
+  );
 
   if (tape.guardHits.length > 0) {
     console.log(

@@ -197,7 +197,21 @@ export const ServerMessageSchema = z.discriminatedUnion('t', [
    * 房间里可能开着好几个客户端。早先只有"自己点了发送"才会清掉提问卡，
    * 于是另一台上那张卡会一直挂着，用户对着一个早就答过的问题发呆。
    */
-  z.object({ t: z.literal('agent.ask.done'), askId: z.string() }),
+  z.object({
+    t: z.literal('agent.ask.done'),
+    askId: z.string(),
+    /**
+     * 他答了什么。
+     *
+     * 带上它，是因为回答这件事**只有回答的那一端知道**：学生 Agent 走自己的
+     * WebSocket，浏览器压根收不到那句话，于是屏幕上是「问题 → 答对了」，
+     * 中间那句回答凭空消失，判定像是凭空作出的。两个人共用一张画布时同理：
+     * A 答完，B 只看见问题和判定。
+     *
+     * 被中断（用户没答）时不带，那时候本来就没有回答。
+     */
+    answer: z.string().optional(),
+  }),
 
   /**
    * 撒花。只在**真讲完一道题**时发（tutor_finish 成功）——

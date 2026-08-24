@@ -57,7 +57,23 @@ async function main() {
     if (m.type() === 'error') console.error('  [console]', m.text().slice(0, 160));
   });
 
-  await page.goto(`http://localhost:${webPort}/?room=${room}`, { waitUntil: 'networkidle' });
+  /**
+   * 先确认网页服务在跑。
+   *
+   * 不检查的话，Playwright 抛的是一整段 ERR_CONNECTION_REFUSED 堆栈，
+   * 中间夹着一行 page.goto——要盯一会儿才看得出"是 5173 没起"，
+   * 而不是录像脚本坏了。实测在这上面白跑过一整批四段录制。
+   */
+  const base = `http://localhost:${webPort}`;
+  try {
+    await fetch(base, { signal: AbortSignal.timeout(4000) });
+  } catch {
+    console.error(`网页服务没在 ${base} 上跑。先把 web 起来（pnpm --filter @canvai/web dev），再录。`);
+    await browser.close();
+    process.exit(1);
+  }
+
+  await page.goto(`${base}/?room=${room}`, { waitUntil: 'networkidle' });
   // 等画布上真的有东西了再开始，否则视频开头是几秒空白
   // 这段字符串在浏览器里跑，不在 Node 里——所以用字符串形式，别让 tsc 去解析 document
   await page.waitForFunction("document.querySelectorAll('canvas').length > 0", null, { timeout: 20_000 });

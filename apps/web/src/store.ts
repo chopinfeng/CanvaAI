@@ -74,6 +74,13 @@ interface State {
   todos: Array<{ text: string; done: boolean }>;
   suggestions: Suggestion[];
   ask: { askId: string; question: string; options?: string[] } | null;
+  /**
+   * 本机已经把回答渲染进对话流的 askId。
+   *
+   * 回答有两个来源：自己在面板里答（本机立刻渲染，不等往返），
+   * 和别处答完后服务端广播回来。没有这份记录的话，自己答的那句会出现两遍。
+   */
+  answeredLocally: string[];
   turnRunning: boolean;
   /** 画了东西但用户还在动，Agent 在等他停手 */
   awaitingIdle: boolean;
@@ -127,6 +134,7 @@ export const useStore = create<State>((set) => ({
   todos: [],
   suggestions: [],
   ask: null,
+  answeredLocally: [],
   turnRunning: false,
   awaitingIdle: false,
   foreground: true,

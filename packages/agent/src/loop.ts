@@ -720,8 +720,8 @@ export class AgentLoop {
         askId,
         resolve: (answer) => {
           signal.removeEventListener('abort', onAbort);
-          // 房间里别的客户端也得把提问卡收掉
-          this.opts.emit({ t: 'agent.ask.done', askId });
+          // 房间里别的客户端也得把提问卡收掉，并且要看见他答了什么
+          this.opts.emit({ t: 'agent.ask.done', askId, answer });
           if (this.controller) this.armBudget(this.controller);
           // 他开口了，这一轮不是空转——步数额度重新起算
           this.stepFloor = this.stepsInTurn;

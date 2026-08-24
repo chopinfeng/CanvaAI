@@ -131,10 +131,22 @@ export function App() {
         });
         break;
 
-      case 'agent.ask.done':
+      case 'agent.ask.done': {
         // 可能是这台答的，也可能是别处答的——只要 id 对得上就收掉
         if (useStore.getState().ask?.askId === msg.askId) set({ ask: null });
+
+        /**
+         * 别处答的那句也要出现在对话流里。
+         *
+         * 不显示的话，屏幕上是「问题 → 答对了」，中间那句回答凭空消失，
+         * 判定看着像是凭空作出的。学生 Agent 走的是自己的连接，
+         * 两个人共用一张画布时也一样——回答只有回答的那一端知道。
+         */
+        if (msg.answer && !useStore.getState().answeredLocally.includes(msg.askId)) {
+          s.pushChat({ id: `ans_${nanoid(6)}`, role: 'user', text: msg.answer });
+        }
         break;
+      }
 
       case 'paper.progress': {
         // 转换过程直接说在聊天里：用户刚扔进来一张图，得知道它到哪一步了
