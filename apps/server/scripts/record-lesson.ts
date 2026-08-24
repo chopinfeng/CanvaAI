@@ -30,6 +30,17 @@ const request = arg('request', '给我讲这道题');
 const webPort = arg('web-port', '5173');
 const maxMin = Number(arg('max-min', '25'));
 
+/**
+ * 多久没动静算收工，传给演练脚本。
+ *
+ * 默认给 180 秒，比演练自己的默认（90 秒）宽得多——录像正是最该有耐心的场合：
+ * 难题的第一轮要拆五个小问、往画布上画图、再提问，实测能到近 4 分钟，
+ * 90 秒会在老师干到一半时判它卡死，然后录出一段 0 轮的废视频。
+ * 之前 H9 那段就是这么废掉的：录像脚本压根没把这个参数传下去，
+ * 我手动跑演练时用的是 120 秒，两条路的行为一直不一致。
+ */
+const quietSec = arg('quiet-sec', '180');
+
 async function main() {
   await mkdir(OUT, { recursive: true });
 
@@ -58,7 +69,14 @@ async function main() {
   /* ---- 学生 Agent 作为另一个客户端进场 ---- */
   const drill = spawn(
     'npx',
-    ['tsx', join(here, 'tutor-drill.ts'), '--room', room, '--persona', persona, '--request', request, '--max-turns', '40'],
+    [
+      'tsx', join(here, 'tutor-drill.ts'),
+      '--room', room,
+      '--persona', persona,
+      '--request', request,
+      '--max-turns', '40',
+      '--quiet-sec', quietSec,
+    ],
     { cwd: join(here, '..'), stdio: ['ignore', 'pipe', 'pipe'] },
   );
   drill.stdout.on('data', (b: Buffer) => process.stdout.write(b));
