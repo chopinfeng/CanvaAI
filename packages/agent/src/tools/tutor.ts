@@ -44,7 +44,7 @@ export const execTutorPlan: ToolExecutor = async (raw, ctx) => {
       pending: null,
       rightSince: 0,
       markedSinceAsk: false,
-      drewSomethingThisSession: false,
+      drawCount: 0,
       askedQuestions: [],
       attempts: [],
       concepts: [],
@@ -277,20 +277,23 @@ export const execTutorFinish: ToolExecutor = async (raw, ctx) => {
   }
 
   /**
-   * 全程没画过一笔新东西，不许收尾。
+   * 画得不够多，不许收尾。
    *
-   * 真机反馈过："提问前指了图"这条账全过——每问之前都高亮了一段
-   * 题面文字——但那只是指读，不是画。用户看下来"基本都是 chat"，
-   * 图文并茂的"图"字全程没兑现。高亮/带看/挪光标满足得了
-   * markedSinceAsk，满足不了这道闸——闸要看的是有没有真的
-   * canvas_create / canvas_ink 过一次。
+   * 分两轮才摸到这条真正的门槛。第一轮全程零画，加了"至少画一笔"——
+   * 结果第二轮卡着底线交差：一整场三问的辅导，从头到尾只画了一笔，
+   * 用户反馈"这也太敷衍了"，让参照老师上课的板书。板书是讲一步写
+   * 一步，公式、算式、图形随着讲解逐步铺开，不是讲完全程再补一笔
+   * 象征性的意思意思。所以门槛不能是"画过没有"，得是"画得够不够"——
+   * 拆了几个小问，就该有大致同等数量的板书笔迹，一问一笔那种敷衍
+   * 不能算数。
    */
-  if (!t.drewSomethingThisSession) {
+  const needDraws = Math.max(2, Math.ceil(t.outline.length / 2));
+  if (t.drawCount < needDraws) {
     return err(
-      '这场辅导从头到尾没画过一笔新东西，全靠打字和高亮已有的文字',
-      '找个地方补一笔：约束条件画成直线、目标函数画成等值圆、辅助线、' +
-        '示意图，随便哪种都行，用 canvas_create（annot 或 ai 层）画出来，' +
-        '再回来结束。高亮题面上已经有的文字不算——那是指读，不是画。',
+      `这场辅导只画了 ${t.drawCount} 笔，跟 ${t.outline.length} 个小问比起来太少了——像是应付门槛，不是真的板书`,
+      '像老师上课写板书那样，讲一步写一步：公式、算式、图形、关键结果，' +
+        '每讲完一个小问就用 canvas_create（annot 或 ai 层）留一笔——不是全程讲完' +
+        '最后补一笔意思意思。高亮题面上已经有的文字不算，那是指读，不是画。',
     );
   }
 

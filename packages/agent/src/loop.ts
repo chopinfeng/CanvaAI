@@ -429,7 +429,7 @@ export class AgentLoop {
         if (session.mode === 'tutor') continue;
         session.mode = 'tutor';
         session.tutorJustExited = false;
-        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo, pending: null, rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, askedQuestions: [], attempts: [], concepts: [] };
+        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, askedQuestions: [], attempts: [], concepts: [] };
         this.opts.emit({ t: 'session.mode', mode: 'tutor', auto: true });
         continue;
       }
@@ -778,7 +778,7 @@ export class AgentLoop {
         this.opts.session.tutor.markedSinceAsk = true;
       }
       if (DRAWING_TOOLS.has(name) && this.opts.session.tutor) {
-        this.opts.session.tutor.drewSomethingThisSession = true;
+        this.opts.session.tutor.drawCount += 1;
       }
       this.opts.emit({
         t: 'agent.tool',
