@@ -63,6 +63,19 @@ export interface TutorSession {
    */
   drawCount: number;
   /**
+   * 这场辅导里，真的画出过几个**图形**（非 text/latex 的图元——
+   * line/arrow/polygon/path/freedraw/ellipse/rect/image 等），
+   * 而不是又写了一段文字。
+   *
+   * 用户点破过这轮修复的盲区："我指的板书是 canva 上画图案，而不是
+   * chat"。drawCount 只统计"画过几次"，没管画的是文字还是图形——
+   * 结果模型把公式、算式一条条拆成一个个 text 图元，数量凑够了门槛，
+   * 但画布上还是一片文字，没有一笔真正的示意图、曲线、坐标系。
+   * 这两件事必须分开算：drawCount 保证"讲一步写一步"的密度，
+   * 这个字段保证密度里至少有一部分是真的图案，不能全是文字。
+   */
+  graphicalDrawCount: number;
+  /**
    * 这场辅导里，一字不差问过的问题。
    *
    * 拆题条数够、条目也不撞"理解题目"这类空转标签的黑名单，会话还是

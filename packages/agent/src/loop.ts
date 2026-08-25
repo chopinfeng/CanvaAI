@@ -429,7 +429,7 @@ export class AgentLoop {
         if (session.mode === 'tutor') continue;
         session.mode = 'tutor';
         session.tutorJustExited = false;
-        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] };
+        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] };
         this.opts.emit({ t: 'session.mode', mode: 'tutor', auto: true });
         continue;
       }
@@ -779,6 +779,18 @@ export class AgentLoop {
       }
       if (DRAWING_TOOLS.has(name) && this.opts.session.tutor) {
         this.opts.session.tutor.drawCount += 1;
+        /**
+         * 这一笔画的是图形还是又一段文字——两者在 drawCount 眼里长得
+         * 一样，但用户点破过："我指的板书是 canva 上画图案，而不是 chat"。
+         * canvas_ink 一定是手绘笔触（freedraw），必是图形；canvas_create
+         * 得看这次真的创建出来的图元类型，text/latex 之外的才算。
+         */
+        const ids = (result.data as { ids?: string[] } | undefined)?.ids ?? [];
+        const graphical = name === 'canvas_ink' || ids.some((id) => {
+          const s = this.opts.scene.get(id);
+          return s && s.type !== 'text' && s.type !== 'latex';
+        });
+        if (graphical) this.opts.session.tutor.graphicalDrawCount += 1;
       }
       this.opts.emit({
         t: 'agent.tool',

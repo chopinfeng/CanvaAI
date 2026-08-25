@@ -45,6 +45,7 @@ export const execTutorPlan: ToolExecutor = async (raw, ctx) => {
       rightSince: 0,
       markedSinceAsk: false,
       drawCount: 0,
+      graphicalDrawCount: 0,
       askedQuestions: [],
       stuckStreak: 0,
       attempts: [],
@@ -343,6 +344,26 @@ export const execTutorFinish: ToolExecutor = async (raw, ctx) => {
       '像老师上课写板书那样，讲一步写一步：公式、算式、图形、关键结果，' +
         '每判完一轮问答就用 canvas_create（annot 或 ai 层）留一笔——不是攒到最后' +
         '才想起来补两笔应付。高亮题面上已经有的文字不算，那是指读，不是画。',
+    );
+  }
+
+  /**
+   * 画的东西里得有真的图案，不能全是文字。
+   *
+   * 上面那道闸只看画了几笔，没管画的是什么——真机复现过：门槛数字
+   * 凑够了，但画布上一整场全是 text 图元（公式、算式一条条拆开写），
+   * 一个真正的图形都没有。用户点破了这件事："我指的板书是 canva 上
+   * 画图案，而不是 chat"——写字写在画布上，跟写在聊天框里，对用户
+   * 来说观感上没什么区别，都是在读一段文字，不是在看一张图。
+   * 哪怕这道题本身偏符号推导（微分方程、乘数法），也该有至少一笔
+   * 真正的图案——坐标系、示意曲线、辅助线、数轴——不能一整场只有字。
+   */
+  if (t.graphicalDrawCount === 0) {
+    return err(
+      '这场辅导画的全是文字（公式、算式），一个真正的图案都没有',
+      '公式写成文字只是板书的一半，另一半得是图：解的定性走势画一条示意曲线、' +
+        '约束条件画成坐标系里的一条直线、辅助线画在图形上——用 line/ellipse/' +
+        'polygon/freedraw 这类非文字的图元画出来，不能一整场辅导只有字没有图。',
     );
   }
 
