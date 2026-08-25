@@ -87,6 +87,7 @@ export class Room {
       baseUrl: config.llm.baseUrl,
       model: config.llm.model,
       reasonerModel: config.llm.reasonerModel,
+      maxTokens: config.llm.maxTokens,
     });
 
     // 没配视觉模型就把 canvas_snapshot 摘掉——留着只会让模型反复去调一个读不出内容的工具

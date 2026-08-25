@@ -95,6 +95,14 @@ export const config = {
     baseUrl: env('LLM_BASE_URL') || env('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
     model: env('LLM_MODEL') || env('DEEPSEEK_MODEL', 'deepseek-chat'),
     reasonerModel: env('LLM_REASONER_MODEL') || env('DEEPSEEK_REASONER_MODEL') || env('LLM_MODEL') || 'deepseek-reasoner',
+    /**
+     * 单次回复的 token 上限——推理模型的思维链也算在这里面，跟下面
+     * vlm.maxTokens 同一个坑。真机录像复现过：辅导一道微分方程讲到
+     * 系数匹配那步，默认的 4096 被思维链吃光，模型"没有任何动作"，
+     * 一场里发生了 5 次，其中一次连着好几轮都翻不过去，直到外部
+     * 20 分钟兜底把整场辅导硬掐断——不是模型卡住了，是嘴被捂上了。
+     */
+    maxTokens: Number(env('LLM_MAX_TOKENS', '8192')),
   },
 
   /**

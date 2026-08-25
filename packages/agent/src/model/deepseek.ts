@@ -9,6 +9,18 @@ export interface DeepSeekOptions {
   reasonerModel?: string;
   timeoutMs?: number;
   maxRetries?: number;
+  /**
+   * 单次回复的 token 上限——**推理模型的思维链也算在这里面**。
+   *
+   * 真机录像复现过：辅导一道二阶非齐次微分方程时，讲到系数匹配那步，
+   * 思维链自己就把默认的 4096 花光了，回来的是"没有工具调用、
+   * 也没有正文"——表现成"模型卡住了"，一场里发生了 5 次，其中一次
+   * 连着好几轮都翻不过去，直到录像脚本自己 20 分钟的外部兜底把
+   * 整场辅导硬掐断。跟 vlm.maxTokens 是同一个坑（那边的注释写过：
+   * "早先写死 800，思考完就没预算了，返回一截 12 个字符的碎片"）——
+   * 这里同样是把模型的嘴捂上了，不是它不会。
+   */
+  maxTokens?: number;
 }
 
 /**
@@ -131,6 +143,7 @@ export class DeepSeekClient implements ModelClient {
   readonly reasonerModel: string;
   private readonly timeoutMs: number;
   private readonly maxRetries: number;
+  private readonly maxTokens: number;
 
   constructor(opts: DeepSeekOptions) {
     this.apiKey = opts.apiKey;
@@ -139,6 +152,7 @@ export class DeepSeekClient implements ModelClient {
     this.reasonerModel = opts.reasonerModel ?? 'deepseek-reasoner';
     this.timeoutMs = opts.timeoutMs ?? 120_000;
     this.maxRetries = opts.maxRetries ?? 2;
+    this.maxTokens = opts.maxTokens ?? 8192;
   }
 
   async *stream(req: ChatRequest): AsyncIterable<StreamChunk> {
@@ -173,7 +187,7 @@ export class DeepSeekClient implements ModelClient {
             ? { tools: compatSchema(req.tools) as typeof req.tools, tool_choice: 'auto' }
             : {}),
           temperature: req.temperature ?? 0.3,
-          max_tokens: req.maxTokens ?? 4096,
+          max_tokens: req.maxTokens ?? this.maxTokens,
           stream: true,
           stream_options: { include_usage: true },
       });
