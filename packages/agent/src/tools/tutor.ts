@@ -78,12 +78,22 @@ export const execTutorPlan: ToolExecutor = async (raw, ctx) => {
    *
    * 只在第一次拆题时查——后续每一轮都重发全量清单，用同样的口径查会
    * 把"这一轮先聚焦其中两问，其余的还没提"误判成漏题。
+   *
+   * 括号里带数字不一定是小问编号——真机录像复现过一次比"漏数"更糟的：
+   * 数多了。一道三问的微分方程题，题干带着初值条件 "y(0) = 0，y′(0) = 1"，
+   * "(0)" 紧跟在变量名后面，是函数记号，不是第 0 问，却被数成了第 4 个
+   * 小问。模型据实拆了 (1)(2)(3) 三条，被这道闸拒为"少拆一条"；凑够
+   * 4 条又混进"总结思路"这种空转条目，被空转黑名单拒。两道闸互相掐着，
+   * tutor_plan 全程一次没成功过，账本永远是空的——比漏拆题目更糟，是
+   * 直接拆不成。所以紧跟在字母/撇号（函数记号 y(0)、f(x)、y′(0)）后面的
+   * 括号数字不算小问编号；真正的编号前面是标点、空白或行首。
    */
   if (first) {
     const nums = new Set<string>();
     for (const s of ctx.scene.all()) {
       if (!s.text) continue;
-      for (const m of s.text.matchAll(/[(（]\s*(\d{1,2})\s*[)）]/g)) nums.add(m[1]!);
+      for (const m of s.text.matchAll(/(?<![A-Za-zͰ-Ͽ'′″])[(（]\s*(\d{1,2})\s*[)）]/g))
+        nums.add(m[1]!);
     }
     if (nums.size > 0 && a.items.length < nums.size) {
       return err(
