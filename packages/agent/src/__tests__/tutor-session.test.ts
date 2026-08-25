@@ -187,7 +187,7 @@ describe('画得不够多——不许收尾', () => {
     // 每个工具会先发一条 running 再发终态，取最后一条
     const finish = h.events('agent.tool').filter((m) => m.call.name === 'tutor_finish').at(-1)!;
     expect(finish.call.state).toBe('error');
-    expect(finish.call.error).toContain('太少了');
+    expect(finish.call.error).toContain('一大片空白');
     // 第一次被拒之后，模式还没被放走
     expect(h.session.mode).toBe('tutor');
   });
@@ -218,6 +218,54 @@ describe('画得不够多——不许收尾', () => {
     const finish = h.events('agent.tool').filter((m) => m.call.name === 'tutor_finish').at(-1)!;
     expect(finish.call.state).toBe('error');
     expect(h.session.mode).toBe('tutor');
+  });
+
+  /**
+   * 真机反馈过：按小问个数算门槛，低估了一场辅导实际讲了多少内容——
+   * 一道题拆成 4 个小问，但问答了 8 轮才走完，画布上却只画了两笔，
+   * 用户对着录像问"中间有很多空白区域，为什么不做板书"。小问个数是
+   * 拆题时定的静态值，跟到底问答了几轮是两回事：同一个小问可能三言
+   * 两语带过，也可能来回追问四五轮才吃透。
+   */
+  it('小问不多但问答了很多轮——按小问个数算的门槛太低，还是被拒', async () => {
+    const scene = new Scene();
+    scene.create([{ type: 'text', id: 'sh_a', x: 0, y: 0, text: 'x + 2y = 5' }], {
+      author: { id: 'u1', kind: 'user' },
+    });
+    const h = makeHarness(
+      [
+        { calls: [PLAN([{ text: '(1) 求 x' }, { text: '(2) 求 y' }]), call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('第一步该怎么想？')] },
+        { calls: [judge('right', '对'), call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('列出方程？')] },
+        { calls: [judge('right', '对'), call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('解出 x 是多少？')] },
+        {
+          calls: [
+            judge('right', '对'),
+            PLAN([{ text: '(1) 求 x', done: true }, { text: '(2) 求 y' }]),
+            call('canvas_create', { shapes: [{ type: 'line', x: 0, y: 0, points: [[0, 0], [10, 10]] }] }),
+            call('canvas_highlight', { ids: ['sh_a'], ms: 0 }),
+            ask('接下来第二步怎么想？'),
+          ],
+        },
+        { calls: [judge('right', '对'), call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('代入求出 y？')] },
+        {
+          calls: [
+            judge('right', '对'),
+            PLAN([{ text: '(1) 求 x', done: true }, { text: '(2) 求 y', done: true }]),
+            call('canvas_create', { shapes: [{ type: 'line', x: 5, y: 5, points: [[0, 0], [10, 10]] }] }),
+          ],
+        },
+        { calls: [call('tutor_finish', { summary: '讲完了' })] },
+        { text: '好' },
+      ],
+      { scene, autoAnswer: '1' },
+    );
+    await speak(h, '给我讲这道题');
+
+    // 5 轮问答只画了 2 笔——远不够
+    expect(h.session.tutor?.askedQuestions.length).toBe(5);
+    const finish = h.events('agent.tool').filter((m) => m.call.name === 'tutor_finish').at(-1)!;
+    expect(finish.call.state).toBe('error');
+    expect(finish.call.error).toContain('一大片空白');
   });
 
   it('画够了（两笔）→ 放行', async () => {
