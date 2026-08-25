@@ -1264,3 +1264,73 @@ describe('开局拆题不能比原文的编号少', () => {
     expect(h.session.tutor?.outline.length).toBe(5);
   });
 });
+
+/**
+ * 真机复现过：三问的题拆了四条，条数够了（3≥3），但混进去的第四条
+ * 是"理解题目内容"——一个没有明确对错标准的条目。学生把题目复述对了、
+ * 被判过好几次 right，这条却始终没法被标 done，会话卡在这儿反复重问
+ * 同一句"题目要求什么"，讲了十几分钟一步都没往前挪。
+ */
+describe('拆出来的小问不能是空转的流程标签', () => {
+  function u8Scene() {
+    const scene = new Scene();
+    scene.create(
+      [
+        {
+          type: 'text',
+          x: 0,
+          y: 0,
+          text:
+            '求函数 f(x,y)=x²+y² 在约束条件 x+2y=5 下的最小值。' +
+            '(1) 写出拉格朗日函数；(2) 求出 x、y；(3) 求最小值。',
+        },
+      ],
+      { author: { id: 'seed', kind: 'user' }, layer: 'user' },
+    );
+    return scene;
+  }
+
+  it('条数够了，但混进"理解题目内容"——拒绝', async () => {
+    const scene = u8Scene();
+    const h = makeHarness(
+      [
+        {
+          calls: [
+            PLAN([
+              { text: '理解题目内容' },
+              { text: '(1) 写出拉格朗日函数' },
+              { text: '(2) 求出 x、y' },
+              { text: '(3) 求最小值' },
+            ]),
+          ],
+        },
+      ],
+      { scene, autoAnswer: '嗯' },
+    );
+    await speak(h, '给我讲这道题');
+
+    expect(h.session.tutor?.outline ?? []).toEqual([]);
+  });
+
+  it('每条都挂着具体要算的东西——放行', async () => {
+    const scene = u8Scene();
+    const h = makeHarness(
+      [
+        {
+          calls: [
+            PLAN([
+              { text: '(1) 写出拉格朗日函数 L(x,y,λ)' },
+              { text: '(2) 求出 x、y' },
+              { text: '(3) 求最小值' },
+            ]),
+            ask('拉格朗日函数怎么列？'),
+          ],
+        },
+      ],
+      { scene, autoAnswer: '嗯' },
+    );
+    await speak(h, '给我讲这道题');
+
+    expect(h.session.tutor?.outline.length).toBe(3);
+  });
+});
