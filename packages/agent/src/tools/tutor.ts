@@ -46,6 +46,7 @@ export const execTutorPlan: ToolExecutor = async (raw, ctx) => {
       markedSinceAsk: false,
       drawCount: 0,
       graphicalDrawCount: 0,
+      graphicsBlockCount: 0,
       askedQuestions: [],
       stuckStreak: 0,
       attempts: [],
@@ -359,12 +360,27 @@ export const execTutorFinish: ToolExecutor = async (raw, ctx) => {
    * 真正的图案——坐标系、示意曲线、辅助线、数轴——不能一整场只有字。
    */
   if (t.graphicalDrawCount === 0) {
-    return err(
-      '这场辅导画的全是文字（公式、算式），一个真正的图案都没有',
-      '公式写成文字只是板书的一半，另一半得是图：解的定性走势画一条示意曲线、' +
-        '约束条件画成坐标系里的一条直线、辅助线画在图形上——用 line/ellipse/' +
-        'polygon/freedraw 这类非文字的图元画出来，不能一整场辅导只有字没有图。',
-    );
+    /**
+     * 这道闸不能死磕到底——真机复现过一次真正的卡死：一道纯符号推导
+     * 的微分方程题，模型反复说"我已经画在画布上了"，却始终没有真的
+     * 创建出一个非文字图元，接着开始把同一批总结话术颠来倒去地重复，
+     * 十分钟没有任何新进展。大概率是想不出该画什么，或者画一条真正
+     * 贴合解的曲线（要采样坐标点）对它来说太难。硬闸挡住了"应付了事"，
+     * 但没给"确实想不出"这种情况留退路，反而更糟——比没图更糟的是
+     * 卡死讲不完。连着卡了 3 次就放行，把"至少一笔图案"从硬性要求
+     * 退成"尽量做到"。
+     */
+    t.graphicsBlockCount += 1;
+    if (t.graphicsBlockCount < 3) {
+      return err(
+        '这场辅导画的全是文字（公式、算式），一个真正的图案都没有',
+        '公式写成文字只是板书的一半，另一半得是图。想不出复杂的图也没关系，' +
+          '挑一个最简单的：画一个坐标轴（两条互相垂直的 line）、给最终答案画一个' +
+          '方框（一个 rect）、或者在关键结果旁边画一个箭头（arrow）——只要是' +
+          'line/rect/ellipse/arrow/polygon/freedraw 这类非文字的图元，随便哪个都行，' +
+          '不用非画一条精确的曲线。',
+      );
+    }
   }
 
   const count = t.outline.length;
