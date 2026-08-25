@@ -429,7 +429,7 @@ export class AgentLoop {
         if (session.mode === 'tutor') continue;
         session.mode = 'tutor';
         session.tutorJustExited = false;
-        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo, pending: null, rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, attempts: [], concepts: [] };
+        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo, pending: null, rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, askedQuestions: [], attempts: [], concepts: [] };
         this.opts.emit({ t: 'session.mode', mode: 'tutor', auto: true });
         continue;
       }

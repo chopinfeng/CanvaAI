@@ -734,7 +734,7 @@ describe('停手要明说', () => {
   it('问题还挂在他屏幕上、回合被打断时不插话', async () => {
     // 不自动作答：回合会一直阻塞在 interact_ask_user 上
     const h = makeHarness([{ calls: [PLAN([{ text: '(1) 求 DF' }]), ask('DF 是多少？')] }, { text: '好' }], {
-      session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, attempts: [], concepts: [] } },
+      session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, askedQuestions: [], attempts: [], concepts: [] } },
     });
 
     const running = speak(h, '继续');
@@ -763,7 +763,7 @@ describe('等用户思考的时间不占回合额度', () => {
         { text: '好' },
       ],
       {
-        session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, attempts: [], concepts: [] } },
+        session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, askedQuestions: [], attempts: [], concepts: [] } },
         maxMs: 120,
         // 想的时间比整个回合额度还长——挂钟计时的话这里必死
         autoAnswerDelayMs: 260,
@@ -827,7 +827,7 @@ describe('讲解要指着图说', () => {
         zoom: 1,
         editMode: 'suggest',
         mode: 'tutor',
-        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, attempts: [], concepts: [] },
+        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, askedQuestions: [], attempts: [], concepts: [] },
       },
       events: [],
       turnNo: 3,
@@ -845,7 +845,7 @@ describe('讲解要指着图说', () => {
         zoom: 1,
         editMode: 'suggest',
         mode: 'tutor',
-        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: true, drewSomethingThisSession: false, attempts: [], concepts: [] },
+        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: true, drewSomethingThisSession: false, askedQuestions: [], attempts: [], concepts: [] },
       },
       events: [],
       turnNo: 3,
@@ -916,7 +916,7 @@ describe('讲解要指着图说', () => {
           startedTurn: 0,
           pending: null,
           rightSince: 0,
-          markedSinceAsk: false, drewSomethingThisSession: false,
+          markedSinceAsk: false, drewSomethingThisSession: false, askedQuestions: [],
           attempts: [],
           concepts: [],
         },
@@ -946,7 +946,7 @@ describe('讲解要指着图说', () => {
           startedTurn: 0,
           pending: null,
           rightSince: 0,
-          markedSinceAsk: true, drewSomethingThisSession: false,
+          markedSinceAsk: true, drewSomethingThisSession: false, askedQuestions: [],
           attempts: [],
           concepts: [],
         },
@@ -969,7 +969,7 @@ describe('讲解要指着图说', () => {
           startedTurn: 0,
           pending: null,
           rightSince: 0,
-          markedSinceAsk: false, drewSomethingThisSession: false,
+          markedSinceAsk: false, drewSomethingThisSession: false, askedQuestions: [],
           attempts: [],
           concepts: [],
         },
@@ -1005,7 +1005,7 @@ describe('账本每一轮都摆在模型眼前', () => {
           ],
           startedTurn: 1,
           pending: null,
-          rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, attempts: [], concepts: []
+          rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, askedQuestions: [], attempts: [], concepts: []
         },
       },
       events: [],
@@ -1022,7 +1022,7 @@ describe('账本每一轮都摆在模型眼前', () => {
   it('还没拆题时催拆题', () => {
     const header = buildContextHeader({
       scene: new Scene(),
-      session: { ...base, tutor: { goal: '讲讲这题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, attempts: [], concepts: [] } },
+      session: { ...base, tutor: { goal: '讲讲这题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, askedQuestions: [], attempts: [], concepts: [] } },
       events: [],
       turnNo: 1,
     });
@@ -1063,7 +1063,7 @@ describe('知识点在拆题时就落地', () => {
 
   it('拆题时用小问的文字反查，存进账本', async () => {
     const h = makeHarness([{ calls: [call('tutor_plan', { items: [{ text: '用勾股定理列方程', done: false }, { text: '解出 BD', done: false }] })] }], {
-      session: { mode: 'tutor', tutor: { goal: 'Geometry — Triangle with an Altitude', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, attempts: [], concepts: [] } },
+      session: { mode: 'tutor', tutor: { goal: 'Geometry — Triangle with an Altitude', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, askedQuestions: [], attempts: [], concepts: [] } },
       knowledge: kg,
     });
     h.loop.push({ kind: 'text', text: '继续', at: Date.now() });
@@ -1086,7 +1086,7 @@ describe('知识点在拆题时就落地', () => {
             startedTurn: 0,
             pending: { question: 'AD² 等于什么？', answer: '169 − x²' },
             rightSince: 0,
-            markedSinceAsk: false, drewSomethingThisSession: false,
+            markedSinceAsk: false, drewSomethingThisSession: false, askedQuestions: [],
             attempts: [],
             concepts: ['c_pyth'],
           },
@@ -1112,7 +1112,7 @@ describe('知识点在拆题时就落地', () => {
             startedTurn: 0,
             pending: { question: 'q', answer: 'a' },
             rightSince: 0,
-            markedSinceAsk: false, drewSomethingThisSession: false,
+            markedSinceAsk: false, drewSomethingThisSession: false, askedQuestions: [],
             attempts: [],
             concepts: ['c_fallback'],
           },
@@ -1177,7 +1177,7 @@ describe('中途退出时的落盘', () => {
           startedTurn: 0,
           pending: null,
           rightSince: 0,
-          markedSinceAsk: false, drewSomethingThisSession: false,
+          markedSinceAsk: false, drewSomethingThisSession: false, askedQuestions: [],
           attempts: [
             { conceptId: 'c_pyth', ok: true, guided: true },
             { conceptId: 'c_tri', ok: false, guided: true },
@@ -1332,5 +1332,72 @@ describe('拆出来的小问不能是空转的流程标签', () => {
     await speak(h, '给我讲这道题');
 
     expect(h.session.tutor?.outline.length).toBe(3);
+  });
+});
+
+/**
+ * 真机复现过：拆题条目挂着具体符号、也没撞"理解题目"那道黑名单
+ * （"理解题目条件和图形"——措辞绕开了枚举），但依然是个没有明确
+ * "何时算完成"标准的条目。学生把同一个问题（"直线和圆可能有哪些
+ * 位置关系"）答对了两次，账本却一直不打勾，老师一字不差地把这问题
+ * 问了第二遍，讲了十几分钟卡在原地。黑名单堵不完所有措辞，但
+ * "同一个问题问了两遍"这个症状本身能直接拦。
+ */
+describe('答对过的问题不能一字不差再问一遍', () => {
+  it('同一句问题、已经判过 right——第二次问就被拒', async () => {
+    const scene = new Scene();
+    scene.create([{ type: 'text', id: 'sh_a', x: 0, y: 0, text: 'x + 2y = 5' }], {
+      author: { id: 'u1', kind: 'user' },
+    });
+    const h = makeHarness(
+      [
+        {
+          calls: [
+            PLAN([{ text: '(1) 判断约束条件的几何图形' }]),
+            call('canvas_highlight', { ids: ['sh_a'], ms: 0 }),
+            ask('约束条件在坐标系中是什么图形？'),
+          ],
+        },
+        { calls: [judge('right', '对，是直线')] },
+        { calls: [call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('约束条件在坐标系中是什么图形？')] },
+        { text: '好' },
+      ],
+      { scene, autoAnswer: '直线' },
+    );
+    await speak(h, '给我讲这道题');
+
+    const asks = h.events('agent.tool').filter((m) => m.call.name === 'interact_ask_user');
+    // 第二次问的那一次以错误收场
+    expect(asks.at(-1)!.call.state).toBe('error');
+    expect(asks.at(-1)!.call.error).toContain('问过了');
+    // 全场只真的问出去了一次
+    expect(h.events('agent.ask')).toHaveLength(1);
+  });
+
+  it('答错/半对之后换个角度追问——不算重复，放行', async () => {
+    const scene = new Scene();
+    scene.create([{ type: 'text', id: 'sh_a', x: 0, y: 0, text: 'x + 2y = 5' }], {
+      author: { id: 'u1', kind: 'user' },
+    });
+    const h = makeHarness(
+      [
+        {
+          calls: [
+            PLAN([{ text: '(1) 判断约束条件的几何图形' }]),
+            call('canvas_highlight', { ids: ['sh_a'], ms: 0 }),
+            ask('约束条件在坐标系中是什么图形？'),
+          ],
+        },
+        { calls: [judge('partly', '不太准确')] },
+        { calls: [call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('再想想，这是一条什么样的线？')] },
+        { text: '好' },
+      ],
+      { scene, autoAnswer: '直线' },
+    );
+    await speak(h, '给我讲这道题');
+
+    const asks = h.events('agent.tool').filter((m) => m.call.name === 'interact_ask_user');
+    expect(asks.every((m) => m.call.state !== 'error')).toBe(true);
+    expect(h.events('agent.ask')).toHaveLength(2);
   });
 });

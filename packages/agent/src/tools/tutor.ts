@@ -45,6 +45,7 @@ export const execTutorPlan: ToolExecutor = async (raw, ctx) => {
       rightSince: 0,
       markedSinceAsk: false,
       drewSomethingThisSession: false,
+      askedQuestions: [],
       attempts: [],
       concepts: [],
     };
@@ -203,6 +204,12 @@ export const execTutorJudge: ToolExecutor = async (raw, ctx) => {
   t.pending = null;
   // 只有"完全对"才换来一张打勾的门票。半对说明这一步还没走通。
   if (a.verdict === 'right') t.rightSince += 1;
+  /**
+   * 记下这次问过、也答对了的问题——一字不差问第二遍会被 interact_ask_user
+   * 拦下（见 view-interact.ts）。只记 right：答错或半对之后换个角度
+   * 追问是正常教学，不能拦；答对了还一模一样再问一遍，才是真出问题了。
+   */
+  if (a.verdict === 'right') t.askedQuestions.push(judged.question.trim());
 
   /**
    * 把这次判定记到知识点上——先攒着，讲完再一次写进去。
