@@ -58,6 +58,18 @@ const POINTING_TOOLS = new Set([
 ]);
 
 /**
+ * 算"真的画了一笔新东西"的工具——POINTING_TOOLS 的子集。
+ *
+ * 高亮/聚光/带看/挪光标都只是指向画布上**已经存在**的东西，满足得了
+ * "提问前指过东西"，满足不了"图文并茂"：把题面上的"x+2y"这几个字
+ * 高亮一下，跟真的画一条约束线是两件事，但两者在 markedSinceAsk 那道
+ * 闸眼里长得一样。真机反馈过：一场三问的辅导，每问之前都乖乖高亮了
+ * 一段题面文字，账本判定"提问前指了图"全过，用户看下来却是"基本都
+ * 是 chat"——没有一笔是新画的。
+ */
+const DRAWING_TOOLS = new Set(['canvas_create', 'canvas_ink']);
+
+/**
  * Agent 主循环。
  *
  * 一次 turn = 一次模型流式请求 + 若干轮"工具调用 → 观察 → 再请求"，
@@ -417,7 +429,7 @@ export class AgentLoop {
         if (session.mode === 'tutor') continue;
         session.mode = 'tutor';
         session.tutorJustExited = false;
-        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [], concepts: [] };
+        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo, pending: null, rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, attempts: [], concepts: [] };
         this.opts.emit({ t: 'session.mode', mode: 'tutor', auto: true });
         continue;
       }
@@ -764,6 +776,9 @@ export class AgentLoop {
       failStreak.delete(name);
       if (POINTING_TOOLS.has(name) && this.opts.session.tutor) {
         this.opts.session.tutor.markedSinceAsk = true;
+      }
+      if (DRAWING_TOOLS.has(name) && this.opts.session.tutor) {
+        this.opts.session.tutor.drewSomethingThisSession = true;
       }
       this.opts.emit({
         t: 'agent.tool',

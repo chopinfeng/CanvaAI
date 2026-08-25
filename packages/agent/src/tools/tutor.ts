@@ -44,6 +44,7 @@ export const execTutorPlan: ToolExecutor = async (raw, ctx) => {
       pending: null,
       rightSince: 0,
       markedSinceAsk: false,
+      drewSomethingThisSession: false,
       attempts: [],
       concepts: [],
     };
@@ -244,6 +245,24 @@ export const execTutorFinish: ToolExecutor = async (raw, ctx) => {
       `还有 ${left.length} 个小问没解决：${left.map((i) => i.text).join('；')}`,
       `辅导不能就这么停在这里。回到「${left[0]!.text}」，用 interact_ask_user 提一个他答得上来的问题。` +
         '如果他其实已经自己算出来了，先用 tutor_plan 把那条标成 done 再来结束。',
+    );
+  }
+
+  /**
+   * 全程没画过一笔新东西，不许收尾。
+   *
+   * 真机反馈过："提问前指了图"这条账全过——每问之前都高亮了一段
+   * 题面文字——但那只是指读，不是画。用户看下来"基本都是 chat"，
+   * 图文并茂的"图"字全程没兑现。高亮/带看/挪光标满足得了
+   * markedSinceAsk，满足不了这道闸——闸要看的是有没有真的
+   * canvas_create / canvas_ink 过一次。
+   */
+  if (!t.drewSomethingThisSession) {
+    return err(
+      '这场辅导从头到尾没画过一笔新东西，全靠打字和高亮已有的文字',
+      '找个地方补一笔：约束条件画成直线、目标函数画成等值圆、辅助线、' +
+        '示意图，随便哪种都行，用 canvas_create（annot 或 ai 层）画出来，' +
+        '再回来结束。高亮题面上已经有的文字不算——那是指读，不是画。',
     );
   }
 

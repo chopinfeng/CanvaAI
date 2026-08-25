@@ -50,6 +50,19 @@ export interface TutorSession {
    * 和光读一行字，是两件事。没标就问，等于让他在文字里猜你指哪儿。
    */
   markedSinceAsk: boolean;
+  /**
+   * 这场辅导里，有没有真的画过一笔新的东西（canvas_create / canvas_ink），
+   * 而不只是把画布上已经有的字/图高亮一下。
+   *
+   * 真机反馈过：一场三问的辅导，`markedSinceAsk` 全程满足——每问之前
+   * 都点亮了题面上的一段文字（比如"x+2y"这几个字）——但除此之外全程
+   * 都是打字问答，用户看下来"基本都是 chat"。高亮已有文字满足得了
+   * "提问前指过东西"，但满足不了"图文并茂"：那不是画，是指读。
+   * 没有现成图形可指的题目（拉格朗日乘数法这类），真正的图文并茂
+   * 得靠 AI 自己画一笔——约束线、梯度箭头、示意图，随便哪种都行，
+   * 但总得有一笔是新画的。
+   */
+  drewSomethingThisSession: boolean;
 }
 
 export interface SessionState {

@@ -103,6 +103,7 @@ describe('账没平就不许结束', () => {
         calls: [
           judge('right', '也对'),
           PLAN([{ text: '(1) 求 DF 与 FC', done: true }, { text: '(2) 求线段 BE', done: true }]),
+          call('canvas_create', { shapes: [{ type: 'line', x: 0, y: 0, points: [[0, 0], [10, 10]] }] }),
         ],
       },
       { calls: [call('tutor_finish', { summary: '你自己走通了折叠→勾股这条路' })] },
@@ -130,6 +131,7 @@ describe('账没平就不许结束', () => {
         calls: [
           judge('right', '也对'),
           PLAN([{ text: '(1) 求 DF', done: true }, { text: '(2) 求 BE', done: true }]),
+          call('canvas_create', { shapes: [{ type: 'line', x: 0, y: 0, points: [[0, 0], [10, 10]] }] }),
         ],
       },
       { calls: [call('tutor_finish', { summary: '走通了' })] },
@@ -152,6 +154,67 @@ describe('账没平就不许结束', () => {
     await speak(h, '给我讲这道题');
 
     expect(h.events('agent.celebrate')).toHaveLength(0);
+  });
+});
+
+/**
+ * 真机反馈过：一场辅导账全平了（拆题、判定、outline 全打勾），
+ * "提问前指了图"这条也全过——但那全是高亮题面上已经有的文字，
+ * 没有一笔是真的画出来的新东西。用户看下来"基本都是 chat"。
+ * 高亮/带看能满足 markedSinceAsk，满足不了这道闸。
+ */
+describe('账平了，但一笔都没画过——不许收尾', () => {
+  it('全程只高亮、不画新东西 → tutor_finish 被拒', async () => {
+    const scene = new Scene();
+    scene.create([{ type: 'text', id: 'sh_a', x: 0, y: 0, text: 'x + 2y = 5' }], {
+      author: { id: 'u1', kind: 'user' },
+    });
+    const h = makeHarness(
+      [
+        { calls: [PLAN([{ text: '(1) 求 x' }]), call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('x 是多少？')] },
+        { calls: [judge('right', '对'), PLAN([{ text: '(1) 求 x', done: true }])] },
+        { calls: [call('tutor_finish', { summary: '讲完了' })] },
+        { calls: [call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('还有问题吗？')] },
+        { text: '没了' },
+      ],
+      { scene, autoAnswer: '1' },
+    );
+    await speak(h, '给我讲这道题');
+
+    // 每个工具会先发一条 running 再发终态，取最后一条
+    const finish = h.events('agent.tool').filter((m) => m.call.name === 'tutor_finish').at(-1)!;
+    expect(finish.call.state).toBe('error');
+    expect(finish.call.error).toContain('没画过一笔新东西');
+    // 第一次被拒之后，模式还没被放走
+    expect(h.session.mode).toBe('tutor');
+  });
+
+  it('哪怕只画了一笔（canvas_create / canvas_ink）→ 放行', async () => {
+    const scene = new Scene();
+    scene.create([{ type: 'text', id: 'sh_a', x: 0, y: 0, text: 'x + 2y = 5' }], {
+      author: { id: 'u1', kind: 'user' },
+    });
+    const h = makeHarness(
+      [
+        { calls: [PLAN([{ text: '(1) 求 x' }]), call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('x 是多少？')] },
+        {
+          calls: [
+            judge('right', '对'),
+            PLAN([{ text: '(1) 求 x', done: true }]),
+            call('canvas_create', { shapes: [{ type: 'line', x: 0, y: 0, points: [[0, 0], [10, 10]] }] }),
+          ],
+        },
+        { calls: [call('tutor_finish', { summary: '讲完了' })] },
+        { text: '好' },
+      ],
+      { scene, autoAnswer: '1' },
+    );
+    await speak(h, '给我讲这道题');
+
+    // 每个工具会先发一条 running 再发终态，取最后一条
+    const finish = h.events('agent.tool').filter((m) => m.call.name === 'tutor_finish').at(-1)!;
+    expect(finish.call.state).toBe('ok');
+    expect(h.session.mode).toBe('assist');
   });
 });
 
@@ -671,7 +734,7 @@ describe('停手要明说', () => {
   it('问题还挂在他屏幕上、回合被打断时不插话', async () => {
     // 不自动作答：回合会一直阻塞在 interact_ask_user 上
     const h = makeHarness([{ calls: [PLAN([{ text: '(1) 求 DF' }]), ask('DF 是多少？')] }, { text: '好' }], {
-      session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [], concepts: [] } },
+      session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, attempts: [], concepts: [] } },
     });
 
     const running = speak(h, '继续');
@@ -700,7 +763,7 @@ describe('等用户思考的时间不占回合额度', () => {
         { text: '好' },
       ],
       {
-        session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [], concepts: [] } },
+        session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, attempts: [], concepts: [] } },
         maxMs: 120,
         // 想的时间比整个回合额度还长——挂钟计时的话这里必死
         autoAnswerDelayMs: 260,
@@ -764,7 +827,7 @@ describe('讲解要指着图说', () => {
         zoom: 1,
         editMode: 'suggest',
         mode: 'tutor',
-        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [], concepts: [] },
+        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, attempts: [], concepts: [] },
       },
       events: [],
       turnNo: 3,
@@ -782,7 +845,7 @@ describe('讲解要指着图说', () => {
         zoom: 1,
         editMode: 'suggest',
         mode: 'tutor',
-        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: true, attempts: [], concepts: [] },
+        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: true, drewSomethingThisSession: false, attempts: [], concepts: [] },
       },
       events: [],
       turnNo: 3,
@@ -853,7 +916,7 @@ describe('讲解要指着图说', () => {
           startedTurn: 0,
           pending: null,
           rightSince: 0,
-          markedSinceAsk: false,
+          markedSinceAsk: false, drewSomethingThisSession: false,
           attempts: [],
           concepts: [],
         },
@@ -883,7 +946,7 @@ describe('讲解要指着图说', () => {
           startedTurn: 0,
           pending: null,
           rightSince: 0,
-          markedSinceAsk: true,
+          markedSinceAsk: true, drewSomethingThisSession: false,
           attempts: [],
           concepts: [],
         },
@@ -906,7 +969,7 @@ describe('讲解要指着图说', () => {
           startedTurn: 0,
           pending: null,
           rightSince: 0,
-          markedSinceAsk: false,
+          markedSinceAsk: false, drewSomethingThisSession: false,
           attempts: [],
           concepts: [],
         },
@@ -942,7 +1005,7 @@ describe('账本每一轮都摆在模型眼前', () => {
           ],
           startedTurn: 1,
           pending: null,
-          rightSince: 0, markedSinceAsk: false, attempts: [], concepts: []
+          rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, attempts: [], concepts: []
         },
       },
       events: [],
@@ -959,7 +1022,7 @@ describe('账本每一轮都摆在模型眼前', () => {
   it('还没拆题时催拆题', () => {
     const header = buildContextHeader({
       scene: new Scene(),
-      session: { ...base, tutor: { goal: '讲讲这题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [], concepts: [] } },
+      session: { ...base, tutor: { goal: '讲讲这题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, attempts: [], concepts: [] } },
       events: [],
       turnNo: 1,
     });
@@ -1000,7 +1063,7 @@ describe('知识点在拆题时就落地', () => {
 
   it('拆题时用小问的文字反查，存进账本', async () => {
     const h = makeHarness([{ calls: [call('tutor_plan', { items: [{ text: '用勾股定理列方程', done: false }, { text: '解出 BD', done: false }] })] }], {
-      session: { mode: 'tutor', tutor: { goal: 'Geometry — Triangle with an Altitude', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [], concepts: [] } },
+      session: { mode: 'tutor', tutor: { goal: 'Geometry — Triangle with an Altitude', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drewSomethingThisSession: false, attempts: [], concepts: [] } },
       knowledge: kg,
     });
     h.loop.push({ kind: 'text', text: '继续', at: Date.now() });
@@ -1023,7 +1086,7 @@ describe('知识点在拆题时就落地', () => {
             startedTurn: 0,
             pending: { question: 'AD² 等于什么？', answer: '169 − x²' },
             rightSince: 0,
-            markedSinceAsk: false,
+            markedSinceAsk: false, drewSomethingThisSession: false,
             attempts: [],
             concepts: ['c_pyth'],
           },
@@ -1049,7 +1112,7 @@ describe('知识点在拆题时就落地', () => {
             startedTurn: 0,
             pending: { question: 'q', answer: 'a' },
             rightSince: 0,
-            markedSinceAsk: false,
+            markedSinceAsk: false, drewSomethingThisSession: false,
             attempts: [],
             concepts: ['c_fallback'],
           },
@@ -1114,7 +1177,7 @@ describe('中途退出时的落盘', () => {
           startedTurn: 0,
           pending: null,
           rightSince: 0,
-          markedSinceAsk: false,
+          markedSinceAsk: false, drewSomethingThisSession: false,
           attempts: [
             { conceptId: 'c_pyth', ok: true, guided: true },
             { conceptId: 'c_tri', ok: false, guided: true },
