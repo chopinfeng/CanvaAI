@@ -47,6 +47,7 @@ export const execTutorPlan: ToolExecutor = async (raw, ctx) => {
       drawCount: 0,
       graphicalDrawCount: 0,
       graphicsBlockCount: 0,
+      drawBlockCount: 0,
       askedQuestions: [],
       stuckStreak: 0,
       attempts: [],
@@ -339,13 +340,26 @@ export const execTutorFinish: ToolExecutor = async (raw, ctx) => {
    */
   const needDraws = Math.max(2, Math.ceil(t.outline.length / 2), t.askedQuestions.length - 2);
   if (t.drawCount < needDraws) {
-    return err(
-      `这场辅导问答了 ${t.askedQuestions.length} 轮，画布上却只有 ${t.drawCount} 笔——` +
-        '中间一大片空白，不是真的板书',
-      '像老师上课写板书那样，讲一步写一步：公式、算式、图形、关键结果，' +
-        '每判完一轮问答就用 canvas_create（annot 或 ai 层）留一笔——不是攒到最后' +
-        '才想起来补两笔应付。高亮题面上已经有的文字不算，那是指读，不是画。',
-    );
+    /**
+     * 这道闸也不能死磕到底——真机复现过一次"确实在补，但补不满"：
+     * 一道 4 问的微分方程，门槛算出来要至少 6 笔，模型认真回应了这道
+     * 闸，一次次重试 tutor_finish 之间画布上的笔数从 0 加到 1、2、3，
+     * 不是敷衍，但补到第 3 笔就没了后劲——连着几次只重复"我需要补充
+     * 板书"却不再真的落笔，最后卡到录像脚本自己的空闲超时才收场，
+     * tutor_finish 全程一次都没通过。跟 graphicsBlockCount 一样的
+     * 道理：连着卡够次数就放行，不能让"板书够不够密"这个质量问题，
+     * 变成"这场辅导能不能有个结尾"的问题。
+     */
+    t.drawBlockCount += 1;
+    if (t.drawBlockCount < 4) {
+      return err(
+        `这场辅导问答了 ${t.askedQuestions.length} 轮，画布上却只有 ${t.drawCount} 笔——` +
+          '中间一大片空白，不是真的板书',
+        '像老师上课写板书那样，讲一步写一步：公式、算式、图形、关键结果，' +
+          '每判完一轮问答就用 canvas_create（annot 或 ai 层）留一笔——不是攒到最后' +
+          '才想起来补两笔应付。高亮题面上已经有的文字不算，那是指读，不是画。',
+      );
+    }
   }
 
   /**

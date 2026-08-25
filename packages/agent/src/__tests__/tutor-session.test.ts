@@ -402,6 +402,50 @@ describe('画得不够多——不许收尾', () => {
     expect(finishes[2]!.call.state).toBe('ok');
     expect(h.session.mode).toBe('assist');
   });
+
+  /**
+   * 真机录像复现过"确实在补，但补不满"：一道 4 问的微分方程，门槛
+   * 算出来要至少 6 笔，模型认真回应了这道闸、一次次重试之间画布上
+   * 的笔数从 0 加到 1、2、3——不是敷衍，但补到第 3 笔就没了后劲，
+   * 连着几次只重复"我需要补充板书"却不再真的落笔，最后卡到录像
+   * 脚本自己的空闲超时才收场，tutor_finish 全程一次都没通过。
+   */
+  it('画得不够多——连着拒了三次，第四次放行，不会卡死', async () => {
+    const scene = new Scene();
+    scene.create([{ type: 'text', id: 'sh_a', x: 0, y: 0, text: 'x + 2y = 5' }], {
+      author: { id: 'u1', kind: 'user' },
+    });
+    const h = makeHarness(
+      [
+        { calls: [PLAN([{ text: '(1) 求 x' }]), call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('x 是多少？')] },
+        {
+          calls: [
+            judge('right', '对'),
+            PLAN([{ text: '(1) 求 x', done: true }]),
+            // 只画一笔真图案——drawCount=1，graphicalDrawCount=1，
+            // 但需要的至少 2 笔（needDraws 的下限）没凑够
+            call('canvas_create', { shapes: [{ type: 'line', x: 0, y: 0, points: [[0, 0], [10, 10]] }] }),
+          ],
+        },
+        { calls: [call('tutor_finish', { summary: '讲完了' })] },
+        { calls: [call('tutor_finish', { summary: '讲完了' })] },
+        { calls: [call('tutor_finish', { summary: '讲完了' })] },
+        { calls: [call('tutor_finish', { summary: '讲完了' })] },
+        { text: '好' },
+      ],
+      { scene, autoAnswer: '1' },
+    );
+    await speak(h, '给我讲这道题');
+
+    const finishes = h.events('agent.tool').filter((m) => m.call.name === 'tutor_finish' && m.call.state !== 'running');
+    expect(finishes).toHaveLength(4);
+    expect(finishes[0]!.call.state).toBe('error');
+    expect(finishes[0]!.call.error).toContain('一大片空白');
+    expect(finishes[1]!.call.state).toBe('error');
+    expect(finishes[2]!.call.state).toBe('error');
+    expect(finishes[3]!.call.state).toBe('ok');
+    expect(h.session.mode).toBe('assist');
+  });
 });
 
 describe('打勾要有门票', () => {
@@ -920,7 +964,7 @@ describe('停手要明说', () => {
   it('问题还挂在他屏幕上、回合被打断时不插话', async () => {
     // 不自动作答：回合会一直阻塞在 interact_ask_user 上
     const h = makeHarness([{ calls: [PLAN([{ text: '(1) 求 DF' }]), ask('DF 是多少？')] }, { text: '好' }], {
-      session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
+      session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
     });
 
     const running = speak(h, '继续');
@@ -949,7 +993,7 @@ describe('等用户思考的时间不占回合额度', () => {
         { text: '好' },
       ],
       {
-        session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
+        session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
         maxMs: 120,
         // 想的时间比整个回合额度还长——挂钟计时的话这里必死
         autoAnswerDelayMs: 260,
@@ -1013,7 +1057,7 @@ describe('讲解要指着图说', () => {
         zoom: 1,
         editMode: 'suggest',
         mode: 'tutor',
-        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] },
+        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] },
       },
       events: [],
       turnNo: 3,
@@ -1031,7 +1075,7 @@ describe('讲解要指着图说', () => {
         zoom: 1,
         editMode: 'suggest',
         mode: 'tutor',
-        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: true, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] },
+        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: true, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] },
       },
       events: [],
       turnNo: 3,
@@ -1102,7 +1146,7 @@ describe('讲解要指着图说', () => {
           startedTurn: 0,
           pending: null,
           rightSince: 0,
-          markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, askedQuestions: [], stuckStreak: 0,
+          markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0,
           attempts: [],
           concepts: [],
         },
@@ -1132,7 +1176,7 @@ describe('讲解要指着图说', () => {
           startedTurn: 0,
           pending: null,
           rightSince: 0,
-          markedSinceAsk: true, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, askedQuestions: [], stuckStreak: 0,
+          markedSinceAsk: true, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0,
           attempts: [],
           concepts: [],
         },
@@ -1155,7 +1199,7 @@ describe('讲解要指着图说', () => {
           startedTurn: 0,
           pending: null,
           rightSince: 0,
-          markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, askedQuestions: [], stuckStreak: 0,
+          markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0,
           attempts: [],
           concepts: [],
         },
@@ -1191,7 +1235,7 @@ describe('账本每一轮都摆在模型眼前', () => {
           ],
           startedTurn: 1,
           pending: null,
-          rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: []
+          rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: []
         },
       },
       events: [],
@@ -1208,7 +1252,7 @@ describe('账本每一轮都摆在模型眼前', () => {
   it('还没拆题时催拆题', () => {
     const header = buildContextHeader({
       scene: new Scene(),
-      session: { ...base, tutor: { goal: '讲讲这题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
+      session: { ...base, tutor: { goal: '讲讲这题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
       events: [],
       turnNo: 1,
     });
@@ -1228,7 +1272,7 @@ describe('账本每一轮都摆在模型眼前', () => {
     );
     const header = buildContextHeader({
       scene,
-      session: { ...base, tutor: { goal: '给我讲这道题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
+      session: { ...base, tutor: { goal: '给我讲这道题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
       events: [],
       turnNo: 1,
     });
@@ -1270,7 +1314,7 @@ describe('知识点在拆题时就落地', () => {
 
   it('拆题时用小问的文字反查，存进账本', async () => {
     const h = makeHarness([{ calls: [call('tutor_plan', { items: [{ text: '用勾股定理列方程', done: false }, { text: '解出 BD', done: false }] })] }], {
-      session: { mode: 'tutor', tutor: { goal: 'Geometry — Triangle with an Altitude', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
+      session: { mode: 'tutor', tutor: { goal: 'Geometry — Triangle with an Altitude', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
       knowledge: kg,
     });
     h.loop.push({ kind: 'text', text: '继续', at: Date.now() });
@@ -1293,7 +1337,7 @@ describe('知识点在拆题时就落地', () => {
             startedTurn: 0,
             pending: { question: 'AD² 等于什么？', answer: '169 − x²' },
             rightSince: 0,
-            markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, askedQuestions: [], stuckStreak: 0,
+            markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0,
             attempts: [],
             concepts: ['c_pyth'],
           },
@@ -1319,7 +1363,7 @@ describe('知识点在拆题时就落地', () => {
             startedTurn: 0,
             pending: { question: 'q', answer: 'a' },
             rightSince: 0,
-            markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, askedQuestions: [], stuckStreak: 0,
+            markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0,
             attempts: [],
             concepts: ['c_fallback'],
           },
@@ -1384,7 +1428,7 @@ describe('中途退出时的落盘', () => {
           startedTurn: 0,
           pending: null,
           rightSince: 0,
-          markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, askedQuestions: [], stuckStreak: 0,
+          markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0,
           attempts: [
             { conceptId: 'c_pyth', ok: true, guided: true },
             { conceptId: 'c_tri', ok: false, guided: true },
