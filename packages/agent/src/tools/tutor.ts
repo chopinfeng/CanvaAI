@@ -46,6 +46,7 @@ export const execTutorPlan: ToolExecutor = async (raw, ctx) => {
       markedSinceAsk: false,
       drawCount: 0,
       askedQuestions: [],
+      stuckStreak: 0,
       attempts: [],
       concepts: [],
     };
@@ -123,6 +124,42 @@ export const execTutorPlan: ToolExecutor = async (raw, ctx) => {
    */
   const newlyDone = a.items.filter((i) => i.done && !wasDone.has(i.text.trim()));
   const unearned = (first || t.rightSince === 0) && newlyDone.length > 0;
+
+  /**
+   * 同一批没打勾的小问，答对过还是连着两轮原样不动——不许再这样耗下去。
+   *
+   * 前两道闸（黑名单挡空转标签、精确匹配挡一字不差的重复提问）看的都是
+   * "问题长什么样"，真机复现过绕过它们的新花样：一条措辞完全具体、
+   * 也没撞黑名单的条目（"求函数在约束条件下的极值点"），学生把它内含的
+   * 每一个子步骤都依次答对了——列方程、解方程、验证性质、复述全过程——
+   * 账本却始终不给这条打勾，老师只能一轮轮换着法子重问同一件事，
+   * 措辞每次都不完全一样，精确匹配的闸也躲了过去。这道闸看的是
+   * "账本动没动"：不管话术怎么变，undone 的集合连着两轮纹丝不动，
+   * 而这期间用户明明又答对过，本身就是信号。
+   */
+  const prevUndone = new Set(t.outline.filter((i) => !i.done).map((i) => i.text.trim()));
+  const incomingUndone = new Set(a.items.filter((i) => !i.done).map((i) => i.text.trim()));
+  const sameUndoneSet =
+    prevUndone.size > 0 &&
+    prevUndone.size === incomingUndone.size &&
+    [...prevUndone].every((x) => incomingUndone.has(x));
+
+  if (!first && t.rightSince > 0 && sameUndoneSet) {
+    t.stuckStreak += 1;
+  } else {
+    t.stuckStreak = 0;
+  }
+
+  if (t.stuckStreak >= 2) {
+    const stuck = [...incomingUndone][0] ?? '';
+    return err(
+      `「${stuck}」这条小问，用户已经答对过至少一次了，账本却连着两轮都没打勾`,
+      '这条大概率是把好几个子步骤揉在了一起，卡在"什么时候算完成"上。' +
+        '别再照原样重发这条清单了：要么现在就把它标成 done——他刚才的正确回答' +
+        '已经覆盖了这条要考的内容；要么把它拆成两条更小的小问，各自有清楚的' +
+        '对错标准，再往下问。不要只是换个说法把同一件事再问一遍。',
+    );
+  }
 
   /**
    * 顺手把这道题落在图谱上的知识点查出来存着。

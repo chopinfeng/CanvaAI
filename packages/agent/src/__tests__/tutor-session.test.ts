@@ -766,7 +766,7 @@ describe('停手要明说', () => {
   it('问题还挂在他屏幕上、回合被打断时不插话', async () => {
     // 不自动作答：回合会一直阻塞在 interact_ask_user 上
     const h = makeHarness([{ calls: [PLAN([{ text: '(1) 求 DF' }]), ask('DF 是多少？')] }, { text: '好' }], {
-      session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, askedQuestions: [], attempts: [], concepts: [] } },
+      session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
     });
 
     const running = speak(h, '继续');
@@ -795,7 +795,7 @@ describe('等用户思考的时间不占回合额度', () => {
         { text: '好' },
       ],
       {
-        session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, askedQuestions: [], attempts: [], concepts: [] } },
+        session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
         maxMs: 120,
         // 想的时间比整个回合额度还长——挂钟计时的话这里必死
         autoAnswerDelayMs: 260,
@@ -859,7 +859,7 @@ describe('讲解要指着图说', () => {
         zoom: 1,
         editMode: 'suggest',
         mode: 'tutor',
-        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, askedQuestions: [], attempts: [], concepts: [] },
+        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] },
       },
       events: [],
       turnNo: 3,
@@ -877,7 +877,7 @@ describe('讲解要指着图说', () => {
         zoom: 1,
         editMode: 'suggest',
         mode: 'tutor',
-        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: true, drawCount: 0, askedQuestions: [], attempts: [], concepts: [] },
+        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: true, drawCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] },
       },
       events: [],
       turnNo: 3,
@@ -948,7 +948,7 @@ describe('讲解要指着图说', () => {
           startedTurn: 0,
           pending: null,
           rightSince: 0,
-          markedSinceAsk: false, drawCount: 0, askedQuestions: [],
+          markedSinceAsk: false, drawCount: 0, askedQuestions: [], stuckStreak: 0,
           attempts: [],
           concepts: [],
         },
@@ -978,7 +978,7 @@ describe('讲解要指着图说', () => {
           startedTurn: 0,
           pending: null,
           rightSince: 0,
-          markedSinceAsk: true, drawCount: 0, askedQuestions: [],
+          markedSinceAsk: true, drawCount: 0, askedQuestions: [], stuckStreak: 0,
           attempts: [],
           concepts: [],
         },
@@ -1001,7 +1001,7 @@ describe('讲解要指着图说', () => {
           startedTurn: 0,
           pending: null,
           rightSince: 0,
-          markedSinceAsk: false, drawCount: 0, askedQuestions: [],
+          markedSinceAsk: false, drawCount: 0, askedQuestions: [], stuckStreak: 0,
           attempts: [],
           concepts: [],
         },
@@ -1037,7 +1037,7 @@ describe('账本每一轮都摆在模型眼前', () => {
           ],
           startedTurn: 1,
           pending: null,
-          rightSince: 0, markedSinceAsk: false, drawCount: 0, askedQuestions: [], attempts: [], concepts: []
+          rightSince: 0, markedSinceAsk: false, drawCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: []
         },
       },
       events: [],
@@ -1054,7 +1054,7 @@ describe('账本每一轮都摆在模型眼前', () => {
   it('还没拆题时催拆题', () => {
     const header = buildContextHeader({
       scene: new Scene(),
-      session: { ...base, tutor: { goal: '讲讲这题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, askedQuestions: [], attempts: [], concepts: [] } },
+      session: { ...base, tutor: { goal: '讲讲这题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
       events: [],
       turnNo: 1,
     });
@@ -1095,7 +1095,7 @@ describe('知识点在拆题时就落地', () => {
 
   it('拆题时用小问的文字反查，存进账本', async () => {
     const h = makeHarness([{ calls: [call('tutor_plan', { items: [{ text: '用勾股定理列方程', done: false }, { text: '解出 BD', done: false }] })] }], {
-      session: { mode: 'tutor', tutor: { goal: 'Geometry — Triangle with an Altitude', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, askedQuestions: [], attempts: [], concepts: [] } },
+      session: { mode: 'tutor', tutor: { goal: 'Geometry — Triangle with an Altitude', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
       knowledge: kg,
     });
     h.loop.push({ kind: 'text', text: '继续', at: Date.now() });
@@ -1118,7 +1118,7 @@ describe('知识点在拆题时就落地', () => {
             startedTurn: 0,
             pending: { question: 'AD² 等于什么？', answer: '169 − x²' },
             rightSince: 0,
-            markedSinceAsk: false, drawCount: 0, askedQuestions: [],
+            markedSinceAsk: false, drawCount: 0, askedQuestions: [], stuckStreak: 0,
             attempts: [],
             concepts: ['c_pyth'],
           },
@@ -1144,7 +1144,7 @@ describe('知识点在拆题时就落地', () => {
             startedTurn: 0,
             pending: { question: 'q', answer: 'a' },
             rightSince: 0,
-            markedSinceAsk: false, drawCount: 0, askedQuestions: [],
+            markedSinceAsk: false, drawCount: 0, askedQuestions: [], stuckStreak: 0,
             attempts: [],
             concepts: ['c_fallback'],
           },
@@ -1209,7 +1209,7 @@ describe('中途退出时的落盘', () => {
           startedTurn: 0,
           pending: null,
           rightSince: 0,
-          markedSinceAsk: false, drawCount: 0, askedQuestions: [],
+          markedSinceAsk: false, drawCount: 0, askedQuestions: [], stuckStreak: 0,
           attempts: [
             { conceptId: 'c_pyth', ok: true, guided: true },
             { conceptId: 'c_tri', ok: false, guided: true },
@@ -1431,5 +1431,48 @@ describe('答对过的问题不能一字不差再问一遍', () => {
     const asks = h.events('agent.tool').filter((m) => m.call.name === 'interact_ask_user');
     expect(asks.every((m) => m.call.state !== 'error')).toBe(true);
     expect(h.events('agent.ask')).toHaveLength(2);
+  });
+});
+
+/**
+ * 真机复现过一种绕开前两道闸的新花样：一条措辞完全具体、也没撞
+ * 黑名单的条目（"求函数在约束条件下的极值点"），学生把它内含的每个
+ * 子步骤都依次答对了，账本却始终不给这条打勾——老师只能换着说法
+ * 一轮轮重问同一件事，措辞每次都不完全一样，精确匹配的闸也躲了过去。
+ * 这道闸不看"问题长什么样"，只看"undone 的集合动没动"。
+ */
+describe('同一批小问答对过还是打不上勾——连着两轮就拦', () => {
+  it('两轮都是「答对了但 undone 集合原样不动」——第二次重拆被拒', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求极值点' }]), ask('列出方程组？')] },
+      // 答对了，但这次重拆没有把它标 done——undone 集合原样不动，第一次卡住
+      { calls: [judge('right', '对'), PLAN([{ text: '(1) 求极值点' }]), ask('解出 x、y？')] },
+      // 又答对了，undone 集合还是原样不动——第二次卡住，该被拦
+      { calls: [judge('right', '对'), PLAN([{ text: '(1) 求极值点' }])] },
+      { calls: [ask('还有别的问题吗？')] },
+      { text: '好' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    const plans = h.events('agent.tool').filter((m) => m.call.name === 'tutor_plan');
+    expect(plans.at(-1)!.call.state).toBe('error');
+    expect(plans.at(-1)!.call.error).toContain('连着两轮都没打勾');
+    // 这条小问依然没被打勾，也没被拆开
+    expect(h.session.tutor?.outline).toEqual([{ text: '(1) 求极值点', done: false }]);
+  });
+
+  it('第二轮把它标成 done 了——不算卡住，正常放行', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求极值点' }]), ask('列出方程组？')] },
+      { calls: [judge('right', '对'), PLAN([{ text: '(1) 求极值点' }]), ask('解出 x、y？')] },
+      // 这次真的打勾了——undone 集合变了，不算卡住
+      { calls: [judge('right', '对'), PLAN([{ text: '(1) 求极值点', done: true }])] },
+      { text: '好' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    const plans = h.events('agent.tool').filter((m) => m.call.name === 'tutor_plan');
+    expect(plans.every((m) => m.call.state !== 'error')).toBe(true);
+    expect(h.session.tutor?.outline).toEqual([{ text: '(1) 求极值点', done: true }]);
   });
 });
