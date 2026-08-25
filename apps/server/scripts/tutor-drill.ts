@@ -422,6 +422,15 @@ async function openSession(): Promise<void> {
   thinking = true;
   try {
     await student.open(request);
+  } catch (e) {
+    /**
+     * 真机复现过：开场这一步撞上上游模型限流（429），这里原来没有
+     * catch，异常直接冒出去把整个 Node 进程带崩——录像脚本、这场演练
+     * 的全部进度，全都随着这一次瞬时的限流一起没了。nudgeStudent() 里
+     * 后续的每一步都有这层保护，唯独最开场这一步漏掉了。
+     * 限流多半是瞬时的，不该让一次网络抖动搭上整个进程。
+     */
+    log('演练', `开场这一步出错：${(e as Error).message}`);
   } finally {
     thinking = false;
     // 开场这条路上没有 turn.end 可以挂，静默计时得在这儿起
