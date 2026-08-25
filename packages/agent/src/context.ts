@@ -105,6 +105,28 @@ export function buildContextHeader(input: HeaderInput): string {
   if (session.mode === 'tutor' && session.tutor) {
     const t = session.tutor;
     lines.push(`[辅导中] 用户要学会的是：${t.goal}`);
+
+    /**
+     * 题目原文（画布上 role=statement 的图元）直接摆出来，不等模型自己去查。
+     *
+     * 真机复现过：用户开口只说"给我讲这道题"，画布概况这里只报得出
+     * "4 个图元"这种数量，没有内容。模型没有主动去 canvas_query/
+     * canvas_snapshot 看题，就凭空编了一个典型的阻尼振动方程往下讲，
+     * 甚至把提示词里"拆题示例"那句话里的"求 BD 和 DC""求内切圆半径 r"
+     * （纯粹是教怎么写条目措辞的例子，跟任何真实题目无关）当成了题目
+     * 本身问出来。一整场 tutor_plan 被迫重来了 6 次，20 分钟里题目
+     * 内容换了三四轮，一笔画布都没落。跟 kg_lookup 那道闸一样的道理：
+     * 拆题这种"要不要主动去看"的事，靠模型自觉最终会有一次不做。
+     * 试卷导入（paper.ts）和这里的种题脚本都用这个 role 标真题干，
+     * 直接摆出来，模型就不必也不会去凭空猜。
+     */
+    const stmt = scene
+      .all()
+      .filter((s) => s.meta.role === 'statement' && s.text)
+      .map((s) => s.text!.replace(/\n+/g, ' '))
+      .join(' / ');
+    if (stmt) lines.push(`  [画布上的题目原文] ${stmt.slice(0, 400)}`);
+
     if (t.pending) {
       lines.push(`  ⚠ 他回答了「${t.pending.answer}」，你还没判对错。先 tutor_judge，再问下一个。`);
     }

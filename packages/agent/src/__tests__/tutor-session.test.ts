@@ -1215,6 +1215,27 @@ describe('账本每一轮都摆在模型眼前', () => {
     expect(header).toContain('还没拆题');
   });
 
+  /**
+   * 真机复现过：模型没有主动去看画布上的题目原文，凭空编了一个题目
+   * 往下讲，甚至把提示词里的拆题措辞示例当成了题目本身。题目原文
+   * （role=statement）该直接摆在账本旁边，不等模型自觉去查。
+   */
+  it('画布上有题目原文（role=statement）——直接摆给模型，不用等它自己去查', () => {
+    const scene = new Scene();
+    scene.create(
+      [{ type: 'text', id: 'sh_stmt', x: 0, y: 0, text: '求解 y″ − 3y′ + 2y = 2eˣ，y(0) = 0，y′(0) = 1。', meta: { role: 'statement' } }],
+      { author: { id: 'seed', kind: 'user' } },
+    );
+    const header = buildContextHeader({
+      scene,
+      session: { ...base, tutor: { goal: '给我讲这道题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
+      events: [],
+      turnNo: 1,
+    });
+    expect(header).toContain('[画布上的题目原文]');
+    expect(header).toContain('y″ − 3y′ + 2y = 2eˣ');
+  });
+
   it('不在辅导里就一个字都不加', () => {
     const header = buildContextHeader({
       scene: new Scene(),
