@@ -242,11 +242,19 @@ export const execTutorJudge: ToolExecutor = async (raw, ctx) => {
   // 只有"完全对"才换来一张打勾的门票。半对说明这一步还没走通。
   if (a.verdict === 'right') t.rightSince += 1;
   /**
-   * 记下这次问过、也答对了的问题——一字不差问第二遍会被 interact_ask_user
-   * 拦下（见 view-interact.ts）。只记 right：答错或半对之后换个角度
-   * 追问是正常教学，不能拦；答对了还一模一样再问一遍，才是真出问题了。
+   * 记下这次问过的问题——一字不差问第二遍会被 interact_ask_user 拦下
+   * （见 view-interact.ts）。
+   *
+   * 原来只记 right（理由是"答错或半对之后换个角度追问是正常教学，
+   * 不能拦"）。真机复现过这道理由本身站不住：学生答"不太清楚"，
+   * 判了 wrong，然后老师把同一句"你知道如何求二阶常系数线性微分方程
+   * 的通解吗？"一字不差地问了四遍，中间只穿插了一句"没关系，我们
+   * 一起来学"——四轮里没有一次真的换了角度或把问题拆小。"换个角度
+   * 追问"这件事，靠的从来不是判定结果是 right 还是 wrong，靠的是
+   * 问题的**文字有没有真的变**——上面那条"答错/半对之后换个角度追问"
+   * 的例子本来就是拿两句不同的话在测，不会被这次改动拦下。
    */
-  if (a.verdict === 'right') t.askedQuestions.push(judged.question.trim());
+  t.askedQuestions.push(judged.question.trim());
 
   /**
    * 把这次判定记到知识点上——先攒着，讲完再一次写进去。

@@ -1476,3 +1476,38 @@ describe('同一批小问答对过还是打不上勾——连着两轮就拦', (
     expect(h.session.tutor?.outline).toEqual([{ text: '(1) 求极值点', done: true }]);
   });
 });
+
+/**
+ * 真机复现过：学生答"不太清楚"，老师判了 wrong，然后把同一句
+ * "你知道如何求二阶常系数线性微分方程的通解吗？"一字不差地问了四遍，
+ * 中间只穿插了一句"没关系，我们一起来学"，没有一次真的换角度或
+ * 把问题拆小。原来 askedQuestions 只记 right 判定，理由是"答错之后
+ * 换个角度追问是正常教学"——但这次事故说明"换角度"从来不是看判定
+ * 结果，是看问题的文字有没有真的变。
+ */
+describe('判了 wrong 也不许一字不差把同一句问题再问一遍', () => {
+  it('判 wrong 之后原样重问——被拒', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求通解' }]), ask('你知道怎么求通解吗？')] },
+      { calls: [judge('wrong', '还不知道，我们一起学'), ask('你知道怎么求通解吗？')] },
+      { text: '好' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    const asks = h.events('agent.tool').filter((m) => m.call.name === 'interact_ask_user');
+    expect(asks.at(-1)!.call.state).toBe('error');
+    expect(asks.at(-1)!.call.error).toContain('问过了');
+  });
+
+  it('判 wrong 之后换一句更具体的问题——放行', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求通解' }]), ask('你知道怎么求通解吗？')] },
+      { calls: [judge('wrong', '还不知道，我们一起学'), ask('第一步是写特征方程，你能写出来吗？')] },
+      { text: '好' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    const asks = h.events('agent.tool').filter((m) => m.call.name === 'interact_ask_user');
+    expect(asks.every((m) => m.call.state !== 'error')).toBe(true);
+  });
+});
