@@ -314,8 +314,8 @@ describe('画得不够多——不许收尾', () => {
           calls: [
             judge('right', '对'),
             PLAN([{ text: '(1) 求 x', done: true }]),
-            call('canvas_create', { shapes: [{ type: 'text', x: 0, y: 0, text: 'x = 1' }] }),
-            call('canvas_create', { shapes: [{ type: 'text', x: 20, y: 0, text: 'y = 2' }] }),
+            call('canvas_create', { shapes: [{ type: 'text', x: 0, y: 200, text: 'x = 1' }] }),
+            call('canvas_create', { shapes: [{ type: 'text', x: 0, y: 260, text: 'y = 2' }] }),
           ],
         },
         { calls: [call('tutor_finish', { summary: '讲完了' })] },
@@ -343,7 +343,7 @@ describe('画得不够多——不许收尾', () => {
           calls: [
             judge('right', '对'),
             PLAN([{ text: '(1) 求 x', done: true }]),
-            call('canvas_create', { shapes: [{ type: 'text', x: 0, y: 0, text: 'x = 1' }] }),
+            call('canvas_create', { shapes: [{ type: 'text', x: 0, y: 200, text: 'x = 1' }] }),
             call('canvas_create', { shapes: [{ type: 'line', x: 0, y: 0, points: [[0, 0], [10, 10]] }] }),
           ],
         },
@@ -378,8 +378,8 @@ describe('画得不够多——不许收尾', () => {
           calls: [
             judge('right', '对'),
             PLAN([{ text: '(1) 求 x', done: true }]),
-            call('canvas_create', { shapes: [{ type: 'text', x: 0, y: 0, text: 'x = 1' }] }),
-            call('canvas_create', { shapes: [{ type: 'text', x: 20, y: 0, text: 'y = 2' }] }),
+            call('canvas_create', { shapes: [{ type: 'text', x: 0, y: 200, text: 'x = 1' }] }),
+            call('canvas_create', { shapes: [{ type: 'text', x: 0, y: 260, text: 'y = 2' }] }),
           ],
         },
         // 第一次被拒——只统计一笔 graphicsBlockCount，模式还没被放走

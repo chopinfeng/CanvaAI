@@ -50,7 +50,19 @@ export const execCreate: ToolExecutor = async (raw, ctx) => {
     );
   }
 
-  const { ids, diff } = ctx.scene.create(a.shapes.map(absolutePointsToLocal), {
+  const resolved = a.shapes.map(absolutePointsToLocal);
+
+  const collision = findTextCollision(ctx, resolved);
+  if (collision) {
+    return err(
+      `新写的文字压住了已有的「${collision.meta.role ?? collision.type}」（${(collision.text ?? '').slice(0, 24)}）`,
+      '落笔前先用 canvas_snapshot（region 传板书区，describe: true）看一眼板书写到哪儿了，' +
+        '再决定这次接着往下还是往右写——自己心算坐标经常和实际渲染对不上。' +
+        '矩形/线条盖住文字是"框起来"的正常用法（比如给答案画框），只有新文字压着旧文字才会被拦。',
+    );
+  }
+
+  const { ids, diff } = ctx.scene.create(resolved, {
     author: ctx.author,
     layer,
     ...(a.anim ? {} : {}),
@@ -92,6 +104,50 @@ function absolutePointsToLocal(s: ShapeInput): ShapeInput {
       return p.length > 2 ? ([...rel, p[2]] as [number, number, number]) : rel;
     }),
   };
+}
+
+/**
+ * 新写的文字压没压住已有的文字。
+ *
+ * 真机录像复现过：提示词里反复讲了要先 canvas_snapshot 看一眼板书写到
+ * 哪儿了、写完再核一遍不压already有的东西，模型整场一次都没调
+ * canvas_snapshot，直接把新的一步写在了旧内容的正上方——画面上几行
+ * 字叠成一团，一个字都读不出来。劝了没用，只能拦。
+ *
+ * 只查"新文字 vs 已有文字"：矩形/线条盖住文字是"框起来"的正常用法
+ * （比如给最终答案画个框），不能拦；两块文字叠在一起才是真出问题，
+ * 阈值定得比较低（重叠面积超过较小那块的 1/4）——文字块本来就该
+ * 靠留白分开，沾一点边都不正常。
+ */
+function findTextCollision(ctx: ToolContext, shapes: ShapeInput[]): Shape | null {
+  const newTexts = shapes.filter((s) => s.type === 'text' || s.type === 'latex');
+  if (newTexts.length === 0) return null;
+
+  const existingTexts = ctx.scene.all().filter((s) => s.type === 'text' || s.type === 'latex');
+  if (existingTexts.length === 0) return null;
+
+  for (const nt of newTexts) {
+    // ShapeInputSchema 的 .partial({style:true}) 会把 style 的 .default({}) 短路掉——
+    // 没传 style 的新图元这里拿到的是 undefined，不是 {}，shapeBounds 读 .fontSize 会炸。
+    // 已经在场景里的图元走的是 ShapeSchema 本体，没有这个坑，不用补。
+    const nb = shapeBounds({ ...nt, style: nt.style ?? {} } as Shape);
+    const nArea = nb[2] * nb[3];
+    if (nArea <= 0) continue;
+    for (const et of existingTexts) {
+      const eb = shapeBounds(et);
+      const eArea = eb[2] * eb[3];
+      if (eArea <= 0) continue;
+      const overlap = rectOverlapArea(nb, eb);
+      if (overlap / Math.min(nArea, eArea) > 0.25) return et;
+    }
+  }
+  return null;
+}
+
+function rectOverlapArea(a: Rect, b: Rect): number {
+  const ox = Math.max(0, Math.min(a[0] + a[2], b[0] + b[2]) - Math.max(a[0], b[0]));
+  const oy = Math.max(0, Math.min(a[1] + a[3], b[1] + b[3]) - Math.max(a[1], b[1]));
+  return ox * oy;
 }
 
 function isDrawable(s: {

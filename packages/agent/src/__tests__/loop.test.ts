@@ -180,6 +180,74 @@ describe('坐标约定 —— points 一律是画布绝对坐标', () => {
   });
 });
 
+/**
+ * 真机录像复现过：提示词反复讲了落笔前后要用 canvas_snapshot 看一眼
+ * 板书写到哪儿了，模型整场一次都没调——新的一步直接写在了旧内容
+ * 正上方，画面上几行字叠成一团，一个字都读不出来。劝了没用，改成拦。
+ */
+describe('新文字不能压住已有的文字', () => {
+  it('新文字的位置和已有文字大面积重叠——拒绝，提示先看一眼板书', async () => {
+    const scene = new Scene();
+    scene.create(
+      [{ type: 'text', id: 'sh_stmt', x: 100, y: 100, text: '已有的一段题干', style: { fontSize: 16 } }],
+      { author: { id: 'u1', kind: 'user' } },
+    );
+    const h = makeHarness(
+      [
+        { calls: [call('canvas_create', { shapes: [{ type: 'text', x: 100, y: 100, text: '新写的一步', style: { fontSize: 16 } }] })] },
+        { text: '好' },
+      ],
+      { scene },
+    );
+    h.loop.push({ kind: 'text', text: '写下这一步', at: Date.now() });
+    await h.loop.drain();
+
+    const payload = JSON.parse(h.loop.getHistory().find((m) => m.role === 'tool')!.content as string);
+    expect(payload.ok).toBe(false);
+    expect(payload.hint).toContain('canvas_snapshot');
+  });
+
+  it('矩形框住已有文字——放行，这是"给答案画框"的正常用法', async () => {
+    const scene = new Scene();
+    scene.create(
+      [{ type: 'text', id: 'sh_ans', x: 100, y: 100, text: '最终答案', style: { fontSize: 16 } }],
+      { author: { id: 'u1', kind: 'user' } },
+    );
+    const h = makeHarness(
+      [
+        { calls: [call('canvas_create', { shapes: [{ type: 'rect', x: 90, y: 90, w: 120, h: 40 }] })] },
+        { text: '好' },
+      ],
+      { scene },
+    );
+    h.loop.push({ kind: 'text', text: '给答案画个框', at: Date.now() });
+    await h.loop.drain();
+
+    const payload = JSON.parse(h.loop.getHistory().find((m) => m.role === 'tool')!.content as string);
+    expect(payload.ok).toBe(true);
+  });
+
+  it('新文字写在空白处，没有重叠——放行', async () => {
+    const scene = new Scene();
+    scene.create(
+      [{ type: 'text', id: 'sh_stmt', x: 0, y: 0, text: '题干', style: { fontSize: 16 } }],
+      { author: { id: 'u1', kind: 'user' } },
+    );
+    const h = makeHarness(
+      [
+        { calls: [call('canvas_create', { shapes: [{ type: 'text', x: 800, y: 0, text: '板书区里的新一步', style: { fontSize: 16 } }] })] },
+        { text: '好' },
+      ],
+      { scene },
+    );
+    h.loop.push({ kind: 'text', text: '写下这一步', at: Date.now() });
+    await h.loop.drain();
+
+    const payload = JSON.parse(h.loop.getHistory().find((m) => m.role === 'tool')!.content as string);
+    expect(payload.ok).toBe(true);
+  });
+});
+
 describe('图层权限 —— AI 不能毁掉用户的东西', () => {
   it('拒绝修改 user 图层，并给出可执行的 hint', async () => {
     const scene = new Scene();
