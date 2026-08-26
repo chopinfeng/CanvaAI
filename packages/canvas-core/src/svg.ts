@@ -1,6 +1,7 @@
 import type { Rect, Shape, Style } from '@canvai/protocol';
 import { getStroke } from 'perfect-freehand';
 import { rectsIntersect, shapeBounds, shapePoints, unionBounds } from './geometry.js';
+import { isLatexError, renderLatexToSvg } from './latex.js';
 import { sortForRender } from './scene.js';
 
 /**
@@ -139,15 +140,18 @@ function shapeToSvg(s: Shape, opts: SvgOptions): string {
     }
 
     case 'text':
+      return renderTextSvg(s, transform, label);
+
     case 'latex': {
       const fs = s.style.fontSize ?? 16;
-      const fill = s.style.stroke ?? '#111827';
-      const lines = (s.text ?? '').split('\n');
-      const tspans = lines
-        .map((ln, i) => `<tspan x="${num(s.x)}" dy="${i === 0 ? fs : fs * 1.4}">${escapeXml(ln)}</tspan>`)
-        .join('');
-      const family = s.style.fontFamily ?? 'system-ui, -apple-system, "PingFang SC", sans-serif';
-      return `<text x="${num(s.x)}" y="${num(s.y)}" font-size="${num(fs)}" font-family="${escapeXml(family)}" fill="${fill}" opacity="${s.style.opacity ?? 1}"${transform}>${tspans}</text>${label}`;
+      const color = s.style.stroke ?? '#111827';
+      const r = renderLatexToSvg(s.text ?? '', fs, color);
+      // 排不出来就退化成纯文本——好歹能看见写的是什么，不能让整个图元凭空消失
+      if (isLatexError(r)) return renderTextSvg(s, transform, label);
+
+      const opacity = s.style.opacity ?? 1;
+      const positioned = r.svg.replace(/^<svg /, `<svg x="${num(s.x)}" y="${num(s.y)}" opacity="${num(opacity)}" `);
+      return `<g${transform}>${positioned}</g>${label}`;
     }
 
     case 'group':
@@ -156,6 +160,17 @@ function shapeToSvg(s: Shape, opts: SvgOptions): string {
     default:
       return '';
   }
+}
+
+function renderTextSvg(s: Shape, transform: string, label: string): string {
+  const fs = s.style.fontSize ?? 16;
+  const fill = s.style.stroke ?? '#111827';
+  const lines = (s.text ?? '').split('\n');
+  const tspans = lines
+    .map((ln, i) => `<tspan x="${num(s.x)}" dy="${i === 0 ? fs : fs * 1.4}">${escapeXml(ln)}</tspan>`)
+    .join('');
+  const family = s.style.fontFamily ?? 'system-ui, -apple-system, "PingFang SC", sans-serif';
+  return `<text x="${num(s.x)}" y="${num(s.y)}" font-size="${num(fs)}" font-family="${escapeXml(family)}" fill="${fill}" opacity="${s.style.opacity ?? 1}"${transform}>${tspans}</text>${label}`;
 }
 
 const ARROW_DEFS = `<defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="currentColor"/></marker></defs>`;

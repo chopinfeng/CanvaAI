@@ -101,6 +101,71 @@ function useAssetImage(assetId: string | undefined): {
   return { image, failed };
 }
 
+/**
+ * LaTeX -> 图片。
+ *
+ * MathJax 是个不小的依赖（排版逻辑 + 内嵌字形数据），大部分画布可能一个公式
+ * 都没有，不该让每个人打开画布都先付这份体积——用动态 import 懒加载，
+ * 真的出现 latex 图元才去拉这块代码，canvas-core 也为此单独开了 `./latex`
+ * 子路径导出，避免拖上其余模块。
+ *
+ * 排版本身也有实打实的 CPU 开销，`useDrawIn` 的动画每帧都会让 ShapeNode
+ * 重渲染，不能每帧都重跑一遍——用 (text, fontSize, color) 做 key 缓存，
+ * 都没变就直接复用。渲染结果是自洽的 SVG 字符串，转成 data URI 直接喂给
+ * Image，不用额外发请求。
+ */
+const latexCache = new Map<string, { image: HTMLImageElement; width: number; height: number }>();
+
+function useLatexImage(
+  text: string,
+  fontSize: number,
+  color: string,
+): { image: HTMLImageElement | null; width: number; height: number } {
+  const key = text ? `${fontSize}::${color}::${text}` : '';
+  const cached = key ? latexCache.get(key) : undefined;
+  const [state, setState] = useState(() => cached ?? { image: null, width: 0, height: 0 });
+
+  useEffect(() => {
+    if (!key) {
+      setState({ image: null, width: 0, height: 0 });
+      return;
+    }
+    const hit = latexCache.get(key);
+    if (hit) {
+      setState(hit);
+      return;
+    }
+
+    let alive = true;
+    import('@canvai/canvas-core/latex').then(({ renderLatexToSvg, isLatexError }) => {
+      if (!alive) return;
+      const rendered = renderLatexToSvg(text, fontSize, color);
+      if (isLatexError(rendered)) {
+        setState({ image: null, width: 0, height: 0 });
+        return;
+      }
+
+      const img = new window.Image();
+      img.onload = () => {
+        if (!alive) return;
+        const entry = { image: img, width: rendered.width, height: rendered.height };
+        latexCache.set(key, entry);
+        setState(entry);
+      };
+      img.onerror = () => {
+        if (alive) setState({ image: null, width: 0, height: 0 });
+      };
+      img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(rendered.svg)}`;
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, [key, text, fontSize, color]);
+
+  return state;
+}
+
 /** 按进度截取点序列，最后一段做插值，避免一跳一跳 */
 function partialPoints(points: Array<number[]>, progress: number): number[] {
   const flat: number[] = [];
@@ -144,6 +209,7 @@ export function ShapeNode({ shape, opacity, highlight, onSelect, selected, dragg
   const progress = useDrawIn(shape);
   const asset = useAssetImage(shape.type === 'image' ? shape.assetId : undefined);
   const s = shape.style;
+  const latex = useLatexImage(shape.type === 'latex' ? shape.text ?? '' : '', s.fontSize ?? 16, s.stroke ?? '#111827');
 
   /**
    * 高亮靠"动"来抓注意力，不靠把别处压暗。
@@ -307,7 +373,6 @@ export function ShapeNode({ shape, opacity, highlight, onSelect, selected, dragg
     }
 
     case 'text':
-    case 'latex':
       return (
         <Text
           {...common}
@@ -317,6 +382,37 @@ export function ShapeNode({ shape, opacity, highlight, onSelect, selected, dragg
           fontSize={s.fontSize ?? 16}
           fontFamily={s.fontFamily ?? 'system-ui, -apple-system, "PingFang SC", sans-serif'}
           fill={stroke}
+          stroke={undefined}
+          strokeWidth={0}
+        />
+      );
+
+    case 'latex':
+      // 排版失败（或还没排完）就退化成纯文本——跟服务端 SVG 渲染器行为一致，
+      // 不能让图元凭空消失
+      if (!latex.image) {
+        return (
+          <Text
+            {...common}
+            x={shape.x}
+            y={shape.y}
+            text={shape.text ?? ''}
+            fontSize={s.fontSize ?? 16}
+            fontFamily={s.fontFamily ?? 'system-ui, -apple-system, "PingFang SC", sans-serif'}
+            fill={stroke}
+            stroke={undefined}
+            strokeWidth={0}
+          />
+        );
+      }
+      return (
+        <KonvaImage
+          {...common}
+          x={shape.x}
+          y={shape.y}
+          width={latex.width}
+          height={latex.height}
+          image={latex.image}
           stroke={undefined}
           strokeWidth={0}
         />
