@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Scene } from '@canvai/canvas-core';
 import { ToolRegistry } from '../tools/registry.js';
 import { call, makeHarness } from './harness.js';
 
@@ -46,5 +47,39 @@ describe('无视觉模型时的截图工具', () => {
     expect(payload.ok).toBe(false);
     expect(payload.hint).toContain('onImages');
     expect(payload.hint).toContain('问用户');
+  });
+});
+
+/**
+ * 真机录像复现过两次同一条链路：canvas_create 撞了已有内容被拦下，
+ * 模型按提示词去 canvas_snapshot 核对该往哪写，视觉模型恰好被上游
+ * 限流（429），异常直接冒泡成一堆没有指引的错误堆栈甩给模型——模型
+ * 收到之后不知道怎么办，从此彻底沉默，直到空闲超时把整场辅导收场。
+ * 视觉模型调用不该有这条死路：跟 rasterizer 渲染失败时一样，退化成
+ * 结构化描述——图元的精确边界框本身就够用来判断"还有多少空间"。
+ */
+describe('视觉模型调用失败——退化，不是死路', () => {
+  it('视觉模型抛错（比如限流）时，退化成结构化描述而不是报错卡死', async () => {
+    const scene = new Scene();
+    scene.create([{ type: 'text', id: 'sh_a', x: 0, y: 0, text: 'x + 2y = 5' }], {
+      author: { id: 'u1', kind: 'user' },
+    });
+    const h = makeHarness([{ calls: [call('canvas_snapshot', { describe: true })] }, { text: '好' }], {
+      scene,
+      rasterizer: { render: async () => new Uint8Array([1, 2, 3]) },
+      vision: {
+        describe: async () => {
+          throw new Error('视觉模型返回 429：上游限流');
+        },
+      },
+    });
+    h.loop.push({ kind: 'text', text: '看看板书写到哪儿了', at: Date.now() });
+    await h.loop.drain();
+
+    const payload = JSON.parse(h.loop.getHistory().find((m) => m.role === 'tool')!.content as string);
+    expect(payload.ok).toBe(true);
+    expect(payload.data.degraded).toBe(true);
+    expect(payload.data.note).toContain('429');
+    expect(payload.data.shapes.length).toBeGreaterThan(0);
   });
 });

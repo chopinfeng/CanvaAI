@@ -352,7 +352,22 @@ export const execSnapshot: ToolExecutor = async (raw, ctx) => {
     return ok({ assetId, width: Math.round(region[2] * a.scale), height: Math.round(region[3] * a.scale) });
   }
 
-  const description = await ctx.vision.describe(png, a.question);
+  /**
+   * 视觉模型调用没有退路——真机录像复现过两次同一条链路：canvas_create
+   * 撞了已有内容被拦下，模型按提示词去 canvas_snapshot 核对该往哪写，
+   * 视觉模型恰好被上游限流（429），异常直接冒泡成一堆没有任何指引的
+   * JSON 错误堆栈甩给模型，模型收到之后不知道该怎么办，从此彻底沉默，
+   * 直到空闲超时把整场辅导收场。跟 rasterizer 渲染失败时的处理
+   * （下面几行）该是同一个道理：外部依赖失败不该让整个工具调用变成
+   * 死路，退化成结构化描述——图元的精确边界框本身就够用来判断
+   * "还有多少空间、该往哪儿接着写"，不需要真的看懂位图。
+   */
+  let description: string;
+  try {
+    description = await ctx.vision.describe(png, a.question);
+  } catch (e) {
+    return degrade(`视觉模型这次没能看懂截图（${(e as Error).message}），已退化为结构化描述`);
+  }
   return ok({ assetId, description, region: region.map((n) => round(n, 1)) });
 };
 
