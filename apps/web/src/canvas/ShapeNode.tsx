@@ -3,6 +3,7 @@ import { Arrow, Ellipse, Image as KonvaImage, Line, Rect, Text } from 'react-kon
 import { getStroke } from 'perfect-freehand';
 import type { Shape } from '@canvai/protocol';
 import { usePulse } from './pulse.js';
+import { resolveFill } from './shapeFill.js';
 import { api } from '../net/base.js';
 
 interface Props {
@@ -156,6 +157,7 @@ export function ShapeNode({ shape, opacity, highlight, onSelect, selected, dragg
   const pulse = usePulse(!!highlight);
 
   const stroke = highlight ? '#f59e0b' : s.stroke ?? '#111827';
+  const fill = resolveFill(s.fill);
   /**
    * 高亮描边要比原线粗一大截才压得住——录像里反馈过：原来的 1.7~2.2 倍
    * 放在细线（辅助线常常就 1~2px）上，加粗后也才 3~4px，跟满屏的线混在
@@ -200,7 +202,7 @@ export function ShapeNode({ shape, opacity, highlight, onSelect, selected, dragg
           y={shape.y}
           width={(shape.w ?? 0) * (shape.anim?.kind === 'draw' ? progress : 1)}
           height={(shape.h ?? 0) * (shape.anim?.kind === 'draw' ? progress : 1)}
-          fill={s.fill}
+          fill={fill}
           cornerRadius={2}
         />
       );
@@ -238,7 +240,7 @@ export function ShapeNode({ shape, opacity, highlight, onSelect, selected, dragg
           y={shape.y + (shape.h ?? 0) / 2}
           radiusX={((shape.w ?? 0) / 2) * (shape.anim?.kind === 'draw' ? progress : 1)}
           radiusY={((shape.h ?? 0) / 2) * (shape.anim?.kind === 'draw' ? progress : 1)}
-          fill={s.fill}
+          fill={fill}
         />
       );
 
@@ -272,7 +274,7 @@ export function ShapeNode({ shape, opacity, highlight, onSelect, selected, dragg
           y={shape.y}
           points={pts}
           closed={progress >= 1 && (shape.closed ?? shape.type === 'polygon')}
-          fill={s.fill}
+          fill={fill}
           lineCap="round"
           lineJoin="round"
           tension={shape.type === 'plot' ? 0.3 : 0}
