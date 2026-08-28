@@ -1,4 +1,4 @@
-import { locateInImages, round, shapeBounds } from '@canvai/canvas-core';
+import { locateInImages, round, shapeBounds, unionBounds } from '@canvai/canvas-core';
 import type { Scene } from '@canvai/canvas-core';
 import type { AgentInputEvent, LayerId, Rect } from '@canvai/protocol';
 import type { SessionState } from './tools/context.js';
@@ -126,6 +126,33 @@ export function buildContextHeader(input: HeaderInput): string {
       .map((s) => s.text!.replace(/\n+/g, ' '))
       .join(' / ');
     if (stmt) lines.push(`  [画布上的题目原文] ${stmt.slice(0, 400)}`);
+
+    /**
+     * 板书区一开始该从哪儿写，真机复现过撞车：第一笔往往贴着题目写
+     * （比如直接写在题干正下方几十像素处），结果压住了题目标题或题干
+     * 本身，canvas_create 被碰撞检测拒了。提示词里让它"右侧或下方留
+     * 一块空白"，但那是抽象的方向感，不是坐标——第一笔落在哪儿之前，
+     * 它手上没有任何具体数字，只能瞎猜。这里用 user 层（题目原本的内容）
+     * 的包围盒算出一个具体的起笔点，跟摆题目原文是同一个道理：
+     * 能算出来的事实不该让模型自己猜。只在还没有任何 ai/annot 图元时
+     * 提示——板书一旦起了头，接下来往哪儿接该靠 canvas_snapshot
+     * 实地看一眼，不能再靠这里算出来的静态坐标，那样会重犯"算出来的
+     * 坐标看着没问题、实际排版对不上"的老毛病。
+     */
+    const boardStarted = scene.all().some((s) => s.layer === 'ai' || s.layer === 'annot');
+    if (!boardStarted) {
+      const given = scene.all().filter((s) => s.layer === 'user');
+      if (given.length > 0) {
+        const gb = unionBounds(given.map(shapeBounds));
+        const startX = Math.round(gb[0]);
+        const startY = Math.round(gb[1] + gb[3] + 80);
+        lines.push(
+          `  ⚠ 板书区还没定下来。题目内容范围是 ${fmtRect(gb)}——建议板书区从 (${startX}, ${startY}) 开始往下写，` +
+            '这是题目正下方最大的一块空白，别贴着题目写。定下之后，后续每一笔该往哪儿接，' +
+            '用 canvas_snapshot 实地看，不要照这个起笔点自己往下推算。',
+        );
+      }
+    }
 
     if (t.pending) {
       lines.push(`  ⚠ 他回答了「${t.pending.answer}」，你还没判对错。先 tutor_judge，再问下一个。`);
