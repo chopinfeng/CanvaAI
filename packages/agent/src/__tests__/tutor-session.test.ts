@@ -1550,6 +1550,43 @@ describe('账本每一轮都摆在模型眼前', () => {
     expect(header).toContain('y″ − 3y′ + 2y = 2eˣ');
   });
 
+  /**
+   * 真机复现过：题目自带一个三角形，模型想 canvas_highlight 讲到的
+   * 那条边，却编了个"听起来该有"的 id（"triangle_ABC"）去调——画布上
+   * 从来没有这个 id，一次次失败，最后反过来问学生"你能指出三角形的
+   * 位置吗"。种题脚本给每个图元标了 role，但没把真实 id 报给模型，
+   * 它只能猜。这条验证的是：题目图形的真实 id 和 role 得摆在账本旁边。
+   */
+  it('题目自带图形——把组成图形的真实 id 和 role 摆出来，不用它自己猜', () => {
+    const scene = new Scene();
+    scene.create(
+      [
+        { type: 'line', id: 'sh_ab', x: 0, y: 0, points: [[0, 0], [10, 10]], meta: { role: 'side-AB' } },
+        { type: 'line', id: 'sh_altitude', x: 0, y: 0, points: [[5, 0], [5, 10]], meta: { role: 'altitude-AD' } },
+        { type: 'text', id: 'sh_vertex_a', x: 0, y: 0, text: 'A', meta: { role: 'vertex' } },
+      ],
+      { author: { id: 'seed', kind: 'user' } },
+    );
+    const header = buildContextHeader({
+      scene,
+      session: {
+        ...base,
+        tutor: {
+          goal: '给我讲这道题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false,
+          drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, diagramBlockCount: 0, drawBlockCount: 0,
+          drawnSinceJudge: true, drawAskBlockCount: 0, zoomedSinceDraw: true, zoomBlockCount: 0,
+          askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [],
+        },
+      },
+      events: [],
+      turnNo: 1,
+    });
+    expect(header).toContain('[题目上的图形图元]');
+    expect(header).toContain('sh_ab(side-AB)');
+    expect(header).toContain('sh_altitude(altitude-AD)');
+    expect(header).toContain('sh_vertex_a(vertex,"A")');
+  });
+
   it('不在辅导里就一个字都不加', () => {
     const header = buildContextHeader({
       scene: new Scene(),

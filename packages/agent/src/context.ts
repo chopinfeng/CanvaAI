@@ -128,6 +128,30 @@ export function buildContextHeader(input: HeaderInput): string {
     if (stmt) lines.push(`  [画布上的题目原文] ${stmt.slice(0, 400)}`);
 
     /**
+     * 题目自带的图形（三角形、坐标系这类矢量图）由哪些图元组成、
+     * 各自的 id 是什么，直接摆出来，不等模型自己去查。
+     *
+     * 真机复现过一个比"没标注图形"更具体的病灶：一道自带三角形的题，
+     * 模型想 canvas_highlight 讲到的那条边，却编了个 "triangle_ABC" 这样
+     * "听起来该有"的 id 去调——画布上从来没有这个 id（种题脚本没手动
+     * 指定 id，全是自动生成的随机串），一次次失败，连着报了五次同一个
+     * 错，模型甚至反过来问学生"你能指出三角形 ABC 的位置吗"，最后
+     * 空转到超时收场，一整场没在图上标过一笔。根子不是它不想标注，
+     * 是它压根不知道每条边、每个点的真实 id，只能猜一个语义上"应该"
+     * 存在的名字。种题脚本已经给每个图元标了 role（side-AB、altitude-AD、
+     * vertex 等），跟摆题目原文是同一个道理：能报给它的真实 id，不该
+     * 让它自己猜。
+     */
+    const diagramShapes = scene.all().filter((s) => s.layer === 'user' && s.type !== 'text' && s.type !== 'latex');
+    if (diagramShapes.length > 0) {
+      const labels = scene.all().filter((s) => s.layer === 'user' && (s.type === 'text' || s.type === 'latex') && s.meta.role !== 'statement' && s.meta.role !== 'problem-title' && s.meta.role !== 'section-label' && s.meta.role !== 'hint');
+      const parts = [...diagramShapes, ...labels]
+        .slice(0, 24)
+        .map((s) => `${s.id}(${s.meta.role ?? s.type}${s.text ? `,"${s.text}"` : ''})`);
+      lines.push(`  [题目上的图形图元] ${parts.join(' ')}`);
+    }
+
+    /**
      * 板书区一开始该从哪儿写，真机复现过撞车：第一笔往往贴着题目写
      * （比如直接写在题干正下方几十像素处），结果压住了题目标题或题干
      * 本身，canvas_create 被碰撞检测拒了。提示词里让它"右侧或下方留
