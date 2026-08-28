@@ -21,6 +21,8 @@ const say = (text: string) => call('interact_say', { text });
 const judge = (verdict: 'right' | 'partly' | 'wrong', comment: string) =>
   call('tutor_judge', { verdict, comment });
 const ask = (question: string) => call('interact_ask_user', { question });
+/** drawnSinceJudge 闸要求判完一轮就得落一笔——跟这道闸无关的测试用它垫上这一笔 */
+const draw = () => call('canvas_create', { shapes: [{ type: 'line', x: 0, y: 0, points: [[0, 0], [10, 10]] }] });
 
 /** 用户说了句话 → 跑一个回合 */
 async function speak(h: Harness, text: string) {
@@ -98,7 +100,7 @@ describe('账没平就不许结束', () => {
   it('全打勾之后才放行：切回普通模式、清掉清单、说一句回顾', async () => {
     const h = tutor([
       { calls: [PLAN([{ text: '(1) 求 DF 与 FC' }, { text: '(2) 求线段 BE' }]), ask('DF 是多少？')] },
-      { calls: [judge('right', '对'), PLAN([{ text: '(1) 求 DF 与 FC', done: true }, { text: '(2) 求线段 BE' }]), ask('BE 呢？')] },
+      { calls: [judge('right', '对'), PLAN([{ text: '(1) 求 DF 与 FC', done: true }, { text: '(2) 求线段 BE' }]), draw(), ask('BE 呢？')] },
       {
         calls: [
           judge('right', '也对'),
@@ -127,7 +129,7 @@ describe('账没平就不许结束', () => {
   it('讲完了会撒花，带上他自己做出来几问', async () => {
     const h = tutor([
       { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }]), ask('DF?')] },
-      { calls: [judge('right', '对'), PLAN([{ text: '(1) 求 DF', done: true }, { text: '(2) 求 BE' }]), ask('BE?')] },
+      { calls: [judge('right', '对'), PLAN([{ text: '(1) 求 DF', done: true }, { text: '(2) 求 BE' }]), draw(), ask('BE?')] },
       {
         calls: [
           judge('right', '也对'),
@@ -225,9 +227,18 @@ describe('画得不够多——不许收尾', () => {
    * 一道题拆成 4 个小问，但问答了 8 轮才走完，画布上却只画了两笔，
    * 用户对着录像问"中间有很多空白区域，为什么不做板书"。小问个数是
    * 拆题时定的静态值，跟到底问答了几轮是两回事：同一个小问可能三言
-   * 两语带过，也可能来回追问四五轮才吃透。
+   * 两语带过，也可能来回追问四五轮才吃透。当时的药方是把门槛换成
+   * askedQuestions.length（问答了几轮），不再看小问个数。
+   *
+   * 后来 drawnSinceJudge 这道闸上线（每判完一轮、下一次提问前必须先
+   * 落一笔），这条旧门槛反而被架空了：判过的每一轮都保证至少有一笔，
+   * 5 轮问答画布上至少留 4 笔，而这里的门槛只要求 3 笔
+   * （askedQuestions.length − 2）。"问答了很多轮却画得很少"这种
+   * 场景，现在在正常流程里已经走不出来了——不是这条门槛失效，是它
+   * 拦的那类漏洞从源头就被堵住了。这条用例因此改成验证这一点：
+   * 5 轮问答、每轮之间都规规矩矩落了一笔，收尾自然放行。
    */
-  it('小问不多但问答了很多轮——按小问个数算的门槛太低，还是被拒', async () => {
+  it('小问不多但问答了很多轮——drawnSinceJudge 保证了每轮都落笔，收尾放行', async () => {
     const scene = new Scene();
     scene.create([{ type: 'text', id: 'sh_a', x: 0, y: 0, text: 'x + 2y = 5' }], {
       author: { id: 'u1', kind: 'user' },
@@ -235,8 +246,8 @@ describe('画得不够多——不许收尾', () => {
     const h = makeHarness(
       [
         { calls: [PLAN([{ text: '(1) 求 x' }, { text: '(2) 求 y' }]), call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('第一步该怎么想？')] },
-        { calls: [judge('right', '对'), call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('列出方程？')] },
-        { calls: [judge('right', '对'), call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('解出 x 是多少？')] },
+        { calls: [judge('right', '对'), draw(), call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('列出方程？')] },
+        { calls: [judge('right', '对'), draw(), call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('解出 x 是多少？')] },
         {
           calls: [
             judge('right', '对'),
@@ -246,7 +257,7 @@ describe('画得不够多——不许收尾', () => {
             ask('接下来第二步怎么想？'),
           ],
         },
-        { calls: [judge('right', '对'), call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('代入求出 y？')] },
+        { calls: [judge('right', '对'), draw(), call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('代入求出 y？')] },
         {
           calls: [
             judge('right', '对'),
@@ -261,11 +272,11 @@ describe('画得不够多——不许收尾', () => {
     );
     await speak(h, '给我讲这道题');
 
-    // 5 轮问答只画了 2 笔——远不够
-    expect(h.session.tutor?.askedQuestions.length).toBe(5);
+    // 5 轮问答、每轮判完都落了一笔——总笔数早就过了门槛
+    expect(h.events('agent.ask')).toHaveLength(5);
     const finish = h.events('agent.tool').filter((m) => m.call.name === 'tutor_finish').at(-1)!;
-    expect(finish.call.state).toBe('error');
-    expect(finish.call.error).toContain('一大片空白');
+    expect(finish.call.state).toBe('ok');
+    expect(h.session.mode).toBe('assist');
   });
 
   it('画够了（两笔）→ 放行', async () => {
@@ -568,7 +579,7 @@ describe('每一轮都要把球交回给用户', () => {
       { calls: [PLAN([{ text: '(1) 求 DF' }]), ask('AB 翻折过去变成哪条边？')] },
       { calls: [judge('right', '对')] },
       { text: '等你回答。' }, // 判完就没了，问题也不提
-      { calls: [ask('那 DF 呢？')] },
+      { calls: [draw(), ask('那 DF 呢？')] },
       { text: '好' },
     ]);
     await speak(h, '给我讲这道题');
@@ -625,7 +636,7 @@ describe('他答完，必须先说对不对', () => {
       { calls: [PLAN([{ text: '(1) 求 DF' }, { text: '(2) 求 BE' }]), ask('AF 等于哪条边？')] },
       // 他答了，这里却直接问下一个
       { calls: [ask('那 DF 呢？')] },
-      { calls: [judge('right', '对，翻折后 AF=AB'), ask('那 DF 呢？')] },
+      { calls: [judge('right', '对，翻折后 AF=AB'), draw(), ask('那 DF 呢？')] },
       { text: '好' },
     ]);
     await speak(h, '给我讲这道题');
@@ -649,7 +660,7 @@ describe('他答完，必须先说对不对', () => {
       // 他答了，模型不判定，直接调 interact_say 想蒙混过去——
       // 这一步 out.calls.length > 0，旧逻辑的 tutorHandBack 压根不会被检查到
       { calls: [say('好，我们先到这里。')] },
-      { calls: [judge('right', '对，AF=AB'), ask('那 DF 呢？')] },
+      { calls: [judge('right', '对，AF=AB'), draw(), ask('那 DF 呢？')] },
       { text: '好' },
     ]);
     await speak(h, '给我讲这道题');
@@ -676,7 +687,7 @@ describe('他答完，必须先说对不对', () => {
       // 判定给了，但没问下一步——直接想暂停，账上还有两个小问没解决
       { calls: [judge('right', '对，AF=AB'), say('好，我们先到这里。')] },
       // 我的修复应该把它拉回来，逼它继续问
-      { calls: [ask('那 DF 呢？')] },
+      { calls: [draw(), ask('那 DF 呢？')] },
       { text: '好' },
     ]);
     await speak(h, '给我讲这道题');
@@ -703,7 +714,7 @@ describe('他答完，必须先说对不对', () => {
   it('学生先画图再补文字答案，画的动作不能把提问打断', async () => {
     const h = makeHarness([
       { calls: [PLAN([{ text: '(1) 画出三角形' }]), ask('你能画出这个直角三角形吗？')] },
-      { calls: [judge('right', '对，画得对'), ask('那斜边呢？')] },
+      { calls: [judge('right', '对，画得对'), draw(), ask('那斜边呢？')] },
       { text: '好' },
     ]);
     h.loop.push({ kind: 'text', text: '给我讲这道题', at: Date.now() });
@@ -771,7 +782,7 @@ describe('他答完，必须先说对不对', () => {
   it('判完就能接着问', async () => {
     const h = tutor([
       { calls: [PLAN([{ text: '(1) 求 DF' }]), ask('AF 等于哪条边？')] },
-      { calls: [judge('partly', '方向对，但 AF 对应的是 AB 不是 AD'), ask('那再看看 AD？')] },
+      { calls: [judge('partly', '方向对，但 AF 对应的是 AB 不是 AD'), draw(), ask('那再看看 AD？')] },
       { text: '好' },
     ]);
     await speak(h, '给我讲这道题');
@@ -964,7 +975,7 @@ describe('停手要明说', () => {
   it('问题还挂在他屏幕上、回合被打断时不插话', async () => {
     // 不自动作答：回合会一直阻塞在 interact_ask_user 上
     const h = makeHarness([{ calls: [PLAN([{ text: '(1) 求 DF' }]), ask('DF 是多少？')] }, { text: '好' }], {
-      session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
+      session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, drawnSinceJudge: true, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
     });
 
     const running = speak(h, '继续');
@@ -993,7 +1004,7 @@ describe('等用户思考的时间不占回合额度', () => {
         { text: '好' },
       ],
       {
-        session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
+        session: { mode: 'tutor', tutor: { goal: '讲这题', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, drawnSinceJudge: true, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
         maxMs: 120,
         // 想的时间比整个回合额度还长——挂钟计时的话这里必死
         autoAnswerDelayMs: 260,
@@ -1021,7 +1032,7 @@ describe('一整场辅导是一个回合，别被步数上限掐断', () => {
       { calls: [say('那来看第二问')] },
       { calls: [say('设 BE=x')] },
       { calls: [say('EC 就是 5−x')] },
-      { calls: [ask('那 x 呢？')] },          // 第 10 步，用户又开口
+      { calls: [draw(), ask('那 x 呢？')] },          // 第 10 步，用户又开口
       { calls: [judge('right', '也对')] },
       { text: '好' },
     ];
@@ -1057,7 +1068,7 @@ describe('讲解要指着图说', () => {
         zoom: 1,
         editMode: 'suggest',
         mode: 'tutor',
-        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] },
+        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, drawnSinceJudge: true, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] },
       },
       events: [],
       turnNo: 3,
@@ -1075,7 +1086,7 @@ describe('讲解要指着图说', () => {
         zoom: 1,
         editMode: 'suggest',
         mode: 'tutor',
-        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: true, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] },
+        tutor: { goal: '讲这题', outline: [{ text: 'a', done: false }], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: true, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, drawnSinceJudge: true, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] },
       },
       events: [],
       turnNo: 3,
@@ -1146,7 +1157,7 @@ describe('讲解要指着图说', () => {
           startedTurn: 0,
           pending: null,
           rightSince: 0,
-          markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0,
+          markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, drawnSinceJudge: true, askedQuestions: [], stuckStreak: 0,
           attempts: [],
           concepts: [],
         },
@@ -1176,7 +1187,7 @@ describe('讲解要指着图说', () => {
           startedTurn: 0,
           pending: null,
           rightSince: 0,
-          markedSinceAsk: true, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0,
+          markedSinceAsk: true, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, drawnSinceJudge: true, askedQuestions: [], stuckStreak: 0,
           attempts: [],
           concepts: [],
         },
@@ -1199,7 +1210,7 @@ describe('讲解要指着图说', () => {
           startedTurn: 0,
           pending: null,
           rightSince: 0,
-          markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0,
+          markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, drawnSinceJudge: true, askedQuestions: [], stuckStreak: 0,
           attempts: [],
           concepts: [],
         },
@@ -1209,6 +1220,53 @@ describe('讲解要指着图说', () => {
     await speak(h, '继续');
 
     expect(h.events('agent.ask')).toHaveLength(1);
+  });
+});
+
+/**
+ * 用户直接要求"尽量做到每次对话都能在板书上留下内容"——跟上面
+ * "讲解要指着图说"是同一类问题（提示词劝不动，改成硬闸），只是这次
+ * 拦的不是"有没有指过"，是"判完这一轮，板书有没有跟上"。
+ */
+describe('判完这一题，板书得跟上——不然不许问下一题', () => {
+  it('判完就想问下一题，中间没画板书——被拒', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 x' }]), ask('x 是多少？')] },
+      { calls: [judge('right', '对'), ask('接下来呢？')] },
+      { text: '好' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    const asks = h.events('agent.tool').filter((m) => m.call.name === 'interact_ask_user' && m.call.state !== 'running');
+    expect(asks.at(-1)!.call.state).toBe('error');
+    expect(asks.at(-1)!.call.error).toContain('推理过程还没写进板书区');
+  });
+
+  it('判完先画一笔再问——放行', async () => {
+    const h = tutor([
+      { calls: [PLAN([{ text: '(1) 求 x' }]), ask('x 是多少？')] },
+      {
+        calls: [
+          judge('right', '对'),
+          call('canvas_create', { shapes: [{ type: 'text', x: 0, y: 200, text: 'x = 1' }] }),
+          ask('接下来呢？'),
+        ],
+      },
+      { text: '好' },
+    ]);
+    await speak(h, '给我讲这道题');
+
+    const asks = h.events('agent.tool').filter((m) => m.call.name === 'interact_ask_user' && m.call.state !== 'running');
+    expect(asks.at(-1)!.call.state).toBe('ok');
+  });
+
+  it('辅导刚开始、一次判定都还没发生——第一个问题不会被误拦', async () => {
+    const h = tutor([{ calls: [PLAN([{ text: '(1) 求 x' }]), ask('x 是多少？')] }, { text: '好' }]);
+    await speak(h, '给我讲这道题');
+
+    const asks = h.events('agent.tool').filter((m) => m.call.name === 'interact_ask_user' && m.call.state !== 'running');
+    expect(asks).toHaveLength(1);
+    expect(asks[0]!.call.state).toBe('ok');
   });
 });
 
@@ -1235,7 +1293,7 @@ describe('账本每一轮都摆在模型眼前', () => {
           ],
           startedTurn: 1,
           pending: null,
-          rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: []
+          rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, drawnSinceJudge: true, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: []
         },
       },
       events: [],
@@ -1252,7 +1310,7 @@ describe('账本每一轮都摆在模型眼前', () => {
   it('还没拆题时催拆题', () => {
     const header = buildContextHeader({
       scene: new Scene(),
-      session: { ...base, tutor: { goal: '讲讲这题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
+      session: { ...base, tutor: { goal: '讲讲这题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, drawnSinceJudge: true, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
       events: [],
       turnNo: 1,
     });
@@ -1272,7 +1330,7 @@ describe('账本每一轮都摆在模型眼前', () => {
     );
     const header = buildContextHeader({
       scene,
-      session: { ...base, tutor: { goal: '给我讲这道题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
+      session: { ...base, tutor: { goal: '给我讲这道题', outline: [], startedTurn: 1, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, drawnSinceJudge: true, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
       events: [],
       turnNo: 1,
     });
@@ -1314,7 +1372,7 @@ describe('知识点在拆题时就落地', () => {
 
   it('拆题时用小问的文字反查，存进账本', async () => {
     const h = makeHarness([{ calls: [call('tutor_plan', { items: [{ text: '用勾股定理列方程', done: false }, { text: '解出 BD', done: false }] })] }], {
-      session: { mode: 'tutor', tutor: { goal: 'Geometry — Triangle with an Altitude', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
+      session: { mode: 'tutor', tutor: { goal: 'Geometry — Triangle with an Altitude', outline: [], startedTurn: 0, pending: null, rightSince: 0, markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, drawnSinceJudge: true, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] } },
       knowledge: kg,
     });
     h.loop.push({ kind: 'text', text: '继续', at: Date.now() });
@@ -1337,7 +1395,7 @@ describe('知识点在拆题时就落地', () => {
             startedTurn: 0,
             pending: { question: 'AD² 等于什么？', answer: '169 − x²' },
             rightSince: 0,
-            markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0,
+            markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, drawnSinceJudge: true, askedQuestions: [], stuckStreak: 0,
             attempts: [],
             concepts: ['c_pyth'],
           },
@@ -1363,7 +1421,7 @@ describe('知识点在拆题时就落地', () => {
             startedTurn: 0,
             pending: { question: 'q', answer: 'a' },
             rightSince: 0,
-            markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0,
+            markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, drawnSinceJudge: true, askedQuestions: [], stuckStreak: 0,
             attempts: [],
             concepts: ['c_fallback'],
           },
@@ -1428,7 +1486,7 @@ describe('中途退出时的落盘', () => {
           startedTurn: 0,
           pending: null,
           rightSince: 0,
-          markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0,
+          markedSinceAsk: false, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, drawnSinceJudge: true, askedQuestions: [], stuckStreak: 0,
           attempts: [
             { conceptId: 'c_pyth', ok: true, guided: true },
             { conceptId: 'c_tri', ok: false, guided: true },
@@ -1657,7 +1715,7 @@ describe('答对过的问题不能一字不差再问一遍', () => {
           ],
         },
         { calls: [judge('right', '对，是直线')] },
-        { calls: [call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('约束条件在坐标系中是什么图形？')] },
+        { calls: [draw(), call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('约束条件在坐标系中是什么图形？')] },
         { text: '好' },
       ],
       { scene, autoAnswer: '直线' },
@@ -1687,7 +1745,7 @@ describe('答对过的问题不能一字不差再问一遍', () => {
           ],
         },
         { calls: [judge('partly', '不太准确')] },
-        { calls: [call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('再想想，这是一条什么样的线？')] },
+        { calls: [draw(), call('canvas_highlight', { ids: ['sh_a'], ms: 0 }), ask('再想想，这是一条什么样的线？')] },
         { text: '好' },
       ],
       { scene, autoAnswer: '直线' },
@@ -1755,7 +1813,7 @@ describe('判了 wrong 也不许一字不差把同一句问题再问一遍', () 
   it('判 wrong 之后原样重问——被拒', async () => {
     const h = tutor([
       { calls: [PLAN([{ text: '(1) 求通解' }]), ask('你知道怎么求通解吗？')] },
-      { calls: [judge('wrong', '还不知道，我们一起学'), ask('你知道怎么求通解吗？')] },
+      { calls: [judge('wrong', '还不知道，我们一起学'), draw(), ask('你知道怎么求通解吗？')] },
       { text: '好' },
     ]);
     await speak(h, '给我讲这道题');
@@ -1768,7 +1826,7 @@ describe('判了 wrong 也不许一字不差把同一句问题再问一遍', () 
   it('判 wrong 之后换一句更具体的问题——放行', async () => {
     const h = tutor([
       { calls: [PLAN([{ text: '(1) 求通解' }]), ask('你知道怎么求通解吗？')] },
-      { calls: [judge('wrong', '还不知道，我们一起学'), ask('第一步是写特征方程，你能写出来吗？')] },
+      { calls: [judge('wrong', '还不知道，我们一起学'), draw(), ask('第一步是写特征方程，你能写出来吗？')] },
       { text: '好' },
     ]);
     await speak(h, '给我讲这道题');

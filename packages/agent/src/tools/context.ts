@@ -51,6 +51,19 @@ export interface TutorSession {
    */
   markedSinceAsk: boolean;
   /**
+   * 自上一次判定（tutor_judge）以来，有没有真的画过新东西（canvas_create /
+   * canvas_ink 成功过）。
+   *
+   * 用户直接要求"尽量做到每次对话都能在板书上留下内容"——跟
+   * markedSinceAsk 是同一类问题，同一种药方：光在提示词里说"讲一步
+   * 写一步"，真机反复验证过不够稳——有的轮次写了，有的轮次判完就直接
+   * 问下一题，板书原地不动。这道闸卡在"判完这一轮，问下一轮"之间：
+   * 判定完成就把它拨回 false，下一次 interact_ask_user 之前必须先有
+   * 一次真的落笔，才把它重新拨成 true。初始值给 true——辅导刚开始、
+   * 学生还一个字没答时问第一个问题，没什么"这一步"可写，不该被拦。
+   */
+  drawnSinceJudge: boolean;
+  /**
    * 这场辅导里，真的画过几笔新东西（canvas_create / canvas_ink 成功的次数），
    * 不算把画布上已经有的字/图高亮一下。
    *

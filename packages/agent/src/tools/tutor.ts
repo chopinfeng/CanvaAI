@@ -44,6 +44,7 @@ export const execTutorPlan: ToolExecutor = async (raw, ctx) => {
       pending: null,
       rightSince: 0,
       markedSinceAsk: false,
+      drawnSinceJudge: true,
       drawCount: 0,
       graphicalDrawCount: 0,
       graphicsBlockCount: 0,
@@ -254,6 +255,8 @@ export const execTutorJudge: ToolExecutor = async (raw, ctx) => {
   t.pending = null;
   // 只有"完全对"才换来一张打勾的门票。半对说明这一步还没走通。
   if (a.verdict === 'right') t.rightSince += 1;
+  // 判完这一轮，板书还没跟上——下一次 interact_ask_user 之前得先落一笔。
+  t.drawnSinceJudge = false;
   /**
    * 记下这次问过的问题——一字不差问第二遍会被 interact_ask_user 拦下
    * （见 view-interact.ts）。
