@@ -155,13 +155,35 @@ export function buildContextHeader(input: HeaderInput): string {
         const startX = Math.round(gb[0]);
         const startY = Math.round(gb[1] + gb[3] + 80);
         const usableWidth = Math.max(Math.round(gb[2]), Math.round(session.viewport[0] + session.viewport[2] - startX - 80));
-        lines.push(
-          `  ⚠ 板书区还没定下来。题目内容范围是 ${fmtRect(gb)}——建议板书区从 (${startX}, ${startY}) 开始往下写，` +
-            `这是题目正下方最大的一块空白，别贴着题目写。这块空白足有约 ${usableWidth} 像素宽——` +
-            '题目原文窄，不代表板书也得挤成一条窄列：公式、算式可以写得舒展些，示意图可以摆在' +
-            '推导过程旁边，不用把每一步都摞成又窄又长的一条竖线。定下之后，后续每一笔该往哪儿接，' +
-            '用 canvas_snapshot 实地看，不要照这个起笔点自己往下推算。',
-        );
+
+        /**
+         * 题目自带真图形（三角形、坐标系这类矢量图，不是纯文字题干）时，
+         * "往下写一列字"这条建议本身就是错的方向——真机复现过：一道
+         * 自带三角形矢量图的几何题，板书按这条建议续成了一条竖列，
+         * 跟三角形隔着一大片空白，从头到尾没在图上标过一笔，用户在
+         * 真实画布里点开一看，"图和字完全是两个世界"。给图形单独算
+         * 一个包围盒、单独提一句——不能让"往下留白"这条通用建议
+         * 把有图的题目也带偏成纯文字列表。
+         */
+        const givenDiagram = given.filter((s) => s.type !== 'text' && s.type !== 'latex');
+        if (givenDiagram.length > 0) {
+          const db = unionBounds(givenDiagram.map(shapeBounds));
+          lines.push(
+            `  ⚠ 板书区还没定下来，题目自带一个图形，范围是 ${fmtRect(db)}——` +
+              '这道题的板书不该是一列跟图形没关系的文字。先在这个图形本身上做标注' +
+              '（canvas_highlight 点亮讲到的边/点，或者在旁边加一笔标出算出来的长度、角度），' +
+              `文字推导可以另起一块（比如从 (${startX}, ${startY}) 开始，这块空白约 ${usableWidth} ` +
+              '像素宽，不用挤成窄列），但图形本身必须被真的碰过，不是隔着一大片空白各写各的。',
+          );
+        } else {
+          lines.push(
+            `  ⚠ 板书区还没定下来。题目内容范围是 ${fmtRect(gb)}——建议板书区从 (${startX}, ${startY}) 开始往下写，` +
+              `这是题目正下方最大的一块空白，别贴着题目写。这块空白足有约 ${usableWidth} 像素宽——` +
+              '题目原文窄，不代表板书也得挤成一条窄列：公式、算式可以写得舒展些，示意图可以摆在' +
+              '推导过程旁边，不用把每一步都摞成又窄又长的一条竖线。定下之后，后续每一笔该往哪儿接，' +
+              '用 canvas_snapshot 实地看，不要照这个起笔点自己往下推算。',
+          );
+        }
       }
     }
 

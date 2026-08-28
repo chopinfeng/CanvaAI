@@ -1,3 +1,4 @@
+import { rectsIntersect, shapeBounds, unionBounds } from '@canvai/canvas-core';
 import { kgLookup, tutorFinish, tutorJudge, tutorPlan, err, ok } from '@canvai/protocol';
 import type { ToolExecutor } from './context.js';
 
@@ -51,6 +52,7 @@ export const execTutorPlan: ToolExecutor = async (raw, ctx) => {
       drawCount: 0,
       graphicalDrawCount: 0,
       graphicsBlockCount: 0,
+      diagramBlockCount: 0,
       drawBlockCount: 0,
       askedQuestions: [],
       stuckStreak: 0,
@@ -410,6 +412,49 @@ export const execTutorFinish: ToolExecutor = async (raw, ctx) => {
           'line/rect/ellipse/arrow/polygon/freedraw 这类非文字的图元，随便哪个都行，' +
           '不用非画一条精确的曲线。',
       );
+    }
+  }
+
+  /**
+   * 题目自带一个真图形的话，板书里的图案得画在它身上或旁边，
+   * 不能只是随便找个地方框一下应付上一道闸。
+   *
+   * 真机复现过：一道自带三角形矢量图的几何题，问答五轮全对、判定
+   * 也都跟上了，画布上确实有一个非文字图元——但那是给最后一行文字
+   * 结果画的方框，跟题目原来的三角形隔着一大片空白，从头到尾没碰过
+   * 那个三角形一下：没在 D 点旁边标 BD=5、DC=9，没把高 AD 描出来，
+   * 没标直角符号。上一道闸只问"有没有图案"，这道题告诉我们这问法
+   * 本身不够——"给答案画个框"能满足闸，但用户是在真实画布里点开
+   * 这场演练才看出来"图和字完全是两个世界"。这里换个问法："这笔
+   * 图案挨着题目自带的图形吗"，逼它真的去标注那个图，而不是随便找
+   * 块空地画个框应付。
+   */
+  const givenDiagram = ctx.scene.all().filter((s) => s.layer === 'user' && s.type !== 'text' && s.type !== 'latex');
+  if (givenDiagram.length > 0) {
+    const diagramBounds = unionBounds(givenDiagram.map(shapeBounds));
+    const margin = 120;
+    const expanded = [
+      diagramBounds[0] - margin,
+      diagramBounds[1] - margin,
+      diagramBounds[2] + margin * 2,
+      diagramBounds[3] + margin * 2,
+    ] as const;
+    const aiGraphics = ctx.scene
+      .all()
+      .filter((s) => (s.layer === 'ai' || s.layer === 'annot') && s.type !== 'text' && s.type !== 'latex');
+    const touchedDiagram = aiGraphics.some((s) => rectsIntersect(shapeBounds(s), [...expanded]));
+    if (!touchedDiagram) {
+      // 同样留好退路，别把"图画得像不像那么回事"变成"能不能收尾"的生死问题。
+      t.diagramBlockCount += 1;
+      if (t.diagramBlockCount < 3) {
+        return err(
+          '题目自带一个图形，但板书里画的东西没有一笔挨着它',
+          '去题目原来的那张图上做标注——用 canvas_highlight/canvas_spotlight 把讲到的那条边、' +
+            '那个点点亮，或者直接在图形旁边加一笔（比如描一下算出来的那条线、在顶点旁标上求出的' +
+            '长度）。给最终答案单独画个框满足不了这道闸——框得挨着题目原来的图形，或者干脆改成' +
+            '标注在图形本身上，不能隔着一大片空白各画各的。',
+        );
+      }
     }
   }
 
