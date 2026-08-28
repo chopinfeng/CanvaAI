@@ -194,10 +194,11 @@ export function buildContextHeader(input: HeaderInput): string {
           const db = unionBounds(givenDiagram.map(shapeBounds));
           lines.push(
             `  ⚠ 板书区还没定下来，题目自带一个图形，范围是 ${fmtRect(db)}——` +
-              '这道题的板书不该是一列跟图形没关系的文字。先在这个图形本身上做标注' +
-              '（canvas_highlight 点亮讲到的边/点，或者在旁边加一笔标出算出来的长度、角度），' +
+              '这道题的板书不该是一列跟图形没关系的文字。先用 canvas_create 在这个图形本身附近真的' +
+              '落一笔（贴着某条边写上求出的长度、在顶点旁标一个角度、用一小段彩色 line 描出正在' +
+              '讨论的那条边）——canvas_highlight 只是让图元短暂发光，不创建新图元，不算真的标注过。' +
               `文字推导可以另起一块（比如从 (${startX}, ${startY}) 开始，这块空白约 ${usableWidth} ` +
-              '像素宽，不用挤成窄列），但图形本身必须被真的碰过，不是隔着一大片空白各写各的。',
+              '像素宽，不用挤成窄列），但图形本身必须被真的画过一笔，不是隔着一大片空白各写各的。',
           );
         } else {
           lines.push(
