@@ -429,7 +429,7 @@ export class AgentLoop {
         if (session.mode === 'tutor') continue;
         session.mode = 'tutor';
         session.tutorJustExited = false;
-        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo, pending: null, rightSince: 0, markedSinceAsk: false, drawnSinceJudge: true, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] };
+        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo, pending: null, rightSince: 0, markedSinceAsk: false, drawnSinceJudge: true, drawAskBlockCount: 0, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] };
         this.opts.emit({ t: 'session.mode', mode: 'tutor', auto: true });
         continue;
       }
@@ -780,6 +780,7 @@ export class AgentLoop {
       if (DRAWING_TOOLS.has(name) && this.opts.session.tutor) {
         this.opts.session.tutor.drawCount += 1;
         this.opts.session.tutor.drawnSinceJudge = true;
+        this.opts.session.tutor.drawAskBlockCount = 0;
         /**
          * 这一笔画的是图形还是又一段文字——两者在 drawCount 眼里长得
          * 一样，但用户点破过："我指的板书是 canva 上画图案，而不是 chat"。

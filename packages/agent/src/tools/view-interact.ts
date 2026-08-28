@@ -156,11 +156,22 @@ export const execAskUser: ToolExecutor = async (raw, ctx) => {
    * 那会儿压根没有"上一轮的推理过程"可写。
    */
   if (ctx.session.mode === 'tutor' && t && t.askedQuestions.length > 0 && !t.drawnSinceJudge) {
-    return err(
-      '刚判完上一题，但这一步的推理过程还没写进板书区',
-      '先用 canvas_create（annot 或 ai 层）把刚才判定的这一步——他求出的中间结果、' +
-        '用到的公式、算式——写一笔上去，再问下一个问题。不是又攒到最后才想起来补。',
-    );
+    t.drawAskBlockCount += 1;
+    /**
+     * 连着卡够次数就放行，不能死磕到底——跟 drawBlockCount / graphicsBlockCount
+     * 是同一个道理（见 context.ts 里 drawAskBlockCount 的注释）：真机复现过一场
+     * 死局，判完题连拦三次提问，模型没能很快补上一笔，回合活活耗成空转超时，
+     * 整场作废，比"这一步没画"更糟。放行之后计数清零——下一轮判完照样要求
+     * 先画，不是从此躺平。
+     */
+    if (t.drawAskBlockCount < 4) {
+      return err(
+        '刚判完上一题，但这一步的推理过程还没写进板书区',
+        '先用 canvas_create（annot 或 ai 层）把刚才判定的这一步——他求出的中间结果、' +
+          '用到的公式、算式——写一笔上去，再问下一个问题。不是又攒到最后才想起来补。',
+      );
+    }
+    t.drawAskBlockCount = 0;
   }
 
   /**

@@ -64,6 +64,19 @@ export interface TutorSession {
    */
   drawnSinceJudge: boolean;
   /**
+   * drawnSinceJudge 那道闸连着拦了 interact_ask_user 几次。
+   *
+   * 真机复现过一场真正的死局：判完第三问之后，drawnSinceJudge 连拦了
+   * 三次提问，模型没有像别的场次那样很快补一笔，回合活活耗成了空转
+   * 超时——演练脚本判定"两边都没动静"，整场作废，比"这一步没画"更糟。
+   * 跟 graphicsBlockCount / drawBlockCount 是同一类问题：硬闸只挡了
+   * "不画就想过关"，没给"这次是真的卡住了、想不出该画什么或者慢半拍"
+   * 的情况留退路，等于把"这一步板书跟没跟上"的质量问题变成了
+   * "这一轮能不能往下走"的生死问题。连着卡够次数就放行这一次，
+   * 计数清零——不是从此躺平，下一轮判完照样要求先画。
+   */
+  drawAskBlockCount: number;
+  /**
    * 这场辅导里，真的画过几笔新东西（canvas_create / canvas_ink 成功的次数），
    * 不算把画布上已经有的字/图高亮一下。
    *
