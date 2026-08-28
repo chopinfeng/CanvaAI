@@ -511,6 +511,24 @@ export const execLayerClear: ToolExecutor = async (raw, ctx) => {
   if (a.id === 'user') {
     return err('不能清空 user 图层', '那是用户的作品。你只能清空 ai / annot / suggest 图层。');
   }
+  /**
+   * 辅导模式下不许清 ai / annot——那两层装的就是板书。
+   *
+   * 真机复现过两次：一次是被文字碰撞检测反复拒了之后，模型把这个工具
+   * 当成逃生舱，说"我已经清除了之前的标记"；这次是被"图案得挨着题目
+   * 图形"那道新闸拒了之后，模型说"我需要清理一些空间"，紧接着调了
+   * 这个工具。板书区的内容是逐步累积的解题过程，不该被清掉——提示词
+   * 里早就写着这条原则，但"卡住了就清空重来"显然靠劝是劝不住的。
+   * `suggest` 图层不受影响：那是提案区，收拾提案没有这层顾虑。
+   */
+  if (ctx.session.mode === 'tutor' && (a.id === 'ai' || a.id === 'annot')) {
+    return err(
+      '辅导模式下不能清空板书区',
+      `板书区（${a.id} 层）里是逐步累积的解题过程，清掉就等于把黑板擦了，学生看不见自己是怎么` +
+        '一步步走到这儿的。觉得空间不够，用 canvas_zoom_to 把镜头挪开，或者往下 / 往旁边接着写，' +
+        '不是清空重来。',
+    );
+  }
   const diff = ctx.scene.clearLayer(a.id, 'ai');
   return ok({ cleared: diff.deleted.length }, track(ctx, diff));
 };

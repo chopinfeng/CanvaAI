@@ -568,6 +568,45 @@ describe('题目自带图形——板书里的图案得挨着它，不能各画�
   });
 });
 
+/**
+ * 真机复现过两次同一个逃生舱：一次是被文字碰撞检测反复拒了之后，
+ * 模型说"我已经清除了之前的标记"；另一次是被"图案得挨着题目图形"
+ * 那道闸拒了之后，模型说"我需要清理一些空间"，紧接着调了
+ * canvas_layer_clear。板书区的内容是逐步累积的解题过程，清掉就等于
+ * 把黑板擦了，卡住了不该靠清空重来解决。
+ */
+describe('辅导模式下不许把板书擦了重来', () => {
+  it('判完就想清空 annot 层——被拒', async () => {
+    const scene = new Scene();
+    scene.create([{ type: 'text', id: 'sh_note', x: 0, y: 200, text: 'x = 1', layer: 'annot' }], {
+      author: { id: 'ai', kind: 'ai' },
+    });
+    const h = makeHarness(
+      [{ calls: [PLAN([{ text: '(1) 求 x' }]), call('canvas_layer_clear', { id: 'annot' })] }, { text: '好' }],
+      { scene, autoAnswer: '1' },
+    );
+    await speak(h, '给我讲这道题');
+
+    const clear = h.events('agent.tool').filter((m) => m.call.name === 'canvas_layer_clear').at(-1)!;
+    expect(clear.call.state).toBe('error');
+    expect(clear.call.error).toContain('不能清空板书区');
+    // 真的没被清掉
+    expect(h.session.tutor).not.toBeNull();
+  });
+
+  it('普通模式下不受影响：清空 annot 层照常放行', async () => {
+    const scene = new Scene();
+    scene.create([{ type: 'text', id: 'sh_note', x: 0, y: 200, text: '草稿', layer: 'annot' }], {
+      author: { id: 'ai', kind: 'ai' },
+    });
+    const h = makeHarness([{ calls: [call('canvas_layer_clear', { id: 'annot' })] }, { text: '好' }], { scene });
+    await speak(h, '把这块草稿清一下');
+
+    const clear = h.events('agent.tool').filter((m) => m.call.name === 'canvas_layer_clear').at(-1)!;
+    expect(clear.call.state).toBe('ok');
+  });
+});
+
 describe('打勾要有门票', () => {
   it('用户一个字没答就想打勾 → 撤回', async () => {
     const h = tutor([
