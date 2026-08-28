@@ -138,6 +138,14 @@ export function buildContextHeader(input: HeaderInput): string {
      * 提示——板书一旦起了头，接下来往哪儿接该靠 canvas_snapshot
      * 实地看一眼，不能再靠这里算出来的静态坐标，那样会重犯"算出来的
      * 坐标看着没问题、实际排版对不上"的老毛病。
+     *
+     * 这个起笔点上线之后又暴露了下一层问题：用户直接在真实画布里点出来
+     * 问"为什么右侧都是一片空白"——题目原文本身是一条窄栏（用户层内容
+     * 常常没多宽），起笔点的 x 直接抄了题目的左边界，模型于是把整场
+     * 板书都续成了同一条又窄又长的竖列，用户的视口（默认 1440 宽）
+     * 右边大半块地方全程没碰过。只给起笔坐标不够，还得把"这块空白
+     * 到底有多宽"这个事实也算给它——不然它没法知道题目窄不代表板书
+     * 也该窄。
      */
     const boardStarted = scene.all().some((s) => s.layer === 'ai' || s.layer === 'annot');
     if (!boardStarted) {
@@ -146,9 +154,12 @@ export function buildContextHeader(input: HeaderInput): string {
         const gb = unionBounds(given.map(shapeBounds));
         const startX = Math.round(gb[0]);
         const startY = Math.round(gb[1] + gb[3] + 80);
+        const usableWidth = Math.max(Math.round(gb[2]), Math.round(session.viewport[0] + session.viewport[2] - startX - 80));
         lines.push(
           `  ⚠ 板书区还没定下来。题目内容范围是 ${fmtRect(gb)}——建议板书区从 (${startX}, ${startY}) 开始往下写，` +
-            '这是题目正下方最大的一块空白，别贴着题目写。定下之后，后续每一笔该往哪儿接，' +
+            `这是题目正下方最大的一块空白，别贴着题目写。这块空白足有约 ${usableWidth} 像素宽——` +
+            '题目原文窄，不代表板书也得挤成一条窄列：公式、算式可以写得舒展些，示意图可以摆在' +
+            '推导过程旁边，不用把每一步都摞成又窄又长的一条竖线。定下之后，后续每一笔该往哪儿接，' +
             '用 canvas_snapshot 实地看，不要照这个起笔点自己往下推算。',
         );
       }
