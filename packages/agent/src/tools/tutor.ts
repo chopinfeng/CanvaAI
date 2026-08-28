@@ -46,6 +46,8 @@ export const execTutorPlan: ToolExecutor = async (raw, ctx) => {
       markedSinceAsk: false,
       drawnSinceJudge: true,
       drawAskBlockCount: 0,
+      zoomedSinceDraw: true,
+      zoomBlockCount: 0,
       drawCount: 0,
       graphicalDrawCount: 0,
       graphicsBlockCount: 0,

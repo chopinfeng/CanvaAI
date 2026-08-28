@@ -175,6 +175,26 @@ export const execAskUser: ToolExecutor = async (raw, ctx) => {
   }
 
   /**
+   * 画了新东西，但镜头没跟过去——用户看完板书截图后要求"画板书的时候，
+   * 也可以控制当前视角到板书居中的位置"，跟上面 drawnSinceJudge 是
+   * 同一类问题、同一种药方。提示词已经写了"写字的同时把镜头带过去"，
+   * 真机验证过三场，canvas_zoom_to 一次都没被调用过，镜头全程停在
+   * 题目原文上。光讲道理劝不动，也改成硬闸。
+   */
+  if (ctx.session.mode === 'tutor' && t && t.drawCount > 0 && !t.zoomedSinceDraw) {
+    t.zoomBlockCount += 1;
+    // 同样留好退路，不能死磕到底——见 context.ts 里 zoomBlockCount 的注释。
+    if (t.zoomBlockCount < 4) {
+      return err(
+        '刚画了新内容，但镜头还没带过去',
+        '用 canvas_zoom_to（region 传这次新增内容的包围盒，外扩一点留白）把镜头带到刚写的这块，' +
+          '再问下一个问题——不要让画面停在题目或上一步。',
+      );
+    }
+    t.zoomBlockCount = 0;
+  }
+
+  /**
    * 这个问题已经问过、也判过 right 了，不许一字不差再问一遍。
    *
    * 真机复现过：拆题的条目挂着具体符号也没撞黑名单（"理解题目条件和
