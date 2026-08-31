@@ -1495,6 +1495,70 @@ describe('画完板书，镜头得跟过去——不然不许问下一题', () =
   });
 
   /**
+   * 用户直接在真实画布里看出来的问题："为什么你一直在写板书，学生
+   * 却看不到当前的几何图形"——演练脚本里"学生"看画布是直接读整份
+   * 场景（student_look 默认不传 region 就看全部），不受镜头框选的
+   * 视口限制，这类"人真实看不看得见"的问题在演练判分里天然测不出来。
+   * 板书往下写了大半页之后，镜头如果只框最新那一行，题目自带的图形
+   * 早就被甩到画面外了——调没调过 canvas_zoom_to 不够，得看这次调完，
+   * 图形是不是还在镜头里。
+   */
+  it('题目自带图形，镜头调了但只框住了新内容——图形被甩出画面，照样被拒', async () => {
+    const scene = new Scene();
+    scene.create([{ type: 'line', id: 'sh_tri', x: 0, y: 0, points: [[0, 0], [100, 100]] }], {
+      author: { id: 'u1', kind: 'user' },
+    });
+    const h = makeHarness(
+      [
+        { calls: [PLAN([{ text: '(1) 求 x' }]), call('canvas_highlight', { ids: ['sh_tri'], ms: 0 }), ask('x 是多少？')] },
+        {
+          calls: [
+            judge('right', '对'),
+            call('canvas_create', { shapes: [{ type: 'text', x: 1000, y: 1000, text: '推导写到这儿了' }] }),
+            // 镜头跟着新内容走，但只框住这一行——题目那条线（0,0)-(100,100)）早就出画面了
+            call('canvas_zoom_to', { region: [1000, 1000, 200, 60] }),
+            ask('接下来呢？'),
+          ],
+        },
+        { text: '好' },
+      ],
+      { scene, autoAnswer: '1' },
+    );
+    await speak(h, '给我讲这道题');
+
+    const asks = h.events('agent.tool').filter((m) => m.call.name === 'interact_ask_user' && m.call.state !== 'running');
+    expect(asks.at(-1)!.call.state).toBe('error');
+    expect(asks.at(-1)!.call.error).toContain('已经不在当前镜头范围里了');
+  });
+
+  it('题目自带图形，镜头框住了新内容和图形两者——放行', async () => {
+    const scene = new Scene();
+    scene.create([{ type: 'line', id: 'sh_tri', x: 0, y: 0, points: [[0, 0], [100, 100]] }], {
+      author: { id: 'u1', kind: 'user' },
+    });
+    const h = makeHarness(
+      [
+        { calls: [PLAN([{ text: '(1) 求 x' }]), call('canvas_highlight', { ids: ['sh_tri'], ms: 0 }), ask('x 是多少？')] },
+        {
+          calls: [
+            judge('right', '对'),
+            call('canvas_create', { shapes: [{ type: 'text', x: 0, y: 300, text: '推导写到这儿了' }] }),
+            // 镜头框住新内容和题目图形两者的并集
+            call('canvas_zoom_to', { region: [0, 0, 100, 350] }),
+            ask('接下来呢？'),
+          ],
+        },
+        { text: '好' },
+      ],
+      { scene, autoAnswer: '1' },
+    );
+    await speak(h, '给我讲这道题');
+
+    const asks = h.events('agent.tool').filter((m) => m.call.name === 'interact_ask_user' && m.call.state !== 'running');
+    expect(asks.at(-1)!.call.state).toBe('ok');
+  });
+
+  /**
    * 跟 drawAskBlockCount 一样的道理，从一开始就留好退路——见
    * context.ts 里 zoomBlockCount 的注释。
    */
