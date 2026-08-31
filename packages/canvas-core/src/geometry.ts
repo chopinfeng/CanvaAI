@@ -218,6 +218,30 @@ export function segmentIntersection(s1: Segment, s2: Segment): Point | null {
   return pt(x1 + t * (x2 - x1), y1 + t * (y2 - y1));
 }
 
+/**
+ * 一条线段有没有真的从一个矩形中间穿过去——不是"有没有重叠"。
+ *
+ * 真机复现过："板书图案得挨着题目图形"这道闸只查包围盒相交，逼着
+ * 模型把文字写进了三角形内部——结果新写的字被三角形自己的边、
+ * 高线从中间划了过去，读不出来。纯包围盒重叠判断不出这个：一条边
+ * 的包围盒能盖住大半个三角形内部，但线本身只是那个盒子里的一条
+ * 对角线，文字写在盒子里别的空白角落完全不会被划到，写在线正上面
+ * 才会。矩形的四条边里只要有一条被这条线段穿过，或者线段的某个
+ * 端点本身就落在矩形里，就算穿过。
+ */
+export function rectCrossedBySegment(rect: Rect, seg: Segment): boolean {
+  if (rectContainsPoint(rect, seg.a) || rectContainsPoint(rect, seg.b)) return true;
+  const [x, y, w, h] = rect;
+  const corners = [pt(x, y), pt(x + w, y), pt(x + w, y + h), pt(x, y + h)];
+  const edges: Segment[] = [
+    { a: corners[0]!, b: corners[1]! },
+    { a: corners[1]!, b: corners[2]! },
+    { a: corners[2]!, b: corners[3]! },
+    { a: corners[3]!, b: corners[0]! },
+  ];
+  return edges.some((edge) => segmentIntersection(seg, edge) !== null);
+}
+
 /** 点到线段的最近距离 */
 export function pointToSegment(p: Point, s: Segment): number {
   const dx = s.b.x - s.a.x;

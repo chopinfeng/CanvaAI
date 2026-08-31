@@ -1,4 +1,4 @@
-import { newOpId, rectCenter, round, shapeBounds, unionBounds } from '@canvai/canvas-core';
+import { newOpId, rectCenter, rectCrossedBySegment, round, shapeBounds, shapeSegments, unionBounds } from '@canvai/canvas-core';
 import type { LayerId, Point, Rect, SceneDiff, Shape, ShapeInput } from '@canvai/protocol';
 import {
   canvasAlign,
@@ -59,6 +59,15 @@ export const execCreate: ToolExecutor = async (raw, ctx) => {
       '落笔前先用 canvas_snapshot（region 传板书区，describe: true）看一眼板书写到哪儿了，' +
         '再决定这次接着往下还是往右写——自己心算坐标经常和实际渲染对不上。' +
         '矩形/线条盖住文字是"框起来"的正常用法（比如给答案画框），只有新文字压着旧文字才会被拦。',
+    );
+  }
+
+  const crossing = findLineCrossing(ctx, resolved);
+  if (crossing) {
+    return err(
+      `新写的文字被已有的「${crossing.meta.role ?? crossing.type}」这条线正中间穿过去了`,
+      '这条线会把字划成两半，读不出来——不是"离图形太远"，是写的位置正好压在一条具体的边或' +
+        '辅助线上。挪到旁边空白处几十像素，图形附近还有别的空当，不用完全避开这个图形。',
     );
   }
 
@@ -139,6 +148,34 @@ function findTextCollision(ctx: ToolContext, shapes: ShapeInput[]): Shape | null
       if (eArea <= 0) continue;
       const overlap = rectOverlapArea(nb, eb);
       if (overlap / Math.min(nArea, eArea) > 0.25) return et;
+    }
+  }
+  return null;
+}
+
+/**
+ * 新写的文字有没有被一条已有的线（三角形的边、辅助线……）从中间划过去。
+ *
+ * 用户直接在板书截图里看出来的问题："这次的板书又覆盖到图形上了"——
+ * "图案得挨着题目图形"那道闸只查包围盒相交，逼着模型把文字写进了
+ * 三角形内部，结果新文字被三角形自己的边、高线正中间划了过去，读不出
+ * 来。跟 findTextCollision 是两个不同方向的问题：那道检查看"新文字
+ * 有没有压住旧文字"，这道检查看"新文字有没有被一条线条穿过"——挨着
+ * 图形写没问题，写的位置正好被具体某条边划过去才是问题，纯包围盒
+ * 重叠判断不出这个区别。
+ */
+function findLineCrossing(ctx: ToolContext, shapes: ShapeInput[]): Shape | null {
+  const newTexts = shapes.filter((s) => s.type === 'text' || s.type === 'latex');
+  if (newTexts.length === 0) return null;
+
+  const existingLines = ctx.scene.all().filter((s) => s.points && s.points.length > 0);
+  if (existingLines.length === 0) return null;
+
+  for (const nt of newTexts) {
+    const nb = shapeBounds({ ...nt, style: nt.style ?? {} } as Shape);
+    if (nb[2] * nb[3] <= 0) continue;
+    for (const line of existingLines) {
+      if (shapeSegments(line).some((seg) => rectCrossedBySegment(nb, seg))) return line;
     }
   }
   return null;

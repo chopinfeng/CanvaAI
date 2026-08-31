@@ -8,6 +8,7 @@ import {
   hitTestShape,
   polygonArea,
   pt,
+  rectCrossedBySegment,
   rectDistance,
   segmentIntersection,
   shapeArea,
@@ -75,6 +76,30 @@ describe('bounds', () => {
     expect(wEight).toBe(wOne);
     // 高度该按行数走——这条本来就是对的，一并确认没有被改坏
     expect(hEight).toBeCloseTo(wOne > 0 ? 8 * 16 * 1.4 : 0, 1);
+  });
+});
+
+/**
+ * 用户直接在板书截图里看出来的问题："这次的板书又覆盖到图形上了"——
+ * "图案得挨着题目图形"那道闸只查包围盒相交，逼着模型把文字写进了
+ * 三角形内部，结果新文字被三角形自己的边、高线从中间划了过去。
+ * 包围盒重叠判断不出这个：一条边的包围盒能盖住大半个三角形内部，
+ * 但线本身只是那个盒子里的一条对角线。
+ */
+describe('线段有没有真的穿过一个矩形', () => {
+  it('线段贴着矩形正中间划过去——算穿过', () => {
+    // 矩形 [10,10,80,20]，一条从左上斜到右下、正好穿过矩形中心的线段
+    expect(rectCrossedBySegment([10, 10, 80, 20], { a: pt(0, 0), b: pt(100, 100) })).toBe(true);
+  });
+
+  it('线段的包围盒盖住了矩形，但线本身没有真的划过去——不算穿过', () => {
+    // 三角形一条边 B(0,100)→A(50,0) 的包围盒是 [0,0,50,100]，
+    // 矩形 [30,80,15,15] 落在这个包围盒里，但离那条斜线其实还有一段距离
+    expect(rectCrossedBySegment([30, 80, 15, 15], { a: pt(0, 100), b: pt(50, 0) })).toBe(false);
+  });
+
+  it('线段的端点直接落在矩形里——算穿过', () => {
+    expect(rectCrossedBySegment([10, 10, 20, 20], { a: pt(15, 15), b: pt(100, 100) })).toBe(true);
   });
 });
 
