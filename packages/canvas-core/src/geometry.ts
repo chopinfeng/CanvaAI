@@ -84,9 +84,20 @@ function estimateTextWidth(s: Shape): number {
   if (s.type !== 'text' && s.type !== 'latex') return 0;
   const fs = s.style.fontSize ?? 16;
   // 粗估：CJK 按 1em，ASCII 按 0.55em。服务端无字体度量，够用即可。
-  let units = 0;
-  for (const ch of s.text ?? '') units += ch.charCodeAt(0) > 0x2e80 ? 1 : 0.55;
-  return units * fs;
+  //
+  // 宽度是**最长的那一行**，不是整段文字的字符总数——真机复现过：一道
+  // 8 行的题干（每行几十个字符），这里没按 \n 拆行就直接把全文字符数
+  // 加总，算出来的"宽度"是真实最长行的 5-6 倍，超过 2500px，把碰撞
+  // 检测的判定区域撑到了画布右侧一大片本来是空白的地方。后果不是
+  // "宽度数字不准"这么轻——AI 讲题时被这片虚假的碰撞区拦下，反复说
+  // "找不到没被占用的地方"，答对的题干脆卡死不动。
+  let maxUnits = 0;
+  for (const line of (s.text ?? '').split('\n')) {
+    let units = 0;
+    for (const ch of line) units += ch.charCodeAt(0) > 0x2e80 ? 1 : 0.55;
+    if (units > maxUnits) maxUnits = units;
+  }
+  return maxUnits * fs;
 }
 
 function estimateTextHeight(s: Shape): number {

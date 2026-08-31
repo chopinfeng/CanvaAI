@@ -52,6 +52,30 @@ describe('bounds', () => {
     expect(Math.round(w)).toBe(20);
     expect(Math.round(h)).toBe(100);
   });
+
+  /**
+   * 真机复现过：一道 8 行的题干，宽度按"整段文字字符总数"估算，
+   * 算出来超过 2500px，把碰撞检测的判定区域撑到了画布右侧一大片
+   * 本来是空白的地方——AI 写字被这片虚假碰撞区反复拦下，答对的题
+   * 卡死不动。宽度该是最长的那一行，不是每一行加总。
+   */
+  it('多行文字的包围盒宽度是最长的一行，不是整段文字的字符总数', () => {
+    const oneLine = mk({ id: 'd', type: 'text', x: 0, y: 0, text: '短句', style: { fontSize: 16 } });
+    const eightLines = mk({
+      id: 'e',
+      type: 'text',
+      x: 0,
+      y: 0,
+      text: Array(8).fill('短句').join('\n'),
+      style: { fontSize: 16 },
+    });
+    const [, , wOne] = shapeBounds(oneLine);
+    const [, , wEight, hEight] = shapeBounds(eightLines);
+    // 每一行内容相同，宽度不该因为多了 7 行而膨胀
+    expect(wEight).toBe(wOne);
+    // 高度该按行数走——这条本来就是对的，一并确认没有被改坏
+    expect(hEight).toBeCloseTo(wOne > 0 ? 8 * 16 * 1.4 : 0, 1);
+  });
 });
 
 describe('测量', () => {
