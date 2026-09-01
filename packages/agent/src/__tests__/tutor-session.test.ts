@@ -1436,6 +1436,106 @@ describe('判完这一题，板书得跟上——不然不许问下一题', () =
   });
 });
 
+/**
+ * 用户先要求"画板书时把镜头带过去"（改成了 zoomedSinceDraw 那道闸），
+ * 真机验证过：镜头追着最新一笔走，题目图形经常被甩出画面。改成
+ * "别管镜头，回到全局视角"之后，又暴露了另一个问题——板书写多了，
+ * 固定视口装不下，整块内容慢慢挪出了画面。两次反馈说的是同一件事：
+ * 这不该是一道"逼模型调用某个工具"的闸，是系统自己该维护的不变量。
+ * 现在完全不靠模型调用 canvas_zoom_to，每次画图成功后系统自己检查、
+ * 自己扩大视口。
+ */
+describe('板书写到视口外——系统自动把镜头扩大装下', () => {
+  it('题目图形和新画的板书都在默认视口外——自动扩大视口装下两者', async () => {
+    const scene = new Scene();
+    // 题目图形（三角形一条边），远在默认视口 [0,0,1440,900] 之外
+    scene.create([{ type: 'line', id: 'sh_tri', x: 2000, y: 2000, points: [[0, 0], [100, 100]] }], {
+      author: { id: 'u1', kind: 'user' },
+    });
+    const h = makeHarness(
+      [
+        {
+          calls: [
+            PLAN([{ text: '(1) 求 x' }]),
+            call('canvas_create', { shapes: [{ type: 'text', x: 2000, y: 2200, text: 'x = 1' }] }),
+            ask('x 是多少？'),
+          ],
+        },
+        { text: '好' },
+      ],
+      { scene, autoAnswer: '1' },
+    );
+    await speak(h, '给我讲这道题');
+
+    const [vx, vy, vw, vh] = h.session.viewport;
+    // 新视口得同时包住题目图形（2000,2000)-(2100,2100)）和新画的文字（2000,2200 附近）
+    expect(vx).toBeLessThanOrEqual(2000);
+    expect(vy).toBeLessThanOrEqual(2000);
+    expect(vx + vw).toBeGreaterThanOrEqual(2100);
+    expect(vy + vh).toBeGreaterThanOrEqual(2200);
+
+    const viewportEvents = h.events('agent.viewport');
+    expect(viewportEvents.length).toBeGreaterThan(0);
+    expect(viewportEvents.at(-1)!.animate).toBe(true);
+  });
+
+  it('题目图形和板书本来就在视口里——不用瞎折腾，视口原样不动', async () => {
+    const scene = new Scene();
+    scene.create([{ type: 'line', id: 'sh_tri', x: 100, y: 100, points: [[0, 0], [100, 100]] }], {
+      author: { id: 'u1', kind: 'user' },
+    });
+    const h = makeHarness(
+      [
+        {
+          calls: [
+            PLAN([{ text: '(1) 求 x' }]),
+            call('canvas_create', { shapes: [{ type: 'text', x: 300, y: 300, text: 'x = 1' }] }),
+            ask('x 是多少？'),
+          ],
+        },
+        { text: '好' },
+      ],
+      { scene, autoAnswer: '1' },
+    );
+    await speak(h, '给我讲这道题');
+
+    expect(h.session.viewport).toEqual([0, 0, 1440, 900]);
+    expect(h.events('agent.viewport')).toHaveLength(0);
+  });
+
+  it('只扩大、不重新取景——原来看的那块地方还留在新视口里', async () => {
+    const scene = new Scene();
+    // 题目图形在原点附近，跟"当前正看着的地方"（下面自定义的视口）离得很远
+    scene.create([{ type: 'line', id: 'sh_tri', x: 0, y: 0, points: [[0, 0], [50, 50]] }], {
+      author: { id: 'u1', kind: 'user' },
+    });
+    const h = makeHarness(
+      [
+        {
+          calls: [
+            PLAN([{ text: '(1) 求 x' }]),
+            call('canvas_create', { shapes: [{ type: 'text', x: 200, y: 200, text: 'x = 1' }] }),
+            ask('x 是多少？'),
+          ],
+        },
+        { text: '好' },
+      ],
+      { scene, autoAnswer: '1', session: { viewport: [5000, 5000, 200, 200] } },
+    );
+    await speak(h, '给我讲这道题');
+
+    const [vx, vy, vw, vh] = h.session.viewport;
+    // 原来在看的那块（5000,5000)-(5200,5200)）没被甩出新视口
+    expect(vx).toBeLessThanOrEqual(5000);
+    expect(vy).toBeLessThanOrEqual(5000);
+    expect(vx + vw).toBeGreaterThanOrEqual(5200);
+    expect(vy + vh).toBeGreaterThanOrEqual(5200);
+    // 题目图形（原点附近）也在新视口里
+    expect(vx).toBeLessThanOrEqual(0);
+    expect(vy).toBeLessThanOrEqual(0);
+  });
+});
+
 describe('账本每一轮都摆在模型眼前', () => {
   const base: SessionState = {
     selection: [],
