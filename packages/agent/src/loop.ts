@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid';
+import { rectContains, shapeBounds, unionBounds } from '@canvai/canvas-core';
 import type { Scene } from '@canvai/canvas-core';
-import type { AgentInputEvent, Author, ServerMessage, ToolResult } from '@canvai/protocol';
+import type { AgentInputEvent, Author, Rect, ServerMessage, ToolResult } from '@canvai/protocol';
 import { buildContextHeader, describeDiff } from './context.js';
 import { detectTutorIntent } from './intent.js';
 import { extractLeakedCalls, hasLeakedCalls } from './model/leaked-calls.js';
@@ -505,6 +506,39 @@ export class AgentLoop {
     });
   }
 
+  /**
+   * 板书写着写着，就写到镜头外面去了——系统自己把视口撑大，不指望
+   * 模型自觉调 canvas_zoom_to。
+   *
+   * 用户先是要求"画板书时把镜头带过去"，真机验证过：这道闸让镜头
+   * 追着最新一笔走，反而经常把题目图形甩出画面——用户直接指出"为什么
+   * 学生看不到当前的几何图形"。改成"别做视角转移，回到全局视角"之后
+   * 又发现新问题：镜头压根不挪了，板书写到后面，整块内容又慢慢挪出了
+   * 视口——用户又指出"目前板书已经不在视角范围内了，只是不要 zoom in
+   * 而已"。两次反馈说的是同一件事：这不该是一道"逼模型调用某个工具"
+   * 的闸，是系统自己该维护的不变量——题目图形和已经写下的板书，任何
+   * 时候都不该被甩出视口。只**扩大**视口去包住新内容，不重新取景、
+   * 不缩小，这样已经在看的范围始终留在画面里，纯粹是把新写的这块也
+   * 纳进来。
+   */
+  private fitViewportToTutorContent(): void {
+    const relevant = this.opts.scene
+      .all()
+      .filter((s) => s.layer === 'ai' || s.layer === 'annot' || (s.layer === 'user' && s.type !== 'text' && s.type !== 'latex'));
+    if (relevant.length === 0) return;
+
+    const target = unionBounds(relevant.map(shapeBounds));
+    const margin = 40;
+    const padded: Rect = [target[0] - margin, target[1] - margin, target[2] + margin * 2, target[3] + margin * 2];
+
+    const current = this.opts.session.viewport;
+    if (rectContains(current, padded)) return; // 已经全在视口里，不用动
+
+    const next = unionBounds([current, padded]);
+    this.opts.session.viewport = next;
+    this.opts.emit({ t: 'agent.viewport', rect: next, animate: true });
+  }
+
   /* ---- 回合时限：只在 Agent 自己干活时走表 ---- */
 
   private armBudget(controller: AbortController): void {
@@ -793,6 +827,9 @@ export class AgentLoop {
           return s && s.type !== 'text' && s.type !== 'latex';
         });
         if (graphical) this.opts.session.tutor.graphicalDrawCount += 1;
+      }
+      if (DRAWING_TOOLS.has(name) && this.opts.session.mode === 'tutor') {
+        this.fitViewportToTutorContent();
       }
       this.opts.emit({
         t: 'agent.tool',
