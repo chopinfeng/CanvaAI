@@ -71,6 +71,15 @@ export const execCreate: ToolExecutor = async (raw, ctx) => {
     );
   }
 
+  const duplicate = findDuplicateText(ctx, resolved);
+  if (duplicate) {
+    return err(
+      `这句话已经写在板书上了（「${duplicate.meta.role ?? duplicate.type}」，内容一字不差）`,
+      '别把同一句话再写一遍——写过的东西不会因为挪个位置重写就变得更对。要强调已有的这一处，' +
+        '用 canvas_highlight 指过去；真要写新内容，就换一句和已有内容不同的话。',
+    );
+  }
+
   const { ids, diff } = ctx.scene.create(resolved, {
     author: ctx.author,
     layer,
@@ -177,6 +186,39 @@ function findLineCrossing(ctx: ToolContext, shapes: ShapeInput[]): Shape | null 
     for (const line of existingLines) {
       if (shapeSegments(line).some((seg) => rectCrossedBySegment(nb, seg))) return line;
     }
+  }
+  return null;
+}
+
+/**
+ * 新写的文字是不是和已经在板书上的某句一字不差。
+ *
+ * 真机复现（drill-g5-4）：diagramBlockCount 逼着模型往图形附近写一段真内容，
+ * 那一片被图形本身的边和标签占得很满，新文字反复被 findTextCollision/
+ * findLineCrossing 拦下；模型没有去修正坐标，而是每次换个新位置、一字不改地
+ * 把同一句"最终结果：AD = 7，∠BFD = 60°"再写一遍——连写了 11 次，从图形正
+ * 下方一路铺到画布外面去。两道碰撞检查都拦不住这个：11 份拷贝彼此隔得够开，
+ * 谁都不挨着谁，没有一条会被判定为"压住"或"穿过"。得单独拦"同一句话又写了
+ * 一遍"这件事，不能指望坐标碰撞检查顺带管到它。
+ *
+ * 只在 ai/annot 层内比较：题目原文（user 层）和 AI 复述题目用词接近很正常，
+ * 不该被这道检查拦下。短标签（"60°"、"AB=13"这类）允许重复出现在图上不同
+ * 位置，是真实存在的合理用法，所以只有字数够多的整句才查，不看单个数值/边标。
+ */
+function findDuplicateText(ctx: ToolContext, shapes: ShapeInput[]): Shape | null {
+  const MIN_LEN = 8;
+  const newTexts = shapes.filter((s) => (s.type === 'text' || s.type === 'latex') && (s.text?.trim().length ?? 0) >= MIN_LEN);
+  if (newTexts.length === 0) return null;
+
+  const existing = ctx.scene
+    .all()
+    .filter((s) => (s.type === 'text' || s.type === 'latex') && (s.layer === 'ai' || s.layer === 'annot'));
+  if (existing.length === 0) return null;
+
+  for (const nt of newTexts) {
+    const norm = nt.text!.trim();
+    const dup = existing.find((et) => (et.text ?? '').trim() === norm);
+    if (dup) return dup;
   }
   return null;
 }
