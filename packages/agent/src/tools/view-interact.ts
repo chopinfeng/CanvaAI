@@ -1,4 +1,4 @@
-import { rectCenter, rectsIntersect, round, shapeBounds, unionBounds } from '@canvai/canvas-core';
+import { rectCenter, round, shapeBounds, unionBounds } from '@canvai/canvas-core';
 import type { Rect, Shape } from '@canvai/protocol';
 import {
   canvasHighlight,
@@ -172,46 +172,6 @@ export const execAskUser: ToolExecutor = async (raw, ctx) => {
       );
     }
     t.drawAskBlockCount = 0;
-  }
-
-  /**
-   * 镜头没跟上——两种形状，同一道闸。
-   *
-   * 第一种：画了新东西，但一次 canvas_zoom_to 都没调过。用户看完板书
-   * 截图后要求"画板书的时候，也可以控制当前视角到板书居中的位置"，
-   * 提示词写了"写字的同时把镜头带过去"，真机验证过三场，canvas_zoom_to
-   * 一次都没被调用过，镜头全程停在题目原文上。光讲道理劝不动，改成硬闸。
-   *
-   * 第二种：调是调了，但只框住了刚写的那一行，把题目自带的图形甩出了
-   * 视野。用户直接问"为什么你一直在写板书，学生却看不到当前的几何
-   * 图形"——查了才发现演练脚本里"学生"看画布走的是 student_look，
-   * 直接读整份场景，不受镜头框选的视口限制，这类"人真实看不看得见"
-   * 的问题在演练里天然测不出来，得靠这道闸自己兜住。
-   *
-   * 两种形状用同一个活的判断：判断依据是 session.viewport 这个已经在
-   * 追踪的通用状态——**当前**镜头框住的范围，不是"调没调过"这个
-   * 布尔标记。题目自带的图形只要还在，就该一直待在镜头范围里，不管
-   * 板书写到了多远；没有图形的题目，只要求镜头动过一次，跟以前一样。
-   */
-  if (ctx.session.mode === 'tutor' && t && t.drawCount > 0) {
-    const diagram = ctx.scene.all().filter((s) => s.layer === 'user' && s.type !== 'text' && s.type !== 'latex');
-    const diagramOutOfView = diagram.length > 0 && !rectsIntersect(ctx.session.viewport, unionBounds(diagram.map(shapeBounds)));
-    if (!t.zoomedSinceDraw || diagramOutOfView) {
-      t.zoomBlockCount += 1;
-      // 同样留好退路，不能死磕到底——见 context.ts 里 zoomBlockCount 的注释。
-      if (t.zoomBlockCount < 4) {
-        return err(
-          diagramOutOfView ? '题目自带的图形已经不在当前镜头范围里了' : '刚画了新内容，但镜头还没带过去',
-          diagramOutOfView
-            ? '用 canvas_zoom_to（region 传这次新增内容和题目图形两者的并集）把镜头带到一个能同时看见' +
-              '新写的内容和题目图形的范围——别只框最新这一行，把图形甩到画面外面，学生跟着你写的字' +
-              '看不见你在说的图，等于白讲。'
-            : '用 canvas_zoom_to（region 传这次新增内容的包围盒，外扩一点留白）把镜头带到刚写的这块，' +
-              '再问下一个问题——不要让画面停在题目或上一步。',
-        );
-      }
-      t.zoomBlockCount = 0;
-    }
   }
 
   /**

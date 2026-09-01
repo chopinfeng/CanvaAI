@@ -77,30 +77,6 @@ export interface TutorSession {
    */
   drawAskBlockCount: number;
   /**
-   * 自上一次真的画了新东西（canvas_create / canvas_ink 成功）以来，
-   * 有没有用 canvas_zoom_to 把镜头带过去过。
-   *
-   * 用户看完板书截图之后提的第三条反馈："画板书的时候，也可以控制
-   * 当前视角到板书居中的位置"。提示词里已经写了"写字的同时把镜头带
-   * 过去"，真机验证过三场——每场都写出了扎实的板书（起笔坐标、密度
-   * 都达标），但 canvas_zoom_to 三场加起来一次都没被调用过，镜头全程
-   * 停在题目原文上。跟 drawnSinceJudge 是同一类问题、同一种药方：
-   * 光讲道理劝不动，改成硬闸。这道闸卡在"画完这一笔，问下一题"之间：
-   * 画完就把它拨回 false，下一次 interact_ask_user 之前必须先有一次
-   * 真的 canvas_zoom_to，才把它重新拨成 true。初始值给 true——辅导
-   * 刚开始、画布上还什么都没画时，没什么新内容可带镜头去看。
-   */
-  zoomedSinceDraw: boolean;
-  /**
-   * zoomedSinceDraw 那道闸连着拦了 interact_ask_user 几次。
-   *
-   * 跟 drawAskBlockCount 一样的道理——上线 drawnSinceJudge 时就吃过
-   * 一次没留退路的亏：判完题连拦三次，模型没能很快补救，回合活活耗成
-   * 空转超时，整场作废。这道新闸照抄那次教训，从一开始就留好退路：
-   * 连着卡够次数就放行这一次，计数清零，不是从此躺平。
-   */
-  zoomBlockCount: number;
-  /**
    * 这场辅导里，真的画过几笔新东西（canvas_create / canvas_ink 成功的次数），
    * 不算把画布上已经有的字/图高亮一下。
    *
