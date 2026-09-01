@@ -467,7 +467,7 @@ describe('画得不够多——不许收尾', () => {
  * 图案挨着题目自带的图形吗"。
  */
 describe('题目自带图形——板书里的图案得挨着它，不能各画各的', () => {
-  it('图案画在离题目图形老远的地方——被拒', async () => {
+  it('图案画在离题目图形老远的地方，还是一句没写内容的空图案——被拒', async () => {
     const scene = new Scene();
     scene.create([{ type: 'line', id: 'sh_tri', x: 0, y: 0, points: [[0, 0], [100, 100]] }], {
       author: { id: 'u1', kind: 'user' },
@@ -480,8 +480,9 @@ describe('题目自带图形——板书里的图案得挨着它，不能各画�
             judge('right', '对'),
             PLAN([{ text: '(1) 求 x', done: true }]),
             call('canvas_create', { shapes: [{ type: 'text', x: 0, y: 300, text: 'x = 1' }] }),
-            // 图案本身是真图形（line），但离题目那条线足有 900 像素远，没沾边
-            call('canvas_create', { shapes: [{ type: 'line', points: [[1000, 1000], [1010, 1010]] }] }),
+            // 图案本身是真图形（line），紧贴着题目那条线，但没写任何内容——
+            // 真机复现过：模型精确算出一条贴着图形边界、什么都不标注的线来过闸
+            call('canvas_create', { shapes: [{ type: 'line', points: [[10, 10], [30, 30]] }] }),
           ],
         },
         { calls: [call('tutor_finish', { summary: '讲完了' })] },
@@ -493,11 +494,11 @@ describe('题目自带图形——板书里的图案得挨着它，不能各画�
 
     const finish = h.events('agent.tool').filter((m) => m.call.name === 'tutor_finish').at(-1)!;
     expect(finish.call.state).toBe('error');
-    expect(finish.call.error).toContain('没有一笔挨着它');
+    expect(finish.call.error).toContain('没有一段真写了内容的文字');
     expect(h.session.mode).toBe('tutor');
   });
 
-  it('图案挨着题目自带的图形——放行', async () => {
+  it('图形旁边写了真有内容的文字标注——放行', async () => {
     const scene = new Scene();
     scene.create([{ type: 'line', id: 'sh_tri', x: 0, y: 0, points: [[0, 0], [100, 100]] }], {
       author: { id: 'u1', kind: 'user' },
@@ -510,8 +511,11 @@ describe('题目自带图形——板书里的图案得挨着它，不能各画�
             judge('right', '对'),
             PLAN([{ text: '(1) 求 x', done: true }]),
             call('canvas_create', { shapes: [{ type: 'text', x: 0, y: 300, text: 'x = 1' }] }),
-            // 就画在题目那条线的包围盒里面——真的碰过它
-            call('canvas_create', { shapes: [{ type: 'line', points: [[10, 10], [30, 30]] }] }),
+            // 满足"至少一笔真图案"（graphicsBlockCount）：随便找块空地画一个非文字图元
+            call('canvas_create', { shapes: [{ type: 'rect', x: 0, y: 400, w: 20, h: 10 }] }),
+            // 满足"图形附近得有真写了内容的文字"（diagramBlockCount）：
+            // 落在图形包围盒附近，但避开对角线本身，不会被"文字被线穿过"那道闸拦下
+            call('canvas_create', { shapes: [{ type: 'text', x: 60, y: 5, text: 'BD = 5' }] }),
           ],
         },
         { calls: [call('tutor_finish', { summary: '讲完了' })] },
@@ -528,7 +532,7 @@ describe('题目自带图形——板书里的图案得挨着它，不能各画�
 
   /**
    * 跟 graphicsBlockCount 一样，不能死磕到底——连着卡够次数就放行，
-   * 不能让"图画得像不像那么回事"变成"这场辅导能不能收尾"的生死问题。
+   * 不能让"标没标到位"变成"这场辅导能不能收尾"的生死问题。
    */
   it('连着拒了两次——第三次放行，不会卡死', async () => {
     const scene = new Scene();
@@ -543,7 +547,7 @@ describe('题目自带图形——板书里的图案得挨着它，不能各画�
             judge('right', '对'),
             PLAN([{ text: '(1) 求 x', done: true }]),
             call('canvas_create', { shapes: [{ type: 'text', x: 0, y: 300, text: 'x = 1' }] }),
-            call('canvas_create', { shapes: [{ type: 'line', points: [[1000, 1000], [1010, 1010]] }] }),
+            call('canvas_create', { shapes: [{ type: 'line', points: [[10, 10], [30, 30]] }] }),
           ],
         },
         { calls: [call('tutor_finish', { summary: '讲完了' })] },
@@ -558,7 +562,7 @@ describe('题目自带图形——板书里的图案得挨着它，不能各画�
     const finishes = h.events('agent.tool').filter((m) => m.call.name === 'tutor_finish' && m.call.state !== 'running');
     expect(finishes).toHaveLength(3);
     expect(finishes[0]!.call.state).toBe('error');
-    expect(finishes[0]!.call.error).toContain('没有一笔挨着它');
+    expect(finishes[0]!.call.error).toContain('没有一段真写了内容的文字');
     expect(finishes[1]!.call.state).toBe('error');
     expect(finishes[2]!.call.state).toBe('ok');
     expect(h.session.mode).toBe('assist');
