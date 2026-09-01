@@ -11,7 +11,7 @@
  * 用法：npx tsx scripts/record-lesson.ts --room amc --request "..." [--persona careless]
  */
 import { spawn } from 'node:child_process';
-import { mkdir, readdir, rename } from 'node:fs/promises';
+import { mkdir, readdir, rename, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -29,6 +29,8 @@ const persona = arg('persona', 'careless');
 const request = arg('request', '给我讲这道题');
 const webPort = arg('web-port', '5173');
 const maxMin = Number(arg('max-min', '25'));
+/** 原始录像按真实耗时录，一场辅导常常十几分钟——播放速度，1 是原速不处理 */
+const speed = Number(arg('speed', '2'));
 
 /**
  * 多久没动静算收工，传给演练脚本。
@@ -124,12 +126,38 @@ async function main() {
     const raw = await video.path();
     const stamp = (await readdir(OUT)).length;
     const dest = join(OUT, `${room}-${persona}-${stamp}.webm`);
-    await rename(raw, dest);
+    if (speed !== 1) {
+      await speedUp(raw, dest, speed);
+    } else {
+      await rename(raw, dest);
+    }
     saved = dest;
   }
   console.log(`\n录像：${saved}`);
   console.log(`学生 Agent 退出码：${code}${code === 0 ? '（辅导跑完了）' : '（有问题，看上面）'}`);
   process.exit(code);
+}
+
+/**
+ * Playwright 的 recordVideo 按真实耗时录，没有播放速率这个选项——一场
+ * 辅导十几分钟很磨叽，看的人多半会自己拖进度条。用 ffmpeg 把画面
+ * 时间戳压缩到 1/speed，输出的文件本身就是 speed 倍速，不用看的人
+ * 自己调。没有音轨（浏览器录屏本来就没声音），不用管音频同步。
+ */
+async function speedUp(src: string, dest: string, factor: number): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const ff = spawn('ffmpeg', ['-y', '-i', src, '-an', '-vf', `setpts=${1 / factor}*PTS`, dest]);
+    let stderr = '';
+    ff.stderr.on('data', (b: Buffer) => {
+      stderr += b.toString();
+    });
+    ff.on('exit', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg 加速失败（退出码 ${code}）：${stderr.slice(-2000)}`));
+    });
+    ff.on('error', reject);
+  });
+  await rm(src, { force: true });
 }
 
 void main();
