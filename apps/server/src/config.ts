@@ -14,7 +14,9 @@ function loadEnvFiles(): string[] {
   const loaded: string[] = [];
   let dir = dirname(fileURLToPath(import.meta.url));
 
-  for (let depth = 0; depth < 6; depth++) {
+  // 一路找到文件系统根，而不是写死层数——写死的层数在 git worktree
+  // （checkout 路径比主仓库多几层嵌套）下会差一层，导致根目录 .env 读不到。
+  while (true) {
     const file = join(dir, '.env');
     if (existsSync(file)) {
       dotenv.config({ path: file });
