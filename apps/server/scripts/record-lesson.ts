@@ -1,0 +1,163 @@
+/**
+ * 把一整场辅导录下来。
+ *
+ * 录的是**真实浏览器里的真实画布**，不是回放或重演：Playwright 开一个
+ * Chromium 连到房间，学生 Agent 以另一个 WebSocket 客户端身份进同一个房间，
+ * 两边通过 CRDT 同步。所以视频里出现的每一笔都是当场发生的。
+ *
+ * 为什么不截图拼帧：拼出来的东西看着像录像，但丢掉了所有中间状态——
+ * 而"AI 画到一半"和"学生正在打字"恰恰是这个产品要展示的东西。
+ *
+ * 用法：npx tsx scripts/record-lesson.ts --room amc --request "..." [--persona careless]
+ */
+import { spawn } from 'node:child_process';
+import { mkdir, readdir, rename, rm } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { chromium } from 'playwright';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const OUT = join(here, '../../../.work/recordings');
+const argv = process.argv.slice(2);
+const arg = (n: string, d: string) => {
+  const i = argv.indexOf(`--${n}`);
+  return i >= 0 && argv[i + 1] ? argv[i + 1]! : d;
+};
+
+const room = arg('room', 'amc');
+const persona = arg('persona', 'careless');
+const request = arg('request', '给我讲这道题');
+const webPort = arg('web-port', '5173');
+const maxMin = Number(arg('max-min', '25'));
+/** 原始录像按真实耗时录，一场辅导常常十几分钟——播放速度，1 是原速不处理 */
+const speed = Number(arg('speed', '2'));
+
+/**
+ * 多久没动静算收工，传给演练脚本。
+ *
+ * 默认给 180 秒，比演练自己的默认（90 秒）宽得多——录像正是最该有耐心的场合：
+ * 难题的第一轮要拆五个小问、往画布上画图、再提问，实测能到近 4 分钟，
+ * 90 秒会在老师干到一半时判它卡死，然后录出一段 0 轮的废视频。
+ * 之前 H9 那段就是这么废掉的：录像脚本压根没把这个参数传下去，
+ * 我手动跑演练时用的是 120 秒，两条路的行为一直不一致。
+ */
+const quietSec = arg('quiet-sec', '180');
+
+async function main() {
+  await mkdir(OUT, { recursive: true });
+
+  const browser = await chromium.launch({ headless: true });
+  const ctx = await browser.newContext({
+    viewport: { width: 1600, height: 1000 },
+    recordVideo: { dir: OUT, size: { width: 1600, height: 1000 } },
+  });
+  const page = await ctx.newPage();
+
+  // 页面里的报错直接打出来——录像里看不出 JS 崩了，只会看到画布不动
+  page.on('pageerror', (e) => console.error('  [页面报错]', e.message));
+  page.on('console', (m) => {
+    if (m.type() === 'error') console.error('  [console]', m.text().slice(0, 160));
+  });
+
+  /**
+   * 先确认网页服务在跑。
+   *
+   * 不检查的话，Playwright 抛的是一整段 ERR_CONNECTION_REFUSED 堆栈，
+   * 中间夹着一行 page.goto——要盯一会儿才看得出"是 5173 没起"，
+   * 而不是录像脚本坏了。实测在这上面白跑过一整批四段录制。
+   */
+  const base = `http://localhost:${webPort}`;
+  try {
+    await fetch(base, { signal: AbortSignal.timeout(4000) });
+  } catch {
+    console.error(`网页服务没在 ${base} 上跑。先把 web 起来（pnpm --filter @canvai/web dev），再录。`);
+    await browser.close();
+    process.exit(1);
+  }
+
+  await page.goto(`${base}/?room=${room}`, { waitUntil: 'networkidle' });
+  // 等画布上真的有东西了再开始，否则视频开头是几秒空白
+  // 这段字符串在浏览器里跑，不在 Node 里——所以用字符串形式，别让 tsc 去解析 document
+  await page.waitForFunction("document.querySelectorAll('canvas').length > 0", null, { timeout: 20_000 });
+  await page.waitForTimeout(1500);
+
+  console.log(`录像已开始：房间 ${room}，人设 ${persona}`);
+  console.log(`学生的第一句：「${request}」\n`);
+
+  /* ---- 学生 Agent 作为另一个客户端进场 ---- */
+  const drill = spawn(
+    'npx',
+    [
+      'tsx', join(here, 'tutor-drill.ts'),
+      '--room', room,
+      '--persona', persona,
+      '--request', request,
+      '--max-turns', '40',
+      '--quiet-sec', quietSec,
+      // 演练脚本自己也有一道硬超时兜底，默认 10 分钟——录像给的时间比这个宽，
+      // 兜底不传的话，画得越全面的一场反而越容易被它自己的安全网腰斩。
+      '--max-min', String(maxMin),
+    ],
+    { cwd: join(here, '..'), stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  drill.stdout.on('data', (b: Buffer) => process.stdout.write(b));
+  drill.stderr.on('data', (b: Buffer) => process.stderr.write(b));
+
+  const code = await new Promise<number>((resolve) => {
+    const killer = setTimeout(() => {
+      console.error(`\n超过 ${maxMin} 分钟，掐掉——录像仍然保留`);
+      drill.kill('SIGTERM');
+    }, maxMin * 60_000);
+    drill.on('exit', (c) => {
+      clearTimeout(killer);
+      resolve(c ?? 1);
+    });
+  });
+
+  // 结尾多录两秒：最后一步（撒花、收尾语）往往还在画
+  await page.waitForTimeout(2500);
+
+  const video = page.video();
+  await ctx.close(); // 必须先关 context，视频文件这时候才落地
+  await browser.close();
+
+  let saved = '(没生成)';
+  if (video) {
+    const raw = await video.path();
+    const stamp = (await readdir(OUT)).length;
+    const dest = join(OUT, `${room}-${persona}-${stamp}.webm`);
+    if (speed !== 1) {
+      await speedUp(raw, dest, speed);
+    } else {
+      await rename(raw, dest);
+    }
+    saved = dest;
+  }
+  console.log(`\n录像：${saved}`);
+  console.log(`学生 Agent 退出码：${code}${code === 0 ? '（辅导跑完了）' : '（有问题，看上面）'}`);
+  process.exit(code);
+}
+
+/**
+ * Playwright 的 recordVideo 按真实耗时录，没有播放速率这个选项——一场
+ * 辅导十几分钟很磨叽，看的人多半会自己拖进度条。用 ffmpeg 把画面
+ * 时间戳压缩到 1/speed，输出的文件本身就是 speed 倍速，不用看的人
+ * 自己调。没有音轨（浏览器录屏本来就没声音），不用管音频同步。
+ */
+async function speedUp(src: string, dest: string, factor: number): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const ff = spawn('ffmpeg', ['-y', '-i', src, '-an', '-vf', `setpts=${1 / factor}*PTS`, dest]);
+    let stderr = '';
+    ff.stderr.on('data', (b: Buffer) => {
+      stderr += b.toString();
+    });
+    ff.on('exit', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg 加速失败（退出码 ${code}）：${stderr.slice(-2000)}`));
+    });
+    ff.on('error', reject);
+  });
+  await rm(src, { force: true });
+}
+
+void main();

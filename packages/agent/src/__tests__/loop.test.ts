@@ -180,6 +180,74 @@ describe('坐标约定 —— points 一律是画布绝对坐标', () => {
   });
 });
 
+/**
+ * 真机录像复现过：提示词反复讲了落笔前后要用 canvas_snapshot 看一眼
+ * 板书写到哪儿了，模型整场一次都没调——新的一步直接写在了旧内容
+ * 正上方，画面上几行字叠成一团，一个字都读不出来。劝了没用，改成拦。
+ */
+describe('新文字不能压住已有的文字', () => {
+  it('新文字的位置和已有文字大面积重叠——拒绝，提示先看一眼板书', async () => {
+    const scene = new Scene();
+    scene.create(
+      [{ type: 'text', id: 'sh_stmt', x: 100, y: 100, text: '已有的一段题干', style: { fontSize: 16 } }],
+      { author: { id: 'u1', kind: 'user' } },
+    );
+    const h = makeHarness(
+      [
+        { calls: [call('canvas_create', { shapes: [{ type: 'text', x: 100, y: 100, text: '新写的一步', style: { fontSize: 16 } }] })] },
+        { text: '好' },
+      ],
+      { scene },
+    );
+    h.loop.push({ kind: 'text', text: '写下这一步', at: Date.now() });
+    await h.loop.drain();
+
+    const payload = JSON.parse(h.loop.getHistory().find((m) => m.role === 'tool')!.content as string);
+    expect(payload.ok).toBe(false);
+    expect(payload.hint).toContain('canvas_snapshot');
+  });
+
+  it('矩形框住已有文字——放行，这是"给答案画框"的正常用法', async () => {
+    const scene = new Scene();
+    scene.create(
+      [{ type: 'text', id: 'sh_ans', x: 100, y: 100, text: '最终答案', style: { fontSize: 16 } }],
+      { author: { id: 'u1', kind: 'user' } },
+    );
+    const h = makeHarness(
+      [
+        { calls: [call('canvas_create', { shapes: [{ type: 'rect', x: 90, y: 90, w: 120, h: 40 }] })] },
+        { text: '好' },
+      ],
+      { scene },
+    );
+    h.loop.push({ kind: 'text', text: '给答案画个框', at: Date.now() });
+    await h.loop.drain();
+
+    const payload = JSON.parse(h.loop.getHistory().find((m) => m.role === 'tool')!.content as string);
+    expect(payload.ok).toBe(true);
+  });
+
+  it('新文字写在空白处，没有重叠——放行', async () => {
+    const scene = new Scene();
+    scene.create(
+      [{ type: 'text', id: 'sh_stmt', x: 0, y: 0, text: '题干', style: { fontSize: 16 } }],
+      { author: { id: 'u1', kind: 'user' } },
+    );
+    const h = makeHarness(
+      [
+        { calls: [call('canvas_create', { shapes: [{ type: 'text', x: 800, y: 0, text: '板书区里的新一步', style: { fontSize: 16 } }] })] },
+        { text: '好' },
+      ],
+      { scene },
+    );
+    h.loop.push({ kind: 'text', text: '写下这一步', at: Date.now() });
+    await h.loop.drain();
+
+    const payload = JSON.parse(h.loop.getHistory().find((m) => m.role === 'tool')!.content as string);
+    expect(payload.ok).toBe(true);
+  });
+});
+
 describe('图层权限 —— AI 不能毁掉用户的东西', () => {
   it('拒绝修改 user 图层，并给出可执行的 hint', async () => {
     const scene = new Scene();
@@ -644,5 +712,127 @@ describe('持续高亮', () => {
     const payload = JSON.parse(h.loop.getHistory().find((m) => m.role === 'tool')!.content as string);
     // 空数组时没有有效 id，工具会说明；关键是不再因为 schema 的 min(1) 直接报参数错
     expect(String(payload.error ?? '') + String(payload.hint ?? '')).not.toContain('at least 1');
+  });
+});
+
+/**
+ * 空转的回合必须让人看见。
+ *
+ * 推理模型会把一整轮的 token 全花在思维链上、正文和 tool_calls 都是空的
+ * （实测 stealth/ox-alpha 一次烧掉 1554 个 completion token 什么都没产出）。
+ * 屏幕上的表现是"AI 没反应"，而这和网络断了、模型挂住了、它想完决定不说话
+ * 长得一模一样——我为此查过两轮，两次都是从"一千多个 token，然后什么都没发生"
+ * 开始查的。这几条守的就是"别再静默一次"。
+ */
+describe('空转的回合', () => {
+  /**
+   * 用「帮我画个方块」而不是「讲讲这道题」：后者会被识别成求辅导，
+   * 于是走的是辅导专用的催促（"你还没拆题"），压根到不了空转这条路。
+   * 这里要验的是普通协作下的空转。
+   */
+  const ASK = '帮我画个方块';
+
+  it('先提醒一次，模型接上了就当没事发生', async () => {
+    // 第一步什么都不产出，第二步正常说话
+    const h = makeHarness([{}, { text: '好，我来讲' }]);
+    h.loop.push({ kind: 'text', text: ASK, at: Date.now() });
+    await h.loop.drain();
+
+    const nudge = h.loop.getHistory().find(
+      (m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('不要只在心里想'),
+    );
+    expect(nudge).toBeDefined();
+    expect(h.emitted.some((m) => m.t === 'error')).toBe(false);
+  });
+
+  it('一直空转就报出来，不能静默收场', async () => {
+    const h = makeHarness([{}, {}, {}, {}]);
+    h.loop.push({ kind: 'text', text: ASK, at: Date.now() });
+    await h.loop.drain();
+
+    const err = h.emitted.find((m) => m.t === 'error');
+    expect(err).toBeDefined();
+    expect((err as { message: string }).message).toContain('没给出任何动作');
+  });
+
+  it('提醒最多两次——模型真坏了的话，无限重试只是更贵的静默卡死', async () => {
+    const h = makeHarness([{}, {}, {}, {}, {}, {}]);
+    h.loop.push({ kind: 'text', text: ASK, at: Date.now() });
+    await h.loop.drain();
+
+    const nudges = h.loop
+      .getHistory()
+      .filter((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('不要只在心里想'));
+    expect(nudges).toHaveLength(2);
+  });
+
+  it('说了话只是没调工具的，不算空转——那是正常的聊天回答', async () => {
+    const h = makeHarness([{ text: '这道题的关键是勾股定理' }]);
+    h.loop.push({ kind: 'text', text: ASK, at: Date.now() });
+    await h.loop.drain();
+
+    expect(h.emitted.some((m) => m.t === 'error')).toBe(false);
+    const nudge = h.loop
+      .getHistory()
+      .find((m) => m.role === 'user' && typeof m.content === 'string' && m.content.includes('不要只在心里想'));
+    expect(nudge).toBeUndefined();
+  });
+});
+
+/**
+ * 一步里同一个调用（同工具、同参数）出现多次，只执行第一次。
+ *
+ * 真机复现过一次退化重复：模型陷进"退化重复"（degenerate repetition，
+ * 模型常见病），在一步里把同一句 interact_say 原样调了 13 次，
+ * 那次 completion 卡在了 max_tokens 上限——不是真想说 13 遍，是它
+ * 卡住了，一直吐同一段直到 token 预算耗光，流被截断。早先 executeCalls
+ * 对这个数组来者不拒，于是用户屏幕上连着刷出 13 条一模一样的消息，
+ * 一步就把步数额度烧掉一大截，一道五问的题因此没讲完就超时了。
+ */
+describe('一步里的重复调用', () => {
+  it('同工具同参数调了 5 次，只真的执行一次', async () => {
+    // call() 每次都发新 id——和真实场景一致：模型流里的每个 tool_call
+    // 各有自己的 id，即便 name/arguments 完全相同也不会共用一个 id。
+    const say = () => call('interact_say', { text: '我已经把顶点 A 标出来了，现在请告诉我哪个角是直角？' });
+    const h = makeHarness([
+      { calls: [say(), say(), say(), say(), say()] },
+      { text: '好' },
+    ]);
+    h.loop.push({ kind: 'text', text: '帮我画个方块', at: Date.now() });
+    await h.loop.drain();
+
+    // 用户屏幕上只该看到一条，不是五条
+    expect(h.events('agent.say').filter((m) => m.text.includes('哪个角是直角'))).toHaveLength(1);
+  });
+
+  it('被跳过的调用有一条"重复"结果回灌给模型，不是假装成功', async () => {
+    // 空 ids = 清除高亮，这个调用不依赖场景里有没有对应的图元，能稳定成功
+    const highlight = () => call('canvas_highlight', { ids: [], ms: 0 });
+    const h = makeHarness([{ calls: [highlight(), highlight()] }, { text: '好' }]);
+    h.loop.push({ kind: 'text', text: '帮我画个方块', at: Date.now() });
+    await h.loop.drain();
+
+    const toolMsgs = h.loop.getHistory().filter((m) => m.role === 'tool');
+    const payloads = toolMsgs.map((m) => JSON.parse(m.content as string));
+    const oks = payloads.filter((p) => p.ok);
+    const skipped = payloads.filter((p) => !p.ok && typeof p.error === 'string' && p.error.includes('已经调过'));
+    expect(oks).toHaveLength(1);
+    expect(skipped).toHaveLength(1);
+  });
+
+  it('不同参数的调用不算重复，两次都真的执行', async () => {
+    const h = makeHarness([
+      {
+        calls: [
+          call('interact_say', { text: '第一句' }),
+          call('interact_say', { text: '第二句' }),
+        ],
+      },
+      { text: '好' },
+    ]);
+    h.loop.push({ kind: 'text', text: '帮我画个方块', at: Date.now() });
+    await h.loop.drain();
+
+    expect(h.events('agent.say')).toHaveLength(2);
   });
 });

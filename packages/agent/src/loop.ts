@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid';
+import { rectContains, shapeBounds, unionBounds } from '@canvai/canvas-core';
 import type { Scene } from '@canvai/canvas-core';
-import type { AgentInputEvent, Author, ServerMessage, ToolResult } from '@canvai/protocol';
+import type { AgentInputEvent, Author, Rect, ServerMessage, ToolResult } from '@canvai/protocol';
 import { buildContextHeader, describeDiff } from './context.js';
 import { detectTutorIntent } from './intent.js';
 import { extractLeakedCalls, hasLeakedCalls } from './model/leaked-calls.js';
@@ -56,6 +57,18 @@ const POINTING_TOOLS = new Set([
   'canvas_ink',
   'canvas_pointer_move',
 ]);
+
+/**
+ * 算"真的画了一笔新东西"的工具——POINTING_TOOLS 的子集。
+ *
+ * 高亮/聚光/带看/挪光标都只是指向画布上**已经存在**的东西，满足得了
+ * "提问前指过东西"，满足不了"图文并茂"：把题面上的"x+2y"这几个字
+ * 高亮一下，跟真的画一条约束线是两件事，但两者在 markedSinceAsk 那道
+ * 闸眼里长得一样。真机反馈过：一场三问的辅导，每问之前都乖乖高亮了
+ * 一段题面文字，账本判定"提问前指了图"全过，用户看下来却是"基本都
+ * 是 chat"——没有一笔是新画的。
+ */
+const DRAWING_TOOLS = new Set(['canvas_create', 'canvas_ink']);
 
 /**
  * Agent 主循环。
@@ -124,6 +137,28 @@ export class AgentLoop {
       ask.resolve(event.answer);
       return;
     }
+
+    /**
+     * 画画不算打断一个正在等待的提问。
+     *
+     * 辅导常常让学生"画出这个三角形"作为回答的一部分——画完接着说文字答案。
+     * draw 事件是 kind:'draw'，不匹配上面的 answer 分支；原来的逻辑会把它
+     * 当成"新输入"直接 abort 当前 turn。真机复现过一次：老师问"你能画出
+     * 这个三角形吗"，学生先画、再补一句文字，画的动作把等待中的
+     * interact_ask_user 打断了——onAbort 清空 pendingAsk 却不设置
+     * t.pending，随后那句迟到的文字答案也只是一个普通 text 事件，
+     * 从没被当成"待判定的回答"记下来。模型接着调 tutor_judge，被拦下：
+     * "没有待判定的回答"——学生明明答了，账上却查无此事。
+     *
+     * 画的内容不会丢：还是会进队列，只是不打断当前这个 ask——
+     * 等它真正被回答（或者当下没人在等提问），画的内容自然会随下一轮
+     * 一起进到模型的上下文里。
+     */
+    if (event.kind === 'draw' && this.pendingAsk) {
+      this.queue.push(event);
+      return;
+    }
+
     this.queue.push(event);
     if (this.running) this.abort();
   }
@@ -202,6 +237,29 @@ export class AgentLoop {
     const failStreak = new Map<string, number>();
     /** 交回球的提醒只发一次，免得两边互相等着变成死循环 */
     let nudged = false;
+    /** 这一回合空转过几次（模型只想不做） */
+    let emptySteps = 0;
+    /**
+     * 「球没交回去却想结束」被提醒过几次。
+     *
+     * 和上面的 `nudged` 分开计数、也不共用触发条件：`nudged` 只在模型这一步
+     * **什么工具都没调**时才检查 tutorHandBack()，而实测的真实事故是模型调了
+     * 别的工具（`interact_say` 说一句"这次先停在这里"、或者干脆去调
+     * `canvas_highlight`）——`out.calls.length > 0`，`nudged` 那条分支根本不会跑到。
+     *
+     * 真机复现过两种形状：
+     *  1. 学生答完，模型不判定，直接 `interact_say` 收尾——`t.pending` 被绕过去了。
+     *  2. 判定给了，但没问下一步就直接 `interact_say` 宣布暂停——账上明明还有
+     *     3 个小问没解决，模型却当场决定"讲到这吧"。
+     * 这两种表面症状不同，根子是同一个：`tutorHandBack()` 只在零工具调用时才被
+     * 检查。所以这里不再单挑 `t.pending`，而是每一步执行完都问一遍 tutorHandBack()——
+     * 它自己知道该说哪句（判定 / 拆题 / 问下一步），三个分支都盖住。
+     *
+     * `interact_ask_user` 有硬拦（见 view-interact.ts 的 execAskUser），但那只挡了
+     * "跳过判定去问下一个"这一条路；`interact_say`、`canvas_*` 这些工具完全没挡——
+     * 守一个入口挡不住从另一扇门绕过去。
+     */
+    let handbackNudges = 0;
 
 
     try {
@@ -236,9 +294,37 @@ export class AgentLoop {
         fullText += out.text;
 
         if (out.calls.length === 0) {
-          // 辅导里"没调工具就结束"= 球断在这儿了：用户等着被问，
-          // 而模型以为自己讲完了。补一句系统提醒，再给它一次机会。
+          /**
+           * 辅导里"没调工具就结束"= 球断在这儿了：用户等着被问，
+           * 而模型以为自己讲完了。补一句系统提醒，再给它一次机会。
+           *
+           * 这一条要排在"空转"前面：两种情况都是没调工具，但辅导有更具体的
+           * 话要说（清单还剩什么、卡在哪一问）。反过来的话，辅导中的模型
+           * 会收到一句泛泛的"你什么都没做"，而不是"你还有 4 个小问没讲"。
+           */
           const nudge = nudged ? null : this.tutorHandBack();
+
+          /**
+           * 空转：既没说话，也没调工具，辅导那边也没话要说。
+           *
+           * 推理模型会把一整轮的 token 全花在思维链上然后什么都不产出——
+           * 实测 stealth/ox-alpha 偶发如此（一次 1554 个 completion token，
+           * 正文和 tool_calls 都是空的）。对用户来说这和卡死没有任何区别：
+           * 屏幕上什么都不会发生，日志里也不会有错误。
+           *
+           * 所以提醒它一句再给一次机会。限两次——真是模型坏了的话，
+           * 无限重试只是把静默的卡死换成昂贵的静默卡死。
+           */
+          if (!nudge && out.text.trim() === '' && emptySteps < 2) {
+            emptySteps++;
+            this.history.push({
+              role: 'user',
+              content:
+                '[系统] 你刚才既没有输出任何内容，也没有调用任何工具。请直接调用一个工具，或者用 interact_say 对用户说话——不要只在心里想。',
+            });
+            continue;
+          }
+
           if (nudge) {
             nudged = true;
             this.history.push({ role: 'user', content: nudge });
@@ -249,6 +335,22 @@ export class AgentLoop {
 
         toolCalls += out.calls.length;
         await this.executeCalls(out.calls, ctx, turnId, failStreak);
+
+        /**
+         * 这一步调了工具（不是零工具），球有没有真的交回去。
+         *
+         * `tutorHandBack()` 到这里如果还有话说，说明该判的没判、该问的没问、
+         * 该拆的没拆——不管模型这一步实际调了什么工具，都还没把球交回用户手里。
+         * 复现过的两种真实事故见上面 handbackNudges 声明处的注释。
+         */
+        if (this.opts.session.mode === 'tutor' && handbackNudges < 4) {
+          const handback = this.tutorHandBack();
+          if (handback) {
+            handbackNudges++;
+            this.history.push({ role: 'user', content: handback });
+            continue;
+          }
+        }
 
         if (failStreak.size > 0 && [...failStreak.values()].some((n) => n >= 3)) {
           this.history.push({
@@ -285,6 +387,22 @@ export class AgentLoop {
 
     this.announceTutorPause();
 
+    /**
+     * 整轮下来用户什么都没看见，就得明说。
+     *
+     * 不说的话，界面上的表现是"AI 没反应"——而这和网络断了、和模型
+     * 挂住了、和它认真想完决定不说话，全都长得一模一样。我为此查过两轮，
+     * 第一轮是 tool_call 分片拼串了，第二轮是模型把 token 全花在思维链上。
+     * 两次都是从"一千多个 token，然后什么都没发生"开始查的。
+     */
+    if (toolCalls === 0 && fullText.trim() === '' && reason !== 'aborted' && !error) {
+      this.opts.emit({
+        t: 'error',
+        message: '这一轮模型没给出任何动作',
+        detail: '它只输出了思维链，没有说话也没有调用工具。再说一遍试试。',
+      });
+    }
+
     this.opts.emit({ t: 'agent.turn.end', turnId, reason });
     return { turnId, steps, reason, text: fullText, toolCalls, ...(error ? { error } : {}) };
   }
@@ -311,7 +429,8 @@ export class AgentLoop {
         // 而它在辅导中途是再正常不过的一句，拿它重置进度会把讲过的全丢掉。
         if (session.mode === 'tutor') continue;
         session.mode = 'tutor';
-        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo, pending: null, rightSince: 0, markedSinceAsk: false, attempts: [] };
+        session.tutorJustExited = false;
+        session.tutor = { goal: said.trim().slice(0, 120), outline: [], startedTurn: this.turnNo, pending: null, rightSince: 0, markedSinceAsk: false, drawnSinceJudge: true, drawAskBlockCount: 0, drawCount: 0, graphicalDrawCount: 0, graphicsBlockCount: 0, diagramBlockCount: 0, drawBlockCount: 0, askedQuestions: [], stuckStreak: 0, attempts: [], concepts: [] };
         this.opts.emit({ t: 'session.mode', mode: 'tutor', auto: true });
         continue;
       }
@@ -319,8 +438,30 @@ export class AgentLoop {
       // exit / switch：都是离开辅导，但离开的理由不一样，说给用户的话也不该一样
       if (session.mode !== 'tutor') continue;
       const left = session.tutor?.outline.filter((i) => !i.done) ?? [];
+      /**
+       * 半路走人，已经答对的那几步也要落进图谱。
+       *
+       * 早先是攒到 tutor_finish 才一次写入，中途退出全部丢弃，理由写的是
+       * "他其实并没有走完"。但那句话把两件事混在一起了：走完这道题，
+       * 和会不会某个知识点。掌握度是**按知识点**记的——他在勾股定理上
+       * 连答对五步然后说"先不学了"，那五步是真的发生了。
+       *
+       * 而且过度记分这个担心本来就不成立：辅导里全是 guided，
+       * 涨到 GUIDED_CEIL(0.55) 就封顶，永远够不着 0.6「基本掌握」。
+       *
+       * 实测里这条不是理论问题：模型驱动的整场辅导常常在第 3、4 问上
+       * 断掉，于是每一次都"图谱一个点都没记上"——而学生明明答对了六次。
+       */
+      const unsaved = session.tutor?.attempts ?? [];
+      if (this.opts.knowledge && unsaved.length > 0) {
+        void this.opts.knowledge
+          .record(unsaved)
+          .catch(() => {}); // 落盘失败不该拖住"用户想退出"这件事
+      }
+
       session.mode = 'assist';
       session.tutor = null;
+      session.tutorJustExited = true;
       this.opts.emit({ t: 'agent.todo', items: [] });
       this.opts.emit({
         t: 'session.mode',
@@ -363,6 +504,39 @@ export class AgentLoop {
       text: `（这次辅导先停在这里——${where}。想接着学，说一声就行。）`,
       interruptible: true,
     });
+  }
+
+  /**
+   * 板书写着写着，就写到镜头外面去了——系统自己把视口撑大，不指望
+   * 模型自觉调 canvas_zoom_to。
+   *
+   * 用户先是要求"画板书时把镜头带过去"，真机验证过：这道闸让镜头
+   * 追着最新一笔走，反而经常把题目图形甩出画面——用户直接指出"为什么
+   * 学生看不到当前的几何图形"。改成"别做视角转移，回到全局视角"之后
+   * 又发现新问题：镜头压根不挪了，板书写到后面，整块内容又慢慢挪出了
+   * 视口——用户又指出"目前板书已经不在视角范围内了，只是不要 zoom in
+   * 而已"。两次反馈说的是同一件事：这不该是一道"逼模型调用某个工具"
+   * 的闸，是系统自己该维护的不变量——题目图形和已经写下的板书，任何
+   * 时候都不该被甩出视口。只**扩大**视口去包住新内容，不重新取景、
+   * 不缩小，这样已经在看的范围始终留在画面里，纯粹是把新写的这块也
+   * 纳进来。
+   */
+  private fitViewportToTutorContent(): void {
+    const relevant = this.opts.scene
+      .all()
+      .filter((s) => s.layer === 'ai' || s.layer === 'annot' || (s.layer === 'user' && s.type !== 'text' && s.type !== 'latex'));
+    if (relevant.length === 0) return;
+
+    const target = unionBounds(relevant.map(shapeBounds));
+    const margin = 40;
+    const padded: Rect = [target[0] - margin, target[1] - margin, target[2] + margin * 2, target[3] + margin * 2];
+
+    const current = this.opts.session.viewport;
+    if (rectContains(current, padded)) return; // 已经全在视口里，不用动
+
+    const next = unionBounds([current, padded]);
+    this.opts.session.viewport = next;
+    this.opts.emit({ t: 'agent.viewport', rect: next, animate: true });
   }
 
   /* ---- 回合时限：只在 Agent 自己干活时走表 ---- */
@@ -538,10 +712,47 @@ export class AgentLoop {
     turnId: string,
     failStreak: Map<string, number>,
   ): Promise<void> {
-    const readonly = calls.filter((c) => this.registry.isReadonly(c.function.name));
-    const writes = calls.filter((c) => !this.registry.isReadonly(c.function.name));
+    /**
+     * 同一步里一模一样的调用（同工具名、同参数）只认第一个。
+     *
+     * 真机撞见过一次退化重复：模型在一步里把"我已经把顶点 A 标出来了，
+     * 现在请告诉我……"这句 interact_say 原样调了 13 次，那次completion
+     * 正好卡在 4096（max_tokens 上限）——不是模型真想说 13 遍，是它陷进了
+     * 退化重复（degenerate repetition，模型常见病），一直吐同一段直到
+     * 把这一步的 token 预算耗光，流被截断。早先这里对 calls 数组来者不拒，
+     * 于是用户屏幕上连着刷出 13 条一模一样的消息，一步就把步数额度和
+     * token 都烧掉一大截，五问的题因此没讲完就超时了。
+     *
+     * 判重是"同工具名+同参数"，不看顺序、不只看相邻——一个模型在一步里
+     * 有意义地把同一个调用原样发两遍，这种场景几乎不存在。跳过的调用
+     * 仍然要给一条 tool 结果（模型能看到"这条被跳过了，别再发一遍"），
+     * 但不会真的执行第二次——不会重复画、不会重复说话、不会重复判定。
+     */
+    const seen = new Set<string>();
+    const deduped: ToolCall[] = [];
+    const skipped = new Map<string, ToolCall>();
+    for (const c of calls) {
+      const key = `${c.function.name}:${c.function.arguments}`;
+      if (seen.has(key)) {
+        skipped.set(c.id, c);
+        continue;
+      }
+      seen.add(key);
+      deduped.push(c);
+    }
+
+    const readonly = deduped.filter((c) => this.registry.isReadonly(c.function.name));
+    const writes = deduped.filter((c) => !this.registry.isReadonly(c.function.name));
 
     const results = new Map<string, ToolResult>();
+
+    for (const c of skipped.values()) {
+      results.set(c.id, {
+        ok: false,
+        error: '这一步里已经调过一模一样的工具和参数了，这次没有真的再执行一遍',
+        hint: '别在同一步里把同一个调用重复发好几遍——想接着做别的就换个不同的调用，或者直接结束这一步。',
+      });
+    }
 
     await Promise.all(
       readonly.map(async (c) => {
@@ -600,6 +811,26 @@ export class AgentLoop {
       if (POINTING_TOOLS.has(name) && this.opts.session.tutor) {
         this.opts.session.tutor.markedSinceAsk = true;
       }
+      if (DRAWING_TOOLS.has(name) && this.opts.session.tutor) {
+        this.opts.session.tutor.drawCount += 1;
+        this.opts.session.tutor.drawnSinceJudge = true;
+        this.opts.session.tutor.drawAskBlockCount = 0;
+        /**
+         * 这一笔画的是图形还是又一段文字——两者在 drawCount 眼里长得
+         * 一样，但用户点破过："我指的板书是 canva 上画图案，而不是 chat"。
+         * canvas_ink 一定是手绘笔触（freedraw），必是图形；canvas_create
+         * 得看这次真的创建出来的图元类型，text/latex 之外的才算。
+         */
+        const ids = (result.data as { ids?: string[] } | undefined)?.ids ?? [];
+        const graphical = name === 'canvas_ink' || ids.some((id) => {
+          const s = this.opts.scene.get(id);
+          return s && s.type !== 'text' && s.type !== 'latex';
+        });
+        if (graphical) this.opts.session.tutor.graphicalDrawCount += 1;
+      }
+      if (DRAWING_TOOLS.has(name) && this.opts.session.mode === 'tutor') {
+        this.fitViewportToTutorContent();
+      }
       this.opts.emit({
         t: 'agent.tool',
         turnId,
@@ -651,8 +882,8 @@ export class AgentLoop {
         askId,
         resolve: (answer) => {
           signal.removeEventListener('abort', onAbort);
-          // 房间里别的客户端也得把提问卡收掉
-          this.opts.emit({ t: 'agent.ask.done', askId });
+          // 房间里别的客户端也得把提问卡收掉，并且要看见他答了什么
+          this.opts.emit({ t: 'agent.ask.done', askId, answer });
           if (this.controller) this.armBudget(this.controller);
           // 他开口了，这一轮不是空转——步数额度重新起算
           this.stepFloor = this.stepsInTurn;

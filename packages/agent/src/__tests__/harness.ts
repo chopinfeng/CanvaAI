@@ -1,6 +1,7 @@
 import { Scene } from '@canvai/canvas-core';
 import type { Author, ServerMessage } from '@canvai/protocol';
 import { AgentLoop } from '../loop.js';
+import type { KnowledgePort, Rasterizer, VisionProvider } from '../tools/context.js';
 import type { ChatMessage, ChatRequest, ModelClient, StreamChunk, ToolCall } from '../model/types.js';
 import type { SessionState } from '../tools/context.js';
 
@@ -80,6 +81,10 @@ export function makeHarness(
     /** 模拟用户思考了多久才答。用来验证等他的时间不该算进回合时限 */
     autoAnswerDelayMs?: number;
     maxMs?: number;
+    /** 知识图谱。不给就是"这个部署没接图谱"，辅导照跑，只是不记掌握度 */
+    knowledge?: KnowledgePort;
+    vision?: VisionProvider;
+    rasterizer?: Rasterizer;
   } = {},
 ): Harness {
   const scene = init.scene ?? new Scene();
@@ -98,6 +103,9 @@ export function makeHarness(
     model,
     scene,
     session,
+    ...(init.knowledge ? { knowledge: init.knowledge } : {}),
+    ...(init.vision ? { vision: init.vision } : {}),
+    ...(init.rasterizer ? { rasterizer: init.rasterizer } : {}),
     emit: (m) => {
       emitted.push(m);
       if (m.t === 'agent.ask' && init.autoAnswer !== undefined) {

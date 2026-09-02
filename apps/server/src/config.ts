@@ -83,11 +83,42 @@ export const config = {
   logDir: pathFromRoot('LOG_DIR', 'logs'),
   logLevel: env('LOG_LEVEL', 'info'),
 
-  deepseek: {
-    apiKey: env('DEEPSEEK_API_KEY'),
-    baseUrl: env('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
-    model: env('DEEPSEEK_MODEL', 'deepseek-chat'),
-    reasonerModel: env('DEEPSEEK_REASONER_MODEL', 'deepseek-reasoner'),
+  /**
+   * 驱动 Agent 的大模型。任何 OpenAI 兼容端点都行。
+   *
+   * 字段先读 LLM_*，读不到再退回 DEEPSEEK_*——早先这里写死了 DeepSeek 的名字，
+   * 换成别的模型（OpenRouter 上的 stealth/ox-alpha）之后那套变量名就在说谎了。
+   * 保留旧名是因为已经部署出去的 .env 还在用它，静默失效比改名更糟。
+   */
+  llm: {
+    apiKey: env('LLM_API_KEY') || env('DEEPSEEK_API_KEY'),
+    baseUrl: env('LLM_BASE_URL') || env('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
+    model: env('LLM_MODEL') || env('DEEPSEEK_MODEL', 'deepseek-chat'),
+    reasonerModel: env('LLM_REASONER_MODEL') || env('DEEPSEEK_REASONER_MODEL') || env('LLM_MODEL') || 'deepseek-reasoner',
+    /**
+     * 单次回复的 token 上限——推理模型的思维链也算在这里面，跟下面
+     * vlm.maxTokens 同一个坑。真机录像复现过：辅导一道微分方程讲到
+     * 系数匹配那步，默认的 4096 被思维链吃光，模型"没有任何动作"，
+     * 一场里发生了 5 次，其中一次连着好几轮都翻不过去，直到外部
+     * 20 分钟兜底把整场辅导硬掐断——不是模型卡住了，是嘴被捂上了。
+     */
+    maxTokens: Number(env('LLM_MAX_TOKENS', '8192')),
+  },
+
+  /**
+   * 一个回合能花多少。
+   *
+   * maxSteps 是真正的"别原地打转"闸门；maxMs 只是兜底，用来防止卡死。
+   * 可配是因为它和模型速度强相关：90 秒是照 DeepSeek 调的，
+   * 换到 stealth/ox-alpha（单次调用 10~20 秒）之后，同样的开场动作
+   * ——查画布、读图元、查知识点、拆题、标注、提问——还没走完就被掐断，
+   * 学生看到的是老师刚拆完题就说"这次先停在这里"。
+   *
+   * 掐断的是**慢**，不是**错**。所以调的是时间，不是步数。
+   */
+  turn: {
+    maxSteps: Number(env('AGENT_TURN_STEPS', '12')),
+    maxMs: Number(env('AGENT_TURN_MS', '90000')),
   },
 
   vlm: {
@@ -113,6 +144,6 @@ export const config = {
   mathSidecarUrl: env('MATH_SIDECAR_URL', 'http://127.0.0.1:8787'),
 } as const;
 
-export const hasAgent = (): boolean => config.deepseek.apiKey.length > 0;
+export const hasAgent = (): boolean => config.llm.apiKey.length > 0;
 export const hasVision = (): boolean =>
   config.vlm.baseUrl.length > 0 && config.vlm.apiKey.length > 0 && config.vlm.model.length > 0;

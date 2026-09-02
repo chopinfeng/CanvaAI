@@ -225,12 +225,41 @@ doc.on('update', (update: Uint8Array, origin: unknown) => {
 });
 
 let done = false;
+let gotServerState = false;
 let settle: NodeJS.Timeout | null = null;
 
-ws.on('open', () => {
+function askForState(): void {
   const enc = encoding.createEncoder();
   syncProtocol.writeSyncStep1(enc, doc);
   send(FrameTag.Sync, encoding.toUint8Array(enc));
+}
+
+ws.on('open', () => {
+  askForState();
+
+  /**
+   * 握手要会重发，等不到还要报错退出——两件事都不能省。
+   *
+   * 服务端刚启动时会把第一次的 step1 丢掉：日志里 room.loaded 和 ws.join
+   * 是同一秒，房间还在从磁盘加载，而它之后**不会补发**。实测撞到过。
+   *
+   * 「等到服务端状态再动手」修掉了在空文档上清理导致灌两份的问题，
+   * 但也带来一个新的失败模式：状态不来就永远等下去，屏幕上什么都不打印。
+   * 挂住比写错更难查——至少写错还留下痕迹。
+   */
+  let tries = 0;
+  const retry = setInterval(() => {
+    if (done || gotServerState) return clearInterval(retry);
+    if (++tries > 7) {
+      clearInterval(retry);
+      console.error(
+        `重发了 ${tries - 1} 次握手也没收到房间「${roomId}」的状态。\n` +
+          `服务端在跑吗？ curl http://localhost:${PORT}/health`,
+      );
+      process.exit(1);
+    }
+    askForState();
+  }, 2000);
 });
 
 ws.on('message', (data: ArrayBuffer | Buffer) => {
@@ -240,7 +269,17 @@ ws.on('message', (data: ArrayBuffer | Buffer) => {
 
   const dec = decoding.createDecoder(payload);
   const enc = encoding.createEncoder();
-  syncProtocol.readSyncMessage(dec, enc, doc, 'remote');
+  /**
+   * readSyncMessage 会把消息类型返回出来。0 是 step1（服务端来要我们的状态），
+   * 1 是 step2、2 是 update——后两者才代表"服务端把它有的东西给我们了"。
+   *
+   * 这个区分是必需的。只等"400ms 没新消息"的话，服务端刚启动、房间还在
+   * 从磁盘加载时，我们收到的只有一条 step1，然后就安静了——于是在**空文档**上
+   * 执行清理（删了个寂寞），写完新的一份，等服务端的真实状态到达时 CRDT 一合，
+   * 画布上就是两份题。实测在房间 amc 上撞出过 34 个图元（应该是 17）。
+   */
+  const kind = syncProtocol.readSyncMessage(dec, enc, doc, 'remote');
+  if (kind !== syncProtocol.messageYjsSyncStep1) gotServerState = true;
   if (encoding.length(enc) > 0) send(FrameTag.Sync, encoding.toUint8Array(enc));
 
   if (done) return;
@@ -253,6 +292,7 @@ ws.on('message', (data: ArrayBuffer | Buffer) => {
    * 重跑一次就在画布上叠一层（实测叠出 507 个图元）。
    * 改成「不再收到 sync 消息 400ms」才动手。
    */
+  if (!gotServerState) return; // 服务端还没把它有的东西给我们，现在动手就是在空文档上动手
   if (settle) clearTimeout(settle);
   settle = setTimeout(() => {
     if (done) return;

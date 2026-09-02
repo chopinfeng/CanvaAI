@@ -5,7 +5,11 @@ build/
 .env
 .env.local
 .DS_Store
-data/
+# 只忽略仓库根的 data/——那里放的是下载来的 K12-KGraph（CC BY-NC-SA，不能入库）
+# 和房间快照。写成 `data/` 会匹配任意层级，把 packages/knowledge/data 下
+# 我们自建的本科图谱也一起吃掉：提交信息说它随代码走，新克隆一份却没有，
+# 测试直接失败。斜杠开头这一个字符就是全部区别。
+/data/
 *.sqlite
 *.sqlite-journal
 .venv/
@@ -20,3 +24,5 @@ logs/
 .work/pages/
 .work/crops/
 .work/crops.json
+# 录像：几十 MB 一个，而且里面是当次跑出来的对话内容
+.work/recordings/

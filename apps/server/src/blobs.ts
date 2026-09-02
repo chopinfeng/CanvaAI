@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import { AwsClient } from 'aws4fetch';
 import { config } from './config.ts';
@@ -15,10 +15,25 @@ import { log } from './log.ts';
  * 所以把落盘这件事收到一个接口后面：本地用文件，云上用 R2。
  * 上面的 Room 和 LearnerStore 不需要知道自己写在哪儿。
  */
+/** 列目录时顺带给出的元信息，够做"最近用的排前面"就行 */
+export interface BlobInfo {
+  key: string;
+  size: number;
+  /** 毫秒时间戳；取不到就是 0 */
+  modified: number;
+}
+
 export interface BlobStore {
   get(key: string): Promise<Uint8Array | null>;
   put(key: string, bytes: Uint8Array): Promise<void>;
   list(prefix: string): Promise<string[]>;
+  /**
+   * 带时间的列目录。
+   *
+   * 切换画布时"最近改过的排最前"几乎是唯一有用的排序——按名字排的话，
+   * 你刚建的房间可能沉在二十个测试房间中间。
+   */
+  listDetailed(prefix: string): Promise<BlobInfo[]>;
   remove(key: string): Promise<void>;
   /** 给日志用，说清楚这次到底写到哪儿去了 */
   readonly kind: string;
@@ -42,10 +57,22 @@ export class FileBlobStore implements BlobStore {
    * 落地前再确认一次结果仍在 root 底下。
    */
   private path(key: string): string {
+    /**
+     * 允许 Unicode 字母和数字，不只是 ASCII。
+     *
+     * 早先这里写的是 `[^\w.\-]`，而 JS 的 `\w` 不带 u 标志只等于
+     * [A-Za-z0-9_]——于是房间名「中文高中」落盘成了 `____`，
+     * 四个汉字变成四个下划线，列表上谁也认不出那是哪张画布。
+     * 中文名是这个产品最自然的用法，不该被安全检查顺手砍掉。
+     *
+     * 防路径穿越靠的是另外两道：滤掉 . 和 ..（替换前后各滤一次，
+     * 免得替换过程中拼出新的 ..），以及最后那道 resolve 必须落在 root 之下。
+     */
     const safe = key
       .split('/')
       .filter((seg) => seg !== '' && seg !== '.' && seg !== '..')
-      .map((seg) => seg.replace(/[^\w.\-]/g, '_'))
+      .map((seg) => seg.replace(/[^\p{L}\p{N}._-]/gu, '_'))
+      .filter((seg) => seg !== '' && seg !== '.' && seg !== '..')
       .join('/');
 
     const file = resolve(this.root, safe);
@@ -88,6 +115,25 @@ export class FileBlobStore implements BlobStore {
     const dir = this.path(prefix);
     try {
       return (await readdir(dir)).map((f) => `${prefix.replace(/\/$/, '')}/${f}`);
+    } catch {
+      return [];
+    }
+  }
+
+  async listDetailed(prefix: string): Promise<BlobInfo[]> {
+    const dir = this.path(prefix);
+    try {
+      const names = await readdir(dir);
+      const out: BlobInfo[] = [];
+      for (const f of names) {
+        try {
+          const st = await stat(join(dir, f));
+          out.push({ key: `${prefix.replace(/\/$/, '')}/${f}`, size: st.size, modified: st.mtimeMs });
+        } catch {
+          // 列的过程中文件被删掉了，跳过就好
+        }
+      }
+      return out;
     } catch {
       return [];
     }
@@ -163,6 +209,26 @@ export class R2BlobStore implements BlobStore {
     const xml = await res.text();
     // 只需要 key，为这个引一个 XML 解析器不值当
     return [...xml.matchAll(/<Key>([^<]+)<\/Key>/g)].map((m) => m[1]!);
+  }
+
+  async listDetailed(prefix: string): Promise<BlobInfo[]> {
+    const u = new URL(this.base);
+    u.searchParams.set('list-type', '2');
+    u.searchParams.set('prefix', prefix.replace(/\/$/, '') + '/');
+    const res = await this.client.fetch(u.toString());
+    if (!res.ok) throw new Error(`R2 列 ${prefix} 失败：${res.status}`);
+    const xml = await res.text();
+
+    // 逐个 <Contents> 块取 Key/Size/LastModified，别跨块串味
+    return [...xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)].map((m) => {
+      const b = m[1]!;
+      const pick = (tag: string) => (b.match(new RegExp(`<${tag}>([^<]*)</${tag}>`)) ?? [, ''])[1]!;
+      return {
+        key: pick('Key'),
+        size: Number(pick('Size')) || 0,
+        modified: Date.parse(pick('LastModified')) || 0,
+      };
+    });
   }
 
   async remove(key: string): Promise<void> {

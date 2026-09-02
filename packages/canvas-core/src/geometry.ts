@@ -84,9 +84,20 @@ function estimateTextWidth(s: Shape): number {
   if (s.type !== 'text' && s.type !== 'latex') return 0;
   const fs = s.style.fontSize ?? 16;
   // 粗估：CJK 按 1em，ASCII 按 0.55em。服务端无字体度量，够用即可。
-  let units = 0;
-  for (const ch of s.text ?? '') units += ch.charCodeAt(0) > 0x2e80 ? 1 : 0.55;
-  return units * fs;
+  //
+  // 宽度是**最长的那一行**，不是整段文字的字符总数——真机复现过：一道
+  // 8 行的题干（每行几十个字符），这里没按 \n 拆行就直接把全文字符数
+  // 加总，算出来的"宽度"是真实最长行的 5-6 倍，超过 2500px，把碰撞
+  // 检测的判定区域撑到了画布右侧一大片本来是空白的地方。后果不是
+  // "宽度数字不准"这么轻——AI 讲题时被这片虚假的碰撞区拦下，反复说
+  // "找不到没被占用的地方"，答对的题干脆卡死不动。
+  let maxUnits = 0;
+  for (const line of (s.text ?? '').split('\n')) {
+    let units = 0;
+    for (const ch of line) units += ch.charCodeAt(0) > 0x2e80 ? 1 : 0.55;
+    if (units > maxUnits) maxUnits = units;
+  }
+  return maxUnits * fs;
 }
 
 function estimateTextHeight(s: Shape): number {
@@ -205,6 +216,30 @@ export function segmentIntersection(s1: Segment, s2: Segment): Point | null {
   if (t < -EPS || t > 1 + EPS || u < -EPS || u > 1 + EPS) return null;
 
   return pt(x1 + t * (x2 - x1), y1 + t * (y2 - y1));
+}
+
+/**
+ * 一条线段有没有真的从一个矩形中间穿过去——不是"有没有重叠"。
+ *
+ * 真机复现过："板书图案得挨着题目图形"这道闸只查包围盒相交，逼着
+ * 模型把文字写进了三角形内部——结果新写的字被三角形自己的边、
+ * 高线从中间划了过去，读不出来。纯包围盒重叠判断不出这个：一条边
+ * 的包围盒能盖住大半个三角形内部，但线本身只是那个盒子里的一条
+ * 对角线，文字写在盒子里别的空白角落完全不会被划到，写在线正上面
+ * 才会。矩形的四条边里只要有一条被这条线段穿过，或者线段的某个
+ * 端点本身就落在矩形里，就算穿过。
+ */
+export function rectCrossedBySegment(rect: Rect, seg: Segment): boolean {
+  if (rectContainsPoint(rect, seg.a) || rectContainsPoint(rect, seg.b)) return true;
+  const [x, y, w, h] = rect;
+  const corners = [pt(x, y), pt(x + w, y), pt(x + w, y + h), pt(x, y + h)];
+  const edges: Segment[] = [
+    { a: corners[0]!, b: corners[1]! },
+    { a: corners[1]!, b: corners[2]! },
+    { a: corners[2]!, b: corners[3]! },
+    { a: corners[3]!, b: corners[0]! },
+  ];
+  return edges.some((edge) => segmentIntersection(seg, edge) !== null);
 }
 
 /** 点到线段的最近距离 */

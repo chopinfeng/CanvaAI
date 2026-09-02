@@ -63,6 +63,19 @@ export class Connection {
     });
   }
 
+  /** 连上之后跑一次。已经连上就立刻跑——send() 在没连上时是静默丢弃的 */
+  private openOnce: Array<() => void> = [];
+  onceOpen(fn: () => void): () => void {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      fn();
+      return () => {};
+    }
+    this.openOnce.push(fn);
+    return () => {
+      this.openOnce = this.openOnce.filter((f) => f !== fn);
+    };
+  }
+
   connect(): void {
     this.closedByUser = false;
     if (this.reconnectTimer) {
@@ -87,6 +100,11 @@ export class Connection {
     ws.onopen = () => {
       this.retry = 0;
       this.opts.onStatusChange?.('open');
+      // 断线重连时也会跑到这里，所以 openOnce 得先取出再清空，
+      // 否则一次重连会把"只做一次"的事情重做一遍
+      const waiting = this.openOnce;
+      this.openOnce = [];
+      for (const fn of waiting) fn();
       // 主动发 step1，双向握手更稳
       const enc = encoding.createEncoder();
       syncProtocol.writeSyncStep1(enc, this.doc);

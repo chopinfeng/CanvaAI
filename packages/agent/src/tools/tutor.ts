@@ -1,3 +1,4 @@
+import { rectsIntersect, shapeBounds, unionBounds } from '@canvai/canvas-core';
 import { kgLookup, tutorFinish, tutorJudge, tutorPlan, err, ok } from '@canvai/protocol';
 import type { ToolExecutor } from './context.js';
 
@@ -14,15 +15,51 @@ import type { ToolExecutor } from './context.js';
 
 export const execTutorPlan: ToolExecutor = async (raw, ctx) => {
   const a = tutorPlan.input.parse(raw);
-  const t = ctx.session.tutor;
-  if (!t) {
-    // 最常见的成因不是用错工具，是用户在你这一轮跑到一半时喊了停
-    // （"直接告诉我答案""先不学了"），账本当场就销了。
+  let t = ctx.session.tutor;
+
+  if (!t && ctx.session.tutorJustExited) {
+    // 用户刚喊过停（"直接告诉我答案""先不学了"），别把他拖回去
     return err(
       '辅导已经结束了，没有进度可记',
-      '多半是用户刚刚自己退出了辅导。别再记进度、也别想着把它拉回来——' +
+      '用户刚刚自己退出了辅导。别再记进度、也别想着把它拉回来——' +
         '按他现在的要求答就行（他要答案就给答案）。',
     );
+  }
+
+  if (!t) {
+    /**
+     * 没在辅导模式却来拆题 —— 那就开始辅导。
+     *
+     * 早先这里一律报错，理由写的是"多半是用户刚退出了"。但实测下来更常见的
+     * 是另一种：用户确实在求辅导，只是那句话没被意图正则认出来
+     * （"老师你一步步问我吧"——`一步步` 后面的动词表里没有 `问`）。
+     * 于是模型判断对了、动手了，被一个正则否决，整场辅导照讲，
+     * 但账本全空：不拆题、不判定、不记掌握度，而且不报错。三次演练里栽了三次。
+     *
+     * 模型决定开始拆题，这件事本身就是最强的意图信号。正则该是捷径，不是门闸。
+     */
+    t = {
+      goal: a.items[0]?.text.slice(0, 120) ?? '这道题',
+      outline: [],
+      startedTurn: 0,
+      pending: null,
+      rightSince: 0,
+      markedSinceAsk: false,
+      drawnSinceJudge: true,
+      drawAskBlockCount: 0,
+      drawCount: 0,
+      graphicalDrawCount: 0,
+      graphicsBlockCount: 0,
+      diagramBlockCount: 0,
+      drawBlockCount: 0,
+      askedQuestions: [],
+      stuckStreak: 0,
+      attempts: [],
+      concepts: [],
+    };
+    ctx.session.tutor = t;
+    ctx.session.mode = 'tutor';
+    ctx.emit({ t: 'session.mode', mode: 'tutor', auto: true });
   }
 
   /**
@@ -33,6 +70,64 @@ export const execTutorPlan: ToolExecutor = async (raw, ctx) => {
    * 就算他自称做出来了，也得先让他说出结果、确认无误，再回来打勾。
    */
   const first = t.outline.length === 0;
+
+  /**
+   * 开局拆题的条数要跟题目原文里的 (1)(2)(3) 对得上——不能光靠提示词劝。
+   *
+   * 实测复现过：提示词里已经写了"小问编号要一一对应"，模型还是把一道标了
+   * (1)~(5) 五问的题拆成 3 条"理解题目条件/分析图形结构/逐步求解"这种
+   * 流程步骤，账本从一开始就是缩水的，后面判完 3 条就收尾，(4)(5) 两问
+   * 用户压根没被问起。提示词对模型的约束是概率性的，这种会直接影响
+   * "题目有没有讲完"的判断必须是硬闸，不能只靠劝。
+   *
+   * 只在第一次拆题时查——后续每一轮都重发全量清单，用同样的口径查会
+   * 把"这一轮先聚焦其中两问，其余的还没提"误判成漏题。
+   *
+   * 括号里带数字不一定是小问编号——真机录像复现过一次比"漏数"更糟的：
+   * 数多了。一道三问的微分方程题，题干带着初值条件 "y(0) = 0，y′(0) = 1"，
+   * "(0)" 紧跟在变量名后面，是函数记号，不是第 0 问，却被数成了第 4 个
+   * 小问。模型据实拆了 (1)(2)(3) 三条，被这道闸拒为"少拆一条"；凑够
+   * 4 条又混进"总结思路"这种空转条目，被空转黑名单拒。两道闸互相掐着，
+   * tutor_plan 全程一次没成功过，账本永远是空的——比漏拆题目更糟，是
+   * 直接拆不成。所以紧跟在字母/撇号（函数记号 y(0)、f(x)、y′(0)）后面的
+   * 括号数字不算小问编号；真正的编号前面是标点、空白或行首。
+   */
+  if (first) {
+    const nums = new Set<string>();
+    for (const s of ctx.scene.all()) {
+      if (!s.text) continue;
+      for (const m of s.text.matchAll(/(?<![A-Za-zͰ-Ͽ'′″])[(（]\s*(\d{1,2})\s*[)）]/g))
+        nums.add(m[1]!);
+    }
+    if (nums.size > 0 && a.items.length < nums.size) {
+      return err(
+        `题目原文里标了 ${nums.size} 个小问（${[...nums].join('、')}），这次只拆了 ${a.items.length} 条`,
+        '重新读一遍题目原文（canvas_query / canvas_describe），按 (1)(2)(3)... 的编号逐条对应地拆，' +
+          '不要把它们揉成"理解条件/计算/验证"这种流程步骤——每个编号至少算一条小问。',
+      );
+    }
+  }
+
+  /**
+   * 拆出来的小问里不许混"理解题目内容"这种空转条目。
+   *
+   * 真机复现过：这次条数够了（题目 3 问，拆了 4 条），但混进去的第 4 条
+   * 是"理解题目内容"——一个没有明确对错标准的条目。学生把题目复述对了、
+   * 被判过好几次 right，这一条却始终没被标 done，账本一直卡在这儿，
+   * 于是老师反反复复重问同一句"题目要求什么"，讲了十几分钟一步都
+   * 没往前挪。跟"条数不够"是同一类事故的另一种变形：数量够了，
+   * 但混进了一条谁也不知道怎样才算"完成"的空话。
+   */
+  const VAGUE_ITEM = /^(理解|审|分析|明确|回顾)(一下)?(题目|题干|条件|图形|内容|要求|结构|题意)*$|^(逐步)?求解$|^总结(思路|方法)?$|^验证结果$|^计算$/;
+  const vague = a.items.filter((i) => VAGUE_ITEM.test(i.text.replace(/^[(（]\s*\d{1,2}\s*[)）]\s*/, '').trim()));
+  if (vague.length > 0) {
+    return err(
+      `这几条不是真正的小问，是空转的流程标签：${vague.map((i) => i.text).join('；')}`,
+      '"理解题目内容"这类条目没有明确的对错标准，打不上勾，会话会卡在这儿反复重问。' +
+        '把它换成题目原文里真正要算的那一步（比如"写出拉格朗日函数 L(x,y,λ)"），' +
+        '每一条都要有一个具体、可判定对错的答案。',
+    );
+  }
 
   // 换清单时把老的 done 带过来：模型每轮重发全量，偶尔会漏标已完成的那条，
   // 漏一次就等于让用户把做出来的小问再做一遍。文字相同就认为是同一条。
@@ -46,6 +141,67 @@ export const execTutorPlan: ToolExecutor = async (raw, ctx) => {
    */
   const newlyDone = a.items.filter((i) => i.done && !wasDone.has(i.text.trim()));
   const unearned = (first || t.rightSince === 0) && newlyDone.length > 0;
+
+  /**
+   * 同一批没打勾的小问，答对过还是连着两轮原样不动——不许再这样耗下去。
+   *
+   * 前两道闸（黑名单挡空转标签、精确匹配挡一字不差的重复提问）看的都是
+   * "问题长什么样"，真机复现过绕过它们的新花样：一条措辞完全具体、
+   * 也没撞黑名单的条目（"求函数在约束条件下的极值点"），学生把它内含的
+   * 每一个子步骤都依次答对了——列方程、解方程、验证性质、复述全过程——
+   * 账本却始终不给这条打勾，老师只能一轮轮换着法子重问同一件事，
+   * 措辞每次都不完全一样，精确匹配的闸也躲了过去。这道闸看的是
+   * "账本动没动"：不管话术怎么变，undone 的集合连着两轮纹丝不动，
+   * 而这期间用户明明又答对过，本身就是信号。
+   */
+  const prevUndone = new Set(t.outline.filter((i) => !i.done).map((i) => i.text.trim()));
+  const incomingUndone = new Set(a.items.filter((i) => !i.done).map((i) => i.text.trim()));
+  const sameUndoneSet =
+    prevUndone.size > 0 &&
+    prevUndone.size === incomingUndone.size &&
+    [...prevUndone].every((x) => incomingUndone.has(x));
+
+  if (!first && t.rightSince > 0 && sameUndoneSet) {
+    t.stuckStreak += 1;
+  } else {
+    t.stuckStreak = 0;
+  }
+
+  if (t.stuckStreak >= 2) {
+    const stuck = [...incomingUndone][0] ?? '';
+    return err(
+      `「${stuck}」这条小问，用户已经答对过至少一次了，账本却连着两轮都没打勾`,
+      '这条大概率是把好几个子步骤揉在了一起，卡在"什么时候算完成"上。' +
+        '别再照原样重发这条清单了：要么现在就把它标成 done——他刚才的正确回答' +
+        '已经覆盖了这条要考的内容；要么把它拆成两条更小的小问，各自有清楚的' +
+        '对错标准，再往下问。不要只是换个说法把同一件事再问一遍。',
+    );
+  }
+
+  /**
+   * 顺手把这道题落在图谱上的知识点查出来存着。
+   *
+   * 用 mentions 不用 search：小问是一整句话，而 search 是拿查询串去匹配
+   * 节点名——实测「在两个直角三角形里分别用勾股定理写出 AD²」返回空，
+   * 而「勾股定理」返回六条。方向必须反过来扫。
+   *
+   * 用小问的文字不用 goal：goal 常常是题目标题（这次是英文的
+   * "Geometry — Triangle with an Altitude"），而图谱是中文 K12 课标，
+   * 对不上。小问是老师自己写的中文，"勾股定理""直角三角形"就在里面。
+   *
+   * 查不到也没关系：那只是说明这道题不在图谱覆盖范围内，
+   * 判定照常进行，只是不留掌握度记录。
+   */
+  if (ctx.knowledge && t.concepts.length === 0) {
+    const seen = new Set<string>();
+    for (const item of a.items) {
+      for (const hit of ctx.knowledge.mentions(item.text, 2)) {
+        if (seen.size >= 6) break;
+        seen.add(hit.id);
+      }
+    }
+    t.concepts = [...seen];
+  }
 
   t.outline = a.items.map((i) => ({
     text: i.text,
@@ -102,6 +258,22 @@ export const execTutorJudge: ToolExecutor = async (raw, ctx) => {
   t.pending = null;
   // 只有"完全对"才换来一张打勾的门票。半对说明这一步还没走通。
   if (a.verdict === 'right') t.rightSince += 1;
+  // 判完这一轮，板书还没跟上——下一次 interact_ask_user 之前得先落一笔。
+  t.drawnSinceJudge = false;
+  /**
+   * 记下这次问过的问题——一字不差问第二遍会被 interact_ask_user 拦下
+   * （见 view-interact.ts）。
+   *
+   * 原来只记 right（理由是"答错或半对之后换个角度追问是正常教学，
+   * 不能拦"）。真机复现过这道理由本身站不住：学生答"不太清楚"，
+   * 判了 wrong，然后老师把同一句"你知道如何求二阶常系数线性微分方程
+   * 的通解吗？"一字不差地问了四遍，中间只穿插了一句"没关系，我们
+   * 一起来学"——四轮里没有一次真的换了角度或把问题拆小。"换个角度
+   * 追问"这件事，靠的从来不是判定结果是 right 还是 wrong，靠的是
+   * 问题的**文字有没有真的变**——上面那条"答错/半对之后换个角度追问"
+   * 的例子本来就是拿两句不同的话在测，不会被这次改动拦下。
+   */
+  t.askedQuestions.push(judged.question.trim());
 
   /**
    * 把这次判定记到知识点上——先攒着，讲完再一次写进去。
@@ -111,7 +283,16 @@ export const execTutorJudge: ToolExecutor = async (raw, ctx) => {
    * guided 恒为 true：辅导模式下他是被一路问出来的，
    * 和自己独立做对不能记一样的分（见 knowledge/mastery.ts）。
    */
-  for (const id of a.conceptIds ?? []) {
+  /**
+   * 模型给了 conceptIds 就用它的（它最清楚这一步考的是什么）；
+   * 没给就用拆题时反查出来的那批。
+   *
+   * 兜底不是可有可无：实测 stealth/ox-alpha 整场一次都没调 kg_lookup，
+   * 七次判定一个知识点都没记上，而且全程不报错——
+   * "学生学到了什么"这条主线就那么静静地空了一整场。
+   */
+  const ids = a.conceptIds?.length ? a.conceptIds : t.concepts;
+  for (const id of ids) {
     t.attempts.push({ conceptId: id, ok: a.verdict === 'right', guided: true });
   }
 
@@ -157,6 +338,128 @@ export const execTutorFinish: ToolExecutor = async (raw, ctx) => {
       `辅导不能就这么停在这里。回到「${left[0]!.text}」，用 interact_ask_user 提一个他答得上来的问题。` +
         '如果他其实已经自己算出来了，先用 tutor_plan 把那条标成 done 再来结束。',
     );
+  }
+
+  /**
+   * 画得不够多，不许收尾。
+   *
+   * 摸这条门槛摸了三轮。第一轮全程零画，加了"至少画一笔"；第二轮卡着
+   * 底线交差（一整场三问只画一笔）；第三轮按"小问个数"算出的门槛
+   * （outline.length/2）又低估了——一道题拆成 4 个小问，但每个小问要
+   * 来回问答两三轮才能真正走完，一场辅导问了 8 次、判了 8 次，画布上
+   * 却还是只有两笔，用户对着录像问"中间有很多空白区域，为什么不做
+   * 板书"。根子是拿"小问个数"当板书量的尺子——小问个数是拆题时定的，
+   * 跟实际讲了多少内容是两回事：同一个小问可能三言两语带过，也可能
+   * 来回追问四五轮才吃透。真正该跟着走的是"问了多少次、判了多少次"，
+   * 也就是 askedQuestions 的长度——这才是这场辅导实际讲了多少内容的
+   * 尺子。
+   */
+  const needDraws = Math.max(2, Math.ceil(t.outline.length / 2), t.askedQuestions.length - 2);
+  if (t.drawCount < needDraws) {
+    /**
+     * 这道闸也不能死磕到底——真机复现过一次"确实在补，但补不满"：
+     * 一道 4 问的微分方程，门槛算出来要至少 6 笔，模型认真回应了这道
+     * 闸，一次次重试 tutor_finish 之间画布上的笔数从 0 加到 1、2、3，
+     * 不是敷衍，但补到第 3 笔就没了后劲——连着几次只重复"我需要补充
+     * 板书"却不再真的落笔，最后卡到录像脚本自己的空闲超时才收场，
+     * tutor_finish 全程一次都没通过。跟 graphicsBlockCount 一样的
+     * 道理：连着卡够次数就放行，不能让"板书够不够密"这个质量问题，
+     * 变成"这场辅导能不能有个结尾"的问题。
+     */
+    t.drawBlockCount += 1;
+    if (t.drawBlockCount < 4) {
+      return err(
+        `这场辅导问答了 ${t.askedQuestions.length} 轮，画布上却只有 ${t.drawCount} 笔——` +
+          '中间一大片空白，不是真的板书',
+        '像老师上课写板书那样，讲一步写一步：公式、算式、图形、关键结果，' +
+          '每判完一轮问答就用 canvas_create（annot 或 ai 层）留一笔——不是攒到最后' +
+          '才想起来补两笔应付。高亮题面上已经有的文字不算，那是指读，不是画。',
+      );
+    }
+  }
+
+  /**
+   * 画的东西里得有真的图案，不能全是文字。
+   *
+   * 上面那道闸只看画了几笔，没管画的是什么——真机复现过：门槛数字
+   * 凑够了，但画布上一整场全是 text 图元（公式、算式一条条拆开写），
+   * 一个真正的图形都没有。用户点破了这件事："我指的板书是 canva 上
+   * 画图案，而不是 chat"——写字写在画布上，跟写在聊天框里，对用户
+   * 来说观感上没什么区别，都是在读一段文字，不是在看一张图。
+   * 哪怕这道题本身偏符号推导（微分方程、乘数法），也该有至少一笔
+   * 真正的图案——坐标系、示意曲线、辅助线、数轴——不能一整场只有字。
+   */
+  if (t.graphicalDrawCount === 0) {
+    /**
+     * 这道闸不能死磕到底——真机复现过一次真正的卡死：一道纯符号推导
+     * 的微分方程题，模型反复说"我已经画在画布上了"，却始终没有真的
+     * 创建出一个非文字图元，接着开始把同一批总结话术颠来倒去地重复，
+     * 十分钟没有任何新进展。大概率是想不出该画什么，或者画一条真正
+     * 贴合解的曲线（要采样坐标点）对它来说太难。硬闸挡住了"应付了事"，
+     * 但没给"确实想不出"这种情况留退路，反而更糟——比没图更糟的是
+     * 卡死讲不完。连着卡了 3 次就放行，把"至少一笔图案"从硬性要求
+     * 退成"尽量做到"。
+     */
+    t.graphicsBlockCount += 1;
+    if (t.graphicsBlockCount < 3) {
+      return err(
+        '这场辅导画的全是文字（公式、算式），一个真正的图案都没有',
+        '公式写成文字只是板书的一半，另一半得是图。想不出复杂的图也没关系，' +
+          '挑一个最简单的：画一个坐标轴（两条互相垂直的 line）、给最终答案画一个' +
+          '方框（一个 rect）、或者在关键结果旁边画一个箭头（arrow）——只要是' +
+          'line/rect/ellipse/arrow/polygon/freedraw 这类非文字的图元，随便哪个都行，' +
+          '不用非画一条精确的曲线。',
+      );
+    }
+  }
+
+  /**
+   * 题目自带一个真图形的话，板书里得有真的标注（写了具体内容的文字）
+   * 落在它身上或旁边，不能靠一笔什么都没写的图案凑数过闸。
+   *
+   * 这道闸摸了两轮才摸到现在这个样子。第一轮：一道自带三角形矢量图
+   * 的几何题，问答五轮全对，画布上也确实有一个非文字图元——但那是
+   * 给最后一行文字结果画的方框，跟三角形隔着一大片空白，从头到尾
+   * 没碰过那个三角形一下。加了"图案得挨着图形"的检查（只查包围盒
+   * 相交）之后，第二轮又复现了更精明的绕法：先画一个远离图形的空
+   * 方框凑够"有图案"，被拒之后，又精确算出一条贴着三角形左右两个
+   * 顶点、长度和位置分毫不差的红线——这条线不标注任何东西，纯粹是
+   * 为了让包围盒相交判定通过而画的，学生真正算出来的答案（R≈8.125）
+   * 反而没有写进画布。只查"有没有图案挨着图形"堵不住这个漏洞——
+   * 图元是不是文字、有没有写实际内容，比"是不是图案"更能反映这一笔
+   * 是不是真的在讲什么，而不是在应付检查。所以这里改查"有没有一段
+   * 写了具体内容的文字，落在图形附近"：文字天然带着内容，不可能像
+   * 一条线那样空画一笔就过关。
+   */
+  const givenDiagram = ctx.scene.all().filter((s) => s.layer === 'user' && s.type !== 'text' && s.type !== 'latex');
+  if (givenDiagram.length > 0) {
+    const diagramBounds = unionBounds(givenDiagram.map(shapeBounds));
+    const margin = 120;
+    const expanded = [
+      diagramBounds[0] - margin,
+      diagramBounds[1] - margin,
+      diagramBounds[2] + margin * 2,
+      diagramBounds[3] + margin * 2,
+    ] as const;
+    const aiAnnotations = ctx.scene.all().filter((s) => s.layer === 'ai' || s.layer === 'annot');
+    const touchedDiagram = aiAnnotations.some(
+      (s) => (s.type === 'text' || s.type === 'latex') && !!s.text?.trim() && rectsIntersect(shapeBounds(s), [...expanded]),
+    );
+    if (!touchedDiagram) {
+      // 同样留好退路，别把"标没标到位"变成"能不能收尾"的生死问题。
+      t.diagramBlockCount += 1;
+      if (t.diagramBlockCount < 3) {
+        return err(
+          '题目自带一个图形，但板书里没有一段真写了内容的文字落在它附近',
+          '光画一条线、一个框满足不了这道闸——那种笔画不标注任何东西，糊弄不过去。得用 canvas_create' +
+            '在图形本身附近写一段有实际内容的文字/latex：贴着某条边标上求出的长度、在顶点旁写一个' +
+            '算出来的角度、把最终答案直接标在对应的点或边旁边。给最终答案单独画个空框、或者画一笔' +
+            '什么都没写的线/图形，都满足不了——得是写了具体数值或算式的文字，还要真的落在图形附近，' +
+            '不能隔着一大片空白各画各的。题目图形每个部分的真实 id 已经摆在上下文的「题目上的图形' +
+            '图元」那行，别再靠猜。',
+        );
+      }
+    }
   }
 
   const count = t.outline.length;

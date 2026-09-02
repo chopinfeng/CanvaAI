@@ -5,7 +5,7 @@ import { AgentPanel } from './ui/AgentPanel';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import { Toolbar } from './ui/Toolbar';
 import { Confetti } from './ui/Confetti';
-import { VisionSettings } from './ui/VisionSettings';
+import { VisionSettings, loadVision } from './ui/VisionSettings';
 import { CanvasStage } from './canvas/CanvasStage';
 import { Connection } from './net/connection';
 import { shapeBounds } from '@canvai/canvas-core';
@@ -44,6 +44,28 @@ export function App() {
     return c;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
+
+  /**
+   * ?import=<assetId>：从"传试卷到新画布"跳过来的。
+   *
+   * 图在跳转**之前**就已经传到服务端了，所以这里只需要触发识别。
+   * 反过来做不到——File 对象过不了页面边界。
+   *
+   * 触发后立刻把参数从地址栏抹掉：留着的话，刷新一次就会把同一张卷子
+   * 再识别一遍，用户会以为自己手抖点了两次。
+   */
+  useEffect(() => {
+    const assetId = new URLSearchParams(location.search).get('import');
+    if (!assetId) return;
+    const v = loadVision();
+    const off = conn.onceOpen(() => {
+      conn.send({ t: 'paper.import', assetId, vision: { baseUrl: v.baseUrl, apiKey: v.apiKey, model: v.model } });
+    });
+    const q = new URLSearchParams(location.search);
+    q.delete('import');
+    history.replaceState(null, '', `${location.pathname}?${q.toString()}`);
+    return off;
+  }, [conn]);
 
   /* ---------------------------------------------------------------- *
    * 场景 → store
@@ -109,10 +131,22 @@ export function App() {
         });
         break;
 
-      case 'agent.ask.done':
+      case 'agent.ask.done': {
         // 可能是这台答的，也可能是别处答的——只要 id 对得上就收掉
         if (useStore.getState().ask?.askId === msg.askId) set({ ask: null });
+
+        /**
+         * 别处答的那句也要出现在对话流里。
+         *
+         * 不显示的话，屏幕上是「问题 → 答对了」，中间那句回答凭空消失，
+         * 判定看着像是凭空作出的。学生 Agent 走的是自己的连接，
+         * 两个人共用一张画布时也一样——回答只有回答的那一端知道。
+         */
+        if (msg.answer && !useStore.getState().answeredLocally.includes(msg.askId)) {
+          s.pushChat({ id: `ans_${nanoid(6)}`, role: 'user', text: msg.answer });
+        }
         break;
+      }
 
       case 'paper.progress': {
         // 转换过程直接说在聊天里：用户刚扔进来一张图，得知道它到哪一步了
@@ -186,15 +220,26 @@ export function App() {
         }
 
         /**
-         * 窗口尺寸拿不到就别算了。
+         * 窗口尺寸拿不到就先等一等，别直接放弃。
          *
          * 标签页在后台、窗口最小化时 innerWidth 会是 0，硬算出来的相机
          * 参数是垃圾（实测缩放被压到 0.05，用户回到前台看见一片空白）。
-         * 这和 Konva 在 0 宽高上 drawImage 崩溃是同一个根因。
+         * 但真机测出过另一种 0：房间一进来就有内容的场景（join 时机器人
+         * 立刻推一条这消息），页面刚挂载、这一帧的布局还没跑完，
+         * innerWidth/innerHeight 也读到 0——这时候直接丢掉消息，
+         * 用户就永远等不到这次自动居中。跟"真的在后台"不是一回事，
+         * 差的只是几十毫秒，retry 几次基本都能等到布局跑完；
+         * 等到上限还是 0，才按原来的逻辑当成"真的看不见"而放弃。
          */
         const vw = window.innerWidth;
         const vh = window.innerHeight;
-        if (vw < 100 || vh < 100) break;
+        if (vw < 100 || vh < 100) {
+          const attempt = (msg as { _retry?: number })._retry ?? 0;
+          if (attempt < 10) {
+            requestAnimationFrame(() => handleControl({ ...msg, _retry: attempt + 1 } as ServerMessage));
+          }
+          break;
+        }
 
         const shapes = useStore.getState().shapes;
 
@@ -286,7 +331,7 @@ export function App() {
       <ErrorBoundary label="画布">
         <CanvasStage conn={conn} me={me} />
       </ErrorBoundary>
-      <Toolbar conn={conn} onNeedKey={() => setShowVision(true)} />
+      <Toolbar conn={conn} roomId={roomId} onNeedKey={() => setShowVision(true)} />
       <AgentPanel conn={conn} onOpenVision={() => setShowVision(true)} />
       <Confetti />
       {showVision && <VisionSettings onClose={() => setShowVision(false)} />}

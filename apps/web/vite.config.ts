@@ -28,6 +28,7 @@ export default defineConfig({
       '/health': { target: 'http://localhost:3001' },
       '/assets': { target: 'http://localhost:3001' },
       '/kg': { target: 'http://localhost:3001' },
+      '/rooms': { target: 'http://localhost:3001' },
     },
   },
 });

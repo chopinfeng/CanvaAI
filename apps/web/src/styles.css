@@ -752,3 +752,299 @@ html, body, #root {
 
 .tool-sep { width: 1px; align-self: stretch; margin: 4px 3px; background: var(--border); }
 .upload-err { font-size: 11.5px; color: var(--err); padding: 0 8px; max-width: 220px; }
+
+/* ---- 画布切换器 ----------------------------------------------------
+   放在工具栏最左边：进入一个页面时"我在哪张画布上"是第一个问题。
+   早先只能靠改地址栏里的 ?room=，而房间名全在人脑子里记着。 */
+.rooms {
+  position: relative;
+}
+.rooms-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 190px;
+  padding: 6px 10px;
+  border: 1px solid #e7e5e4;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  color: #1c1917;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rooms-btn:hover { background: #fafaf9; border-color: #d6d3d1; }
+.rooms-dot {
+  width: 7px; height: 7px; flex: none;
+  border-radius: 50%;
+  background: #2563eb;
+}
+.rooms-caret { color: #a8a29e; font-size: 10px; }
+
+.rooms-menu {
+  position: absolute;
+  /* 向上开：工具栏在屏幕底部，向下开的话菜单整个掉到视口外面去 */
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 40;
+  width: 288px;
+  padding: 8px;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 -8px 32px rgba(28, 25, 23, 0.14);
+}
+.rooms-head {
+  padding: 2px 8px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #a8a29e;
+}
+/* 限高滚动：房间只会越攒越多，不能让菜单长到出屏 */
+.rooms-list { max-height: 264px; overflow-y: auto; }
+.rooms-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: #1c1917;
+  text-align: left;
+  cursor: pointer;
+}
+.rooms-item:hover { background: #f5f5f4; }
+.rooms-item.is-current { background: #eff6ff; color: #1d4ed8; font-weight: 600; }
+.rooms-name { min-width: 0; overflow: hidden; }
+.rooms-name > :not(em) { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rooms-slug {
+  display: block;
+  margin-top: 1px;
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 400;
+  color: #a8a29e;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.rooms-item { align-items: center; }
+.rooms-when { flex: none; font-size: 11px; color: #a8a29e; }
+.rooms-empty { padding: 10px 8px; font-size: 12.5px; color: #a8a29e; }
+
+.rooms-new {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f5f5f4;
+}
+.rooms-new input {
+  padding: 7px 9px;
+  border: 1px solid #e7e5e4;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 13px;
+}
+.rooms-new input:focus { outline: none; border-color: #2563eb; }
+.rooms-paper {
+  padding: 7px 9px;
+  border: 1px solid #dbeafe;
+  border-radius: 7px;
+  background: #eff6ff;
+  font: inherit;
+  font-size: 13px;
+  color: #1d4ed8;
+  cursor: pointer;
+}
+.rooms-paper:hover { background: #dbeafe; }
+.rooms-err { margin-top: 8px; padding: 0 8px; font-size: 12px; color: #dc2626; }
+.rooms-note {
+  margin-top: 8px;
+  padding: 0 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #a8a29e;
+}
+
+/* ---- 画布列表页（门厅）----------------------------------------------
+   卡片上给的是**题目标题**而不只是房间名：`ugrad` `amc3` 摆在一起谁也认不出
+   哪张是哪张卷子，而"Geometry — Triangle with an Altitude"一眼就够了。 */
+/*
+  外层滚、内层居中。
+  #root 上是 overflow:hidden（画布页需要），列表页因此一格都滚不动——
+  第三行以后的画布根本够不着。滚动容器放在这一页自己身上，
+  不去动那条全局规则。滚动条贴在视口右缘，不会浮在居中列的边上。
+*/
+.rp-scroll {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.rp {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 40px 28px 72px;
+}
+.rp-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 26px;
+}
+.rp-head h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: #1c1917;
+}
+.rp-sub { margin: 0; font-size: 13px; line-height: 1.6; color: #78716c; max-width: 60ch; }
+.rp-link {
+  flex: none;
+  padding: 7px 12px;
+  border: 1px solid #e7e5e4;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  color: #57534e;
+  cursor: pointer;
+}
+.rp-link:hover { background: #fafaf9; }
+
+.rp-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+.rp-bar input {
+  padding: 8px 11px;
+  border: 1px solid #e7e5e4;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13.5px;
+}
+.rp-bar input:focus { outline: none; border-color: #2563eb; }
+.rp-search { flex: 1 1 260px; min-width: 0; }
+.rp-name { flex: 0 1 160px; min-width: 0; }
+.rp-bar button {
+  flex: none;
+  padding: 8px 13px;
+  border-radius: 8px;
+  border: 1px solid #e7e5e4;
+  background: #fff;
+  font: inherit;
+  font-size: 13.5px;
+  color: #1c1917;
+  cursor: pointer;
+}
+.rp-bar button:hover:not(:disabled) { background: #fafaf9; }
+.rp-bar button:disabled { opacity: 0.45; cursor: default; }
+.rp-paper { border-color: #dbeafe !important; background: #eff6ff !important; color: #1d4ed8 !important; }
+.rp-paper:hover:not(:disabled) { background: #dbeafe !important; }
+
+.rp-err { margin-bottom: 18px; font-size: 13px; color: #dc2626; }
+.rp-empty { padding: 40px 0; font-size: 14px; color: #a8a29e; }
+
+.rp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  gap: 14px;
+}
+.rp-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 16px;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
+}
+.rp-card:hover {
+  border-color: #d6d3d1;
+  box-shadow: 0 6px 20px rgba(28, 25, 23, 0.07);
+  transform: translateY(-1px);
+}
+.rp-card-top { display: flex; align-items: flex-start; gap: 8px; }
+.rp-card h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: #1c1917;
+  /* 标题可能很长（整行题干），压到两行 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.rp-live {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #dcfce7;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #15803d;
+}
+.rp-card.is-broken { border-color: #fecaca; background: #fffbfb; }
+.rp-broken {
+  flex: none;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #fee2e2;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #b91c1c;
+}
+.rp-id { font-size: 11.5px; color: #a8a29e; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.rp-meta { display: flex; gap: 6px; font-size: 12px; color: #78716c; }
+.rp-head-actions { display: flex; gap: 8px; flex: none; }
+.rp-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.rp-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f5f5f4;
+  font-size: 11.5px;
+  color: #57534e;
+}
+.rp-actions { display: flex; gap: 6px; margin-top: 4px; }
+.rp-actions button {
+  padding: 5px 10px;
+  border: 1px solid #e7e5e4;
+  border-radius: 7px;
+  background: #fff;
+  font: inherit;
+  font-size: 12.5px;
+  color: #57534e;
+  cursor: pointer;
+}
+.rp-actions button:hover { background: #f5f5f4; }
+
+/* 下拉切换器里通往整页列表的入口 */
+.rooms-head { display: flex; align-items: baseline; justify-content: space-between; }
+.rooms-all {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: #2563eb;
+  cursor: pointer;
+}

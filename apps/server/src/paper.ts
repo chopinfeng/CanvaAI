@@ -1,4 +1,4 @@
-import type { Scene } from '@canvai/canvas-core';
+import { shapeBounds, unionBounds, type Scene } from '@canvai/canvas-core';
 import type { ServerMessage, ShapeInput } from '@canvai/protocol';
 import { parseJson } from './bench-score.ts';
 import { makeVisionProvider, type VisionCreds } from './vision.ts';
@@ -195,6 +195,19 @@ export async function importPaper(
     author: { id: 'import', kind: 'user', name: '导入' },
     layer: 'user',
   });
+
+  /**
+   * 转完之后自己把镜头带过去，不等用户自己去找。
+   *
+   * 原图和转换结果左右并排放，两块加起来能铺出接近 1700px 宽——
+   * 默认相机停在 (0,0)，用户打开页面十有八九只看得到左边原图那一半，
+   * 右边"识别结果，请核对"完全在视口外面，而那正是这条功能最要用户
+   * 去核对的部分。agent.viewport 这条消息本来就是给 AI 讲题时用来
+   * "把用户视线带过去"的，客户端那边已经有一整套安全收敛逻辑
+   * （收进内容范围、按窗口算合适缩放），这里直接复用，不用重新写一遍。
+   */
+  const importedBounds = unionBounds(ids.map((id) => shapeBounds(scene.get(id)!)));
+  emit({ t: 'agent.viewport', rect: importedBounds, animate: true });
 
   log.info('paper.imported', { assetId, shapes: ids.length, topic: extracted.topic });
   const result: ImportResult = {

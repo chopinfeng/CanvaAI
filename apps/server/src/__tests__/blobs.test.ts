@@ -113,3 +113,45 @@ describe('R2', () => {
     expect(await s.list('learners')).toEqual(['learners/u1.json', 'learners/u2.json']);
   });
 });
+
+/**
+ * 中文房间名。
+ *
+ * 上面那条「.. 跑不出目录」的修法用了 `[^\w.\-]`，而 JS 的 `\w` 不带 u 标志
+ * 只等于 [A-Za-z0-9_]——于是房间名「中文高中」落盘成了 `____`，
+ * 四个汉字四个下划线，列表上谁也认不出那是哪张画布。
+ * 安全和可用在这里是同一段代码的两面，得一起测。
+ */
+describe('非 ASCII 的 key', () => {
+  let dir: string;
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'canvai-blob-cn-'));
+  });
+
+  it('中文房间名落盘还是中文', async () => {
+    const s = new FileBlobStore(dir);
+    await s.put('rooms/中文高中.ydoc', new Uint8Array([1]));
+    const { readdir } = await import('node:fs/promises');
+    expect(await readdir(join(dir, 'rooms'))).toEqual(['中文高中.ydoc']);
+  });
+
+  it('中文 key 存进去读得回来', async () => {
+    const s = new FileBlobStore(dir);
+    await s.put('rooms/三角函数练习.ydoc', new Uint8Array([5, 6]));
+    expect([...(await s.get('rooms/三角函数练习.ydoc'))!]).toEqual([5, 6]);
+  });
+
+  it('日文假名也别砍', async () => {
+    const s = new FileBlobStore(dir);
+    await s.put('rooms/数学ノート.ydoc', new Uint8Array([1]));
+    const { readdir } = await import('node:fs/promises');
+    expect(await readdir(join(dir, 'rooms'))).toEqual(['数学ノート.ydoc']);
+  });
+
+  it('放宽到 Unicode 之后，.. 照样跑不出去', async () => {
+    const s = new FileBlobStore(dir);
+    await s.put('../../逃逸', new Uint8Array([9]));
+    const { readdir } = await import('node:fs/promises');
+    expect(await readdir(dir)).toEqual(['逃逸']);
+  });
+});

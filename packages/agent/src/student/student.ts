@@ -129,9 +129,23 @@ export class StudentAgent {
       const calls = await this.step();
       out.steps++;
 
+      /**
+       * 同一步里一模一样的调用（同工具、同参数）只认第一个。
+       *
+       * 真机复现过：学生 Agent 在一步里把 student_answer("题目还提到了角 B
+       * 是直角。") 原样调了近 60 次，全落在同一秒——老师那边（AgentLoop.
+       * executeCalls）已经加了这道防护，但这里是完全独立的一份循环，
+       * 没被那次修复覆盖到。不去重的话，每一次重复调用都会真的把答案
+       * 发给老师一遍，老师那边收到 60 条一样的回答，事件流被灌满垃圾。
+       */
+      const seen = new Set<string>();
       let stop = calls.length === 0;
       for (const c of calls) {
-        const result = this.run(c, out);
+        const key = `${c.function.name}:${c.function.arguments}`;
+        const result = seen.has(key)
+          ? '这一步里已经调过一模一样的工具和参数了，这次没有真的再执行一遍。'
+          : this.run(c, out);
+        seen.add(key);
         this.history.push({
           role: 'tool',
           tool_call_id: c.id,

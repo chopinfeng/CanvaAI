@@ -118,3 +118,58 @@ describe('查询', () => {
     expect(sub.edges.length).toBeGreaterThan(0);
   });
 });
+
+/**
+ * mentions：拿节点名去一段话里找，方向和 search 相反。
+ *
+ * 这个方法是被实测逼出来的。辅导拆出来的小问是**整句话**，而 search 是
+ * 拿查询串去匹配节点名——「在两个直角三角形里分别用勾股定理写出 AD²」
+ * 返回空，「勾股定理」返回六条。用 search 去认小问，一个知识点都认不出来，
+ * 于是整条掌握度主线死了一整场都没人发现。
+ */
+describe('从一整句话里认出知识点', () => {
+  const g = () => {
+    const kg = new KnowledgeGraph();
+    kg.load({
+      nodes: [
+        { id: 'c1', label: 'Concept', name: '勾股定理', properties: { aliases: ['Pythagoras theorem'] } },
+        { id: 'c2', label: 'Concept', name: '勾股定理的逆定理', properties: {} },
+        { id: 'c3', label: 'Concept', name: '直角三角形', properties: {} },
+        { id: 'c4', label: 'Concept', name: '角', properties: {} },
+        { id: 'c5', label: 'Concept', name: '直流电流', properties: { aliases: ['DC'] } },
+        { id: 's1', label: 'Section', name: '第一节 勾股定理', properties: {} },
+      ],
+      edges: [],
+    });
+    return kg;
+  };
+
+  it('整句话里的知识点认得出来——search 在这种输入上一条都返回不了', () => {
+    const got = g().mentions('在两个直角三角形里分别用勾股定理写出 AD²');
+    expect(got.map((n) => n.name)).toContain('勾股定理');
+    expect(got.map((n) => n.name)).toContain('直角三角形');
+  });
+
+  it('英文别名也认，但要卡词边界', () => {
+    expect(g().mentions('use the Pythagoras theorem here').map((n) => n.id)).toContain('c1');
+  });
+
+  it('短的英文缩写不算数——几何题里的 DC 是线段，不是直流电', () => {
+    // 实测踩到的：「解方程求出 BD 和 DC」命中了直流电流，
+    // 学生会因为做了一道三角形的题被判定"掌握了直流电"
+    expect(g().mentions('解方程求出 BD 和 DC').map((n) => n.name)).not.toContain('直流电流');
+  });
+
+  it('一个字的名字不算数——「角」在任何几何题里都出现，记了等于没记', () => {
+    expect(g().mentions('这个角是多少度').map((n) => n.name)).not.toContain('角');
+  });
+
+  it('被更长的命中包住的短名字要让位——记「逆定理」就别再记「勾股定理」', () => {
+    const got = g().mentions('用勾股定理的逆定理判断');
+    expect(got.map((n) => n.name)).toEqual(['勾股定理的逆定理']);
+  });
+
+  it('只认知识点，不认章节——记「第一节」的掌握度没有意义', () => {
+    expect(g().mentions('第一节 勾股定理讲了什么').map((n) => n.label)).not.toContain('Section');
+  });
+});

@@ -7,7 +7,7 @@ import * as syncProtocol from 'y-protocols/sync';
 import * as encoding from 'lib0/encoding';
 import * as decoding from 'lib0/decoding';
 import type { WebSocket } from 'ws';
-import { ORIGIN_AI, Scene } from '@canvai/canvas-core';
+import { ORIGIN_AI, Scene, shapeBounds, unionBounds } from '@canvai/canvas-core';
 import type { AgentInputEvent, ClientMessage, ServerMessage } from '@canvai/protocol';
 import type { FrameTagValue } from '@canvai/protocol';
 import { ClientMessageSchema, FrameTag, decodeFrame, encodeFrame } from '@canvai/protocol';
@@ -83,14 +83,21 @@ export class Room {
 
   private makeAgent(): AgentLoop {
     const model = new DeepSeekClient({
-      apiKey: config.deepseek.apiKey,
-      baseUrl: config.deepseek.baseUrl,
-      model: config.deepseek.model,
-      reasonerModel: config.deepseek.reasonerModel,
+      apiKey: config.llm.apiKey,
+      baseUrl: config.llm.baseUrl,
+      model: config.llm.model,
+      reasonerModel: config.llm.reasonerModel,
+      maxTokens: config.llm.maxTokens,
     });
 
     // 没配视觉模型就把 canvas_snapshot 摘掉——留着只会让模型反复去调一个读不出内容的工具
-    const knowledge = makeKnowledgePort(this.id);
+    /**
+     * 学的是谁——最近一次通过这个房间说话的用户。
+     *
+     * 退回房间名只在"一个客户端都没发过消息"时发生，而那种情况下
+     * 根本不会有辅导，也就不会有掌握度要记。
+     */
+    const knowledge = makeKnowledgePort(() => this.learner ?? this.id);
 
     const registry = new ToolRegistry(undefined, undefined, {
       exclude: hasVision() ? [] : ['canvas_snapshot'],
@@ -98,11 +105,23 @@ export class Room {
 
     return new AgentLoop({
       model,
+      maxSteps: config.turn.maxSteps,
+      maxMs: config.turn.maxMs,
       knowledge,
       registry,
       scene: this.scene,
       session: this.session,
-      emit: (msg) => this.broadcastControl(msg),
+      emit: (msg) => {
+        /**
+         * Agent 报的错也要落日志。
+         *
+         * 早先它只广播给客户端——于是"模型调用失败"这种事在服务端日志里
+         * 完全不存在，事后翻日志只能看到 agent.usage 停了，然后没了。
+         * 我为此把一次模型报错误判成"辅导自己不想讲了"。
+         */
+        if (msg.t === 'error') log.error('agent.error', { room: this.id, message: msg.message, detail: msg.detail });
+        this.broadcastControl(msg);
+      },
       ...(hasVision() ? { vision: makeVisionProvider() } : {}),
       ...((): { rasterizer?: ReturnType<typeof getRasterizer> } => {
         const r = getRasterizer();
@@ -149,6 +168,22 @@ export class Room {
       editMode: this.session.editMode,
       mode: this.session.mode,
     });
+
+    /**
+     * 打开一个已经有内容的房间，镜头要落在内容上，不是落在 (0,0)。
+     *
+     * 真机反馈过：题目文字从 x=80 起笔，默认相机是 (0,0,zoom:1)，
+     * 打开页面看到的是一片空白，题目在视口外面。paper.ts 导入完之后
+     * 已经会带一次镜头（agent.viewport），但那只覆盖"导入"这一条路——
+     * 手工灌好内容的房间、或者隔一阵子重新打开的房间，没人再发这条消息。
+     * 相机状态本来就是纯客户端的、每次连接都会回到默认值，所以这里
+     * 每次 join 都发不算多余——不发的话本来就是回到 (0,0)，发了才是
+     * 回到"看得见内容"的地方，只会更好不会更差。
+     */
+    if (this.scene.size > 0) {
+      const bounds = unionBounds(this.scene.all().map(shapeBounds));
+      this.sendControl(socket, { t: 'agent.viewport', rect: bounds, animate: false });
+    }
 
     return client;
   }
@@ -217,7 +252,19 @@ export class Room {
     }
   }
 
+  /**
+   * 最近一次说话的用户 id。
+   *
+   * 用它当 learnerId：掌握度跟着人走，换画布不该换一个人。
+   * 这个 id 来自浏览器 localStorage 里的 canvai.me，跨房间、跨刷新都不变。
+   */
+  private learner: string | null = null;
+
   private handleControl(socket: WebSocket, payload: Uint8Array): void {
+    // 谁在说话——每条控制消息都更新，辅导落盘时按它记
+    const speaker = this.clients.get(socket)?.user.id;
+    if (speaker) this.learner = speaker;
+
     let msg: ClientMessage;
     try {
       msg = ClientMessageSchema.parse(JSON.parse(new TextDecoder().decode(payload)));
@@ -479,6 +526,16 @@ export async function getRoom(id: string): Promise<Room> {
     rooms.set(id, room);
   }
   return room;
+}
+
+/**
+ * 已经开着的房间，没开就是 undefined。
+ *
+ * 刻意不像 getRoom 那样"没有就建一个"：列画布只是想看看，
+ * 顺手把二十几个房间全从磁盘加载进内存不是它该干的事。
+ */
+export function liveRoom(id: string): Room | undefined {
+  return rooms.get(id);
 }
 
 export async function closeIdleRooms(): Promise<void> {

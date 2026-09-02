@@ -1,5 +1,6 @@
 import { readFile, readdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { KnowledgePort } from '@canvai/agent';
 import {
   KnowledgeGraph,
@@ -24,8 +25,30 @@ import { blobs } from './blobs.ts';
 
 let graph: KnowledgeGraph | null = null;
 
-/** 图谱在磁盘上的位置。data/kg/*.json，一册教材一个文件 */
+/** 只喊一次，别把日志刷爆——它在一场辅导里会被调很多次 */
+let warnedNotReady = false;
+function warnNotReady(): void {
+  if (warnedNotReady) return;
+  warnedNotReady = true;
+  log.warn('kg.not_ready', {
+    note: '图谱还没装好，这次查询按"查不到"处理。这一场的掌握度不会被记录。',
+  });
+}
+
+/** 外部图谱数据的位置。data/kg/*.json，一册教材一个文件（K12-KGraph 下载到这里） */
 export const kgDir = (): string => join(config.dataDir, 'kg');
+
+/**
+ * 随代码一起走的图谱。
+ *
+ * 本科数学那份是本项目自建的（MIT），所以能直接入库；而 K12-KGraph 是
+ * CC BY-NC-SA，只能让人自己下载到 data/kg。两处都读，装到同一张图里。
+ *
+ * 分两个目录不是洁癖：许可证不同的数据混在一个目录里，迟早有人把不该
+ * 提交的那份提交上去。
+ */
+const bundledKgDir = (): string =>
+  join(dirname(fileURLToPath(import.meta.url)), '../../../packages/knowledge/data');
 
 /**
  * 读盘装图。
@@ -37,30 +60,40 @@ export const kgDir = (): string => join(config.dataDir, 'kg');
 export async function loadGraph(): Promise<KnowledgeGraph> {
   if (graph) return graph;
   const g = new KnowledgeGraph();
-  const dir = kgDir();
 
-  let files: string[] = [];
-  try {
-    files = (await readdir(dir)).filter((f) => f.endsWith('.json'));
-  } catch {
-    log.warn('kg.absent', { dir, hint: '跑 npx tsx scripts/fetch-kg.ts 把图谱拉下来' });
-    graph = g;
-    return g;
+  /** 某个目录下的所有 .json，目录不存在就当没有 */
+  const jsonIn = async (dir: string): Promise<string[]> => {
+    try {
+      return (await readdir(dir)).filter((f) => f.endsWith('.json')).map((f) => join(dir, f));
+    } catch {
+      return [];
+    }
+  };
+
+  const bundled = await jsonIn(bundledKgDir());
+  const external = await jsonIn(kgDir());
+
+  if (external.length === 0) {
+    // 不是错误：没下载 K12 数据的人照样能用本科那份和整块画布
+    log.warn('kg.k12_absent', {
+      dir: kgDir(),
+      hint: '想要初中/高中的图谱就跑 npx tsx scripts/fetch-kg.ts；本科那份随代码走，不用下载',
+    });
   }
 
-  for (const f of files) {
+  for (const path of [...bundled, ...external]) {
     try {
-      const raw = JSON.parse(await readFile(join(dir, f), 'utf8')) as unknown;
+      const raw = JSON.parse(await readFile(path, 'utf8')) as unknown;
       const n = g.load(raw);
-      log.info('kg.loaded', { file: f, ...n });
+      log.info('kg.loaded', { file: path.split('/').pop(), ...n });
     } catch (e) {
       // 一册坏了不该让其他册也进不来
-      log.error('kg.load_failed', { file: f, message: (e as Error).message });
+      log.error('kg.load_failed', { file: path, message: (e as Error).message });
     }
   }
 
   const s = g.stats();
-  log.info('kg.ready', { nodes: s.nodes, edges: s.edges, files: files.length });
+  log.info('kg.ready', { nodes: s.nodes, edges: s.edges, bundled: bundled.length, external: external.length });
   graph = g;
   return g;
 }
@@ -121,6 +154,16 @@ export class BlobLearnerStore implements LearnerStore {
 
 let store: LearnerStore | null = null;
 
+/**
+ * 已经装好的图谱，没装好就是 null——**不触发装载**。
+ *
+ * 列画布是个高频的只读操作，不该顺手把一万多个节点拉进内存；
+ * 装载由开机预热负责。没装好时列表就少显示几个知识点标签，不是错误。
+ */
+export function currentGraph(): KnowledgeGraph | null {
+  return graph;
+}
+
 export function learnerStore(): LearnerStore {
   if (!store) store = new BlobLearnerStore();
   return store;
@@ -144,11 +187,32 @@ export function setLearnerStore(s: LearnerStore | null): void {
  * search 是同步的（图在内存里，微秒级），record 是异步的（要落盘）。
  * 这个不对称是故意留在接口上的——查图随便查，写盘是有代价的。
  */
-export function makeKnowledgePort(learnerId: string): KnowledgePort {
+/**
+ * 掌握度是**跟着人**走的，不是跟着题走的。
+ *
+ * 早先这里传的是房间名——等于每换一张画布，这个学生就变成了另一个人，
+ * 之前做过的题全部作废。图谱本来要回答的是"这个学生哪块弱"，
+ * 按房间切开之后它只能回答"这张画布上发生过什么"，那没有意义。
+ *
+ * 收 getter 而不是字符串：AgentLoop 是每个房间建一次的，而说话的人
+ * 可能换（换个人接着用这张画布），学的是谁得在每次落盘时现问。
+ */
+export function makeKnowledgePort(learner: string | (() => string)): KnowledgePort {
+  const learnerId = typeof learner === 'function' ? learner : () => learner;
   return {
     search(query, limit = 5) {
       const g = graph;
-      if (!g) return []; // 还没装完就当没有，别把辅导卡住
+      if (!g) {
+        /**
+         * 还没装完就当没有，别把辅导卡住——但**必须留下痕迹**。
+         *
+         * 静默返回空数组曾经让整条掌握度主线死了都没人知道：辅导正常进行、
+         * 判定正常给出，只是一个知识点都没记上，而且不报错。
+         * 排查时看到的是"模型大概没带 conceptIds"，方向从一开始就是错的。
+         */
+        warnNotReady();
+        return [];
+      }
       return g.search(query, { limit }).map((n) => ({
         id: n.id,
         name: n.name,
@@ -157,6 +221,15 @@ export function makeKnowledgePort(learnerId: string): KnowledgePort {
           ? { definition: n.properties.definition }
           : {}),
       }));
+    },
+
+    mentions(text, limit = 5) {
+      const g = graph;
+      if (!g) {
+        warnNotReady();
+        return [];
+      }
+      return g.mentions(text, { limit }).map((n) => ({ id: n.id, name: n.name, label: n.label }));
     },
 
     prerequisites(id) {
@@ -169,14 +242,33 @@ export function makeKnowledgePort(learnerId: string): KnowledgePort {
       const g = await loadGraph();
       // 图里没有的不记：宁可少记，也不要在图谱上长出一堆幽灵节点
       const known = attempts.filter((a) => g.has(a.conceptId));
+
+      /**
+       * 但被丢掉这件事要留痕。
+       *
+       * K12-KGraph 只覆盖到高中，本科题（拉格朗日乘数法、特征值、幂级数、
+       * 重积分）大半不在图里。辅导照常跑完，掌握度却一条都没长——
+       * 静默丢弃的话，这看起来和"记录功能坏了"完全一样，
+       * 而实际上是"这道题超出了图谱范围"。这两者要采取的行动完全相反。
+       */
+      const dropped = attempts.length - known.length;
+      if (dropped > 0) {
+        log.info('kg.out_of_graph', {
+          learner: learnerId(),
+          dropped,
+          note: '这些知识点不在图谱里（K12-KGraph 覆盖到高中为止），不记掌握度',
+        });
+      }
+
       if (known.length === 0) return;
       const now = Date.now();
+      const who = learnerId();
       await recordAttempts(
         learnerStore(),
-        learnerId,
+        who,
         known.map((a) => ({ ...a, at: now })),
       );
-      log.info('kg.learned', { learner: learnerId, concepts: known.length });
+      log.info('kg.learned', { learner: who, concepts: known.length });
     },
   };
 }
